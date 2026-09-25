@@ -51,6 +51,20 @@ Para verificar o codigo com o linter:
 npm run lint
 ```
 
+Para executar os testes automatizados:
+
+``` bash
+npm test
+```
+
+Para gerar o relatorio de cobertura em `coverage/lcov.info`, que e o arquivo lido pelo SonarCloud:
+
+``` bash
+npm run test:coverage
+```
+
+Se os testes falharem com `Cannot find module` vindo do Babel, verifique o caminho do repositorio: a resolucao de plugins do Babel nao funciona quando algum diretorio do caminho tem acento, como a pasta `Area de trabalho` do Linux em portugues. Clone em um caminho sem acento, por exemplo `~/dev`.
+
 Se houver problemas relacionados ao cache do Expo, reinicie o servidor limpando-o:
 
 ``` bash
@@ -61,7 +75,7 @@ npx expo start --clear
 
 1. Crie uma branch a partir da branch principal do repositorio.
 2. Faca as alteracoes no aplicativo em `aplicativo/projeto-unieuro/`.
-3. Execute `npm run lint` dentro dessa pasta.
+3. Execute `npm run lint` e `npm test` dentro dessa pasta.
 4. Abra um Pull Request seguindo as orientacoes de contribuicao do repositorio.
 
 ## Licenca
