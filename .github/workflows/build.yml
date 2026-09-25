@@ -6,6 +6,12 @@ on:
       - develop
   pull_request:
     types: [opened, synchronize, reopened]
+
+# O projeto Expo não fica na raiz do repositório.
+defaults:
+  run:
+    working-directory: aplicativo/projeto-unieuro
+
 jobs:
   sonarqube:
     name: SonarQube
@@ -14,7 +20,27 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Configurar o Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: aplicativo/projeto-unieuro/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # O job falha aqui quando algum teste quebra, antes de chegar ao Sonar.
+      - name: Executar os testes com cobertura
+        run: npm run test:coverage
+
+      # A base da análise é a pasta do projeto Expo, e não a raiz do repositório.
+      # É lá que está o sonar-project.properties e é a raiz que o relatório de
+      # cobertura usa nos caminhos dos arquivos.
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+        with:
+          projectBaseDir: aplicativo/projeto-unieuro
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
