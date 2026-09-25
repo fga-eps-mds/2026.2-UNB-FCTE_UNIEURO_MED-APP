@@ -1,6 +1,6 @@
-﻿import '@/global.css';
+import '@/global.css';
 
-export const BrandColors = {
+export const BrandPalette = {
   mnemaOrange: '#9A3412',
   deepWine: '#7F1D1D',
   lightPeach: '#FFE8D6',
@@ -11,34 +11,31 @@ export const BrandColors = {
 
 export const Colors = {
   light: {
-    primary: BrandColors.mnemaOrange,
-    primaryStrong: BrandColors.deepWine,
-    onPrimary: BrandColors.white,
-    text: BrandColors.midnight,
-    textSecondary: BrandColors.midnight,
-    background: BrandColors.white,
-    surface: BrandColors.white,
-    field: BrandColors.lightPeach,
-    border: BrandColors.midnight,
-    placeholder: BrandColors.midnight,
-    accentSurface: BrandColors.cream,
+    primary: '#9A3412',
+    onPrimary: '#ffffff',
+    text: '#0F172A',
+    textSecondary: '#475569',
+    background: '#E9ECFA',
+    surface: '#ffffff',
+    field: '#F3F4FB',
+    border: '#C7D2E5',
+    placeholder: '#94A3B8',
   },
   dark: {
-    primary: BrandColors.mnemaOrange,
-    primaryStrong: BrandColors.deepWine,
-    onPrimary: BrandColors.white,
-    text: BrandColors.white,
-    textSecondary: BrandColors.lightPeach,
-    background: BrandColors.midnight,
-    surface: BrandColors.deepWine,
-    field: BrandColors.deepWine,
-    border: BrandColors.lightPeach,
-    placeholder: BrandColors.lightPeach,
-    accentSurface: BrandColors.cream,
+    primary: '#9A3412',
+    onPrimary: '#ffffff',
+    text: '#ffffff',
+    textSecondary: '#CBD5E1',
+    background: '#0F172A',
+    surface: '#1E293B',
+    field: '#334155',
+    border: '#475569',
+    placeholder: '#CBD5E1',
   },
 } as const;
 
 export type ThemeColors = (typeof Colors)[keyof typeof Colors];
+export type ThemeMode = 'system' | keyof typeof Colors;
 
 export const FontFamilies = {
   regular: 'Inter_400Regular',
