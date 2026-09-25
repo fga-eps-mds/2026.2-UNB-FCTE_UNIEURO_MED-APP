@@ -11,10 +11,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [focused, setFocused] = useState<'email' | 'password' | null>(null);
@@ -138,7 +140,7 @@ export default function LoginScreen() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => showPending('Criar conta')}
+                  onPress={() => router.push('/register')}
                   style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
                   <Text style={styles.actionText}>CRIAR CONTA</Text>
                 </Pressable>
