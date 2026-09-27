@@ -145,7 +145,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
 
   const submitRegistration = async () => {
     const input = toRegistrationInput(values);
-    const errors = collectRegistrationErrors(input);
+    const errors = collectRegistrationErrors(input, values.cpf);
     if (errors.length > 0) return showFailure(errors.join('\n'));
 
     const validation = validateRegistration(input);

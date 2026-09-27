@@ -85,23 +85,20 @@ export function validateRegistration(input: RegistrationInput): Validation {
   };
 }
 
-/**
- * Reúne todas as mensagens de validação aplicáveis ao input, sem retornar
- * imediatamente ao primeiro erro. Útil para apresentar vários avisos de uma
- * vez na interface.
- */
-export function collectRegistrationErrors(input: RegistrationInput): string[] {
-  const errors: string[] = [];
+export function collectRegistrationErrors(input: RegistrationInput, cpf?: string): string[] {
 
+  const errors: string[] = [];
   const name = input.name.trim();
   const email = input.email.trim();
   const crmRaw = input.crm.trim();
+  const cpfRaw = (cpf ?? '').trim();
   const password = input.password;
   const passwordConfirmation = input.passwordConfirmation;
 
   if (name.length === 0) errors.push('Preencha o nome.');
   if (email.length === 0) errors.push('Preencha o e-mail.');
   if (crmRaw.length === 0) errors.push('Preencha o CRM.');
+  if (cpfRaw.length === 0) errors.push('Preencha o CPF.');
   if (password.length === 0) errors.push('Preencha a senha.');
   if (passwordConfirmation.length === 0) errors.push('Preencha a confirmação de senha.');
 
