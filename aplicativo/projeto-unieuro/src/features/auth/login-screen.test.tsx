@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import LoginScreen  from '@/features/auth/login-screen';
 
-import LoginScreen from '@/features/auth/login-screen';
+jest.mock('@/features/auth/password', () => ({
+  verifyPassword: jest.fn().mockImplementation(async (senha) => senha !== 'senhaerrada'),
+}));
 
 describe('LoginScreen', () => {
   it('apresenta o nome do produto como cabeçalho', () => {
@@ -11,13 +14,6 @@ describe('LoginScreen', () => {
     expect(screen.getByRole('header', { name: 'MNEMA' })).toBeOnTheScreen();
   });
 
-  /**
-   * Os campos declaram `accessibilityLabel` e, no Android, também
-   * `accessibilityLabelledBy`. Quando os dois existem, o Android usa o segundo,
-   * então o nome anunciado é o do rótulo visível, em maiúsculas, e não o texto
-   * de `accessibilityLabel`. Como o produto roda só em Android, é esse o nome
-   * que os testes verificam.
-   */
   it('identifica os campos para leitores de tela', () => {
     render(<LoginScreen />);
 
@@ -67,10 +63,7 @@ describe('LoginScreen', () => {
     expect(useRouter().push).toHaveBeenCalledWith('/register');
   });
 
-  /**
-   * A autenticação ainda não existe. Enquanto não existir, o botão avisa que a
-   * funcionalidade está pendente, e nenhuma navegação pode acontecer.
-   */
+
   it('avisa que o acesso ainda não está conectado', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const user = userEvent.setup();
@@ -92,11 +85,6 @@ describe('LoginScreen', () => {
     expect(alerta).toHaveBeenCalledWith('Esqueci minha senha', expect.any(String));
   });
 
-  /**
-   * A tela mede a própria área com `onLayout` em vez de confiar apenas nas
-   * dimensões da janela, porque em tablet a janela pode não refletir o espaço
-   * disponível. Não há `testID` no `ScrollView`, por isso a busca por tipo.
-   */
   describe('medição da área disponível', () => {
     function dispararLayout(width: number, height: number) {
       fireEvent(screen.UNSAFE_getByType(ScrollView), 'layout', {
@@ -121,10 +109,7 @@ describe('LoginScreen', () => {
       expect(screen.getByRole('header', { name: 'MNEMA' })).toHaveStyle({ fontSize: 36 });
     });
 
-    /**
-     * Sem a comparação com o estado anterior, cada `onLayout` gravaria um novo
-     * objeto, o que dispara nova renderização e novo `onLayout`, em laço.
-     */
+
     it('mantém a disposição quando a mesma medida chega de novo', () => {
       render(<LoginScreen />);
 
@@ -134,4 +119,147 @@ describe('LoginScreen', () => {
       expect(screen.getByRole('header', { name: 'MNEMA' })).toHaveStyle({ fontSize: 42 });
     });
   });
-});
+
+  describe('fluxo de autenticação real', () => {
+    it('alerta se tentar entrar com campos em branco', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const user = userEvent.setup();
+      render(<LoginScreen />);
+
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+      expect(alerta).toHaveBeenCalledWith('Entrar', expect.any(String));
+    });
+
+    it('realiza o login com sucesso quando o repositório encontra o profissional', async () => {
+      const mockRepository = {
+        findByEmail: jest.fn().mockResolvedValue({
+          id: '1',
+          name: 'Doutor Teste',
+          email: 'teste@unieuro.com.br',
+          crm: '12345/DF',
+          passwordHash: 'hash_valido',
+        }),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha1234');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(mockRepository.findByEmail).toHaveBeenCalledWith('teste@unieuro.com.br');
+    });
+
+    it('alerta quando o e-mail não é encontrado no repositório', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const mockRepository = {
+        findByEmail: jest.fn().mockResolvedValue(null),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'naoexiste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha1234');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail não cadastrado.');
+    });
+
+    it('alerta quando a senha está incorreta', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const mockRepository = {
+        findByEmail: jest.fn().mockResolvedValue({
+          id: '1',
+          name: 'Doutor Teste',
+          email: 'teste@unieuro.com.br',
+          crm: '12345/DF',
+          passwordHash: 'hash_valido',
+        }),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senhaerrada');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
+    });
+
+    it('realiza o login com sucesso e navega para a rota principal', async () => {
+      const mockRepository = {
+        findByEmail: jest.fn().mockResolvedValue({
+          id: '1',
+          name: 'Doutor Teste',
+          email: 'teste@unieuro.com.br',
+          crm: '12345/DF',
+          passwordHash: 'hash_valido',
+        }),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha_correta');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(useRouter().replace).toHaveBeenCalledWith('/');
+    });
+    it('alerta se ocorrer um erro inesperado no repositório', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const consoleErro = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      
+      const mockRepository = {
+        findByEmail: jest.fn().mockRejectedValue(new Error('Erro de base de dados')),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha1234');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(alerta).toHaveBeenCalledWith('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
+      
+      consoleErro.mockRestore(); 
+    });
+
+    it('impede cliques repetidos enquanto o carregamento está ativo', async () => {
+      const mockRepository = {
+        findByEmail: jest.fn().mockReturnValue(new Promise(() => {})), 
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha1234');
+      
+      const botao = screen.getByRole('button', { name: 'ENTRAR' });
+      await user.press(botao); 
+      await user.press(botao); 
+
+      expect(mockRepository.findByEmail).toHaveBeenCalledTimes(1);
+    });
+    it('alerta se tentar entrar com campos em branco mesmo com repositório fornecido', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const mockRepository = {
+        findByEmail: jest.fn(),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(alerta).toHaveBeenCalledWith('Login', 'Preencha e-mail e senha para continuar.');
+      expect(mockRepository.findByEmail).not.toHaveBeenCalled();
+    });
+  });
+}); 
+

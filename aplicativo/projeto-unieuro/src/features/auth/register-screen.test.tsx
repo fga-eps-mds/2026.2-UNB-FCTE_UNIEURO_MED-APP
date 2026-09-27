@@ -73,7 +73,7 @@ describe('RegisterScreen', () => {
 
       expect(alerta).toHaveBeenCalledWith(
         'Cadastro não concluído',
-        'Preencha todos os campos para continuar.',
+        expect.stringContaining('Preencha o nome.'),
       );
     });
 
@@ -91,7 +91,7 @@ describe('RegisterScreen', () => {
 
       expect(alerta).toHaveBeenCalledWith(
         'Cadastro não concluído',
-        'Preencha todos os campos para continuar.',
+        expect.stringContaining('Preencha o CPF.'),
       );
     });
 
@@ -107,7 +107,7 @@ describe('RegisterScreen', () => {
 
       expect(alerta).toHaveBeenCalledWith(
         'Cadastro não concluído',
-        'Preencha todos os campos para continuar.',
+        expect.stringContaining('Preencha o CRM.'),
       );
     });
 

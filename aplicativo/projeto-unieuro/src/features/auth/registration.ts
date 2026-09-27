@@ -85,6 +85,37 @@ export function validateRegistration(input: RegistrationInput): Validation {
   };
 }
 
+export function collectRegistrationErrors(input: RegistrationInput, cpf?: string): string[] {
+
+  const errors: string[] = [];
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const crmRaw = input.crm.trim();
+  const cpfRaw = (cpf ?? '').trim();
+  const password = input.password;
+  const passwordConfirmation = input.passwordConfirmation;
+
+  if (name.length === 0) errors.push('Preencha o nome.');
+  if (email.length === 0) errors.push('Preencha o e-mail.');
+  if (crmRaw.length === 0) errors.push('Preencha o CRM.');
+  if (cpfRaw.length === 0) errors.push('Preencha o CPF.');
+  if (password.length === 0) errors.push('Preencha a senha.');
+  if (passwordConfirmation.length === 0) errors.push('Preencha a confirmação de senha.');
+
+  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.push('Informe um e-mail válido.');
+
+  const crm = parseCrm(crmRaw);
+  if (crmRaw.length > 0 && !crm) errors.push('Informe o CRM no formato 12345/DF.');
+
+  if (password.length > 0 && password.length < MIN_PASSWORD_LENGTH)
+    errors.push(`A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+
+  if (password.length > 0 && passwordConfirmation.length > 0 && password !== passwordConfirmation)
+    errors.push('Confira a senha e a confirmação.');
+
+  return errors;
+}
+
 export async function registerProfessional(
   { name, email, crm, password }: ValidRegistration,
   repository: ProfessionalRepository,

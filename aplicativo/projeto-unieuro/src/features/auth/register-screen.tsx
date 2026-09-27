@@ -18,6 +18,7 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   registerProfessional,
   validateRegistration,
+  collectRegistrationErrors,
   type ProfessionalRepository,
   type RegistrationInput,
 } from '@/features/auth/registration';
@@ -143,9 +144,11 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
   };
 
   const submitRegistration = async () => {
-    if (values.cpf.trim().length === 0) return showFailure('Preencha todos os campos para continuar.');
+    const input = toRegistrationInput(values);
+    const errors = collectRegistrationErrors(input, values.cpf);
+    if (errors.length > 0) return showFailure(errors.join('\n'));
 
-    const validation = validateRegistration(toRegistrationInput(values));
+    const validation = validateRegistration(input);
     if (!validation.valid) return showFailure(validation.message);
 
     if (!repository) {
