@@ -15,9 +15,10 @@ import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
 import type { ProfessionalRepository } from '@/features/auth/registration';
+import type { SqliteProfessionalRepository } from '@/db/professional-repository';
 import { verifyPassword } from '@/features/auth/password';
 
-type LoginScreenProps = { repository?: ProfessionalRepository };
+type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
 
 export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();

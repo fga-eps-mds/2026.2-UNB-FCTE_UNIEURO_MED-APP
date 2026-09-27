@@ -1,12 +1,13 @@
 import { renderHook } from '@testing-library/react-native';
 import { useColorScheme } from 'react-native';
+import type { ColorSchemeName } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme');
 
-const mockedUseColorScheme = useColorScheme as jest.MockedFunction<typeof useColorScheme>;
+const mockedUseColorScheme = useColorScheme as jest.MockedFunction<() => ColorSchemeName | null>;
 
 describe('useTheme', () => {
   it('devolve a paleta clara quando nenhum modo é informado', () => {
