@@ -14,8 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
+import type { ProfessionalRepository } from '@/features/auth/registration';
+import { verifyPassword } from '@/features/auth/password';
 
-export default function LoginScreen() {
+type LoginScreenProps = { repository?: ProfessionalRepository };
+
+export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,9 +39,51 @@ export default function LoginScreen() {
   } = getLoginLayout(width, height);
   const theme = useTheme();
   const styles = useMemo(() => createLoginStyles(theme), [theme]);
+  const [loading, setLoading] = useState(false);
 
   const showPending = (action: string) =>
     Alert.alert(action, 'Esta funcionalidade sera conectada em uma proxima etapa.');
+
+  async function handleLogin() {
+    if (loading) return;
+
+    // Se não houver camada de acesso ao banco fornecida, a funcionalidade
+    // de autenticação está pendente — manter o alerta placeholder.
+    if (!repository) {
+      showPending('Entrar');
+      return;
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || password.length === 0) {
+      Alert.alert('Login', 'Preencha e-mail e senha para continuar.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const professional = await repository.findByEmail(trimmedEmail);
+      if (!professional) {
+        Alert.alert('Login', 'E-mail não cadastrado.');
+        return;
+      }
+
+      const ok = await verifyPassword(password, professional.passwordHash);
+      if (!ok) {
+        Alert.alert('Login', 'E-mail ou senha inválidos.');
+        return;
+      }
+
+      // Autenticação bem-sucedida — navegar para a tela principal
+      router.replace('/');
+    } catch (error) {
+      Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
+      // eslint-disable-next-line no-console
+      console.error('Login error', error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -126,9 +172,10 @@ export default function LoginScreen() {
 
               <Pressable
                 accessibilityRole="button"
-                onPress={() => showPending('Entrar')}
-                style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}>
-                <Text style={styles.loginText}>ENTRAR</Text>
+                onPress={handleLogin}
+                style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}
+                accessibilityState={{ busy: loading }}>
+                <Text style={styles.loginText}>{loading ? 'ENTRANDO...' : 'ENTRAR'}</Text>
               </Pressable>
 
               <View style={styles.actions}>
