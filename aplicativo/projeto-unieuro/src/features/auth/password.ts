@@ -8,6 +8,19 @@ const ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const KEY_BYTES = 32;
 
+/**
+ * Hash de formato válido, mas de nenhuma senha real. Usado para rodar
+ * `verifyPassword` mesmo quando o e-mail não existe, igualando o tempo de
+ * resposta ao de um login com e-mail existente e evitando que a diferença de
+ * tempo revele quais e-mails estão cadastrados.
+ */
+export const DUMMY_PASSWORD_HASH = [
+  ALGORITHM,
+  ITERATIONS,
+  '0'.repeat(SALT_BYTES * 2),
+  '0'.repeat(KEY_BYTES * 2),
+].join('$');
+
 function deriveKey(password: string, salt: Uint8Array, iterations: number) {
   return pbkdf2Async(sha256, password, salt, { c: iterations, dkLen: KEY_BYTES });
 }

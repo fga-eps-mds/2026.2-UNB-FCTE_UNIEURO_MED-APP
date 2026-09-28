@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import LoginScreen  from '@/features/auth/login-screen';
 
 jest.mock('@/features/auth/password', () => ({
-  verifyPassword: jest.fn().mockImplementation(async (senha) => senha !== 'senhaerrada'),
+  DUMMY_PASSWORD_HASH: 'dummy-hash',
+  verifyPassword: jest.fn().mockImplementation(async (senha, hash) => hash !== 'dummy-hash' && senha !== 'senhaerrada'),
 }));
 
 describe('LoginScreen', () => {
@@ -151,7 +152,9 @@ describe('LoginScreen', () => {
       expect(mockRepository.findByEmail).toHaveBeenCalledWith('teste@unieuro.com.br');
     });
 
-    it('alerta quando o e-mail não é encontrado no repositório', async () => {
+    it('alerta com mensagem genérica quando o e-mail não é encontrado no repositório', async () => {
+      // A mensagem é a mesma de senha incorreta, de propósito: evita que a tela
+      // revele quais e-mails estão cadastrados (enumeração de e-mail).
       const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const mockRepository = {
         findByEmail: jest.fn().mockResolvedValue(null),
@@ -164,7 +167,7 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senha1234');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail não cadastrado.');
+      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
     });
 
     it('alerta quando a senha está incorreta', async () => {

@@ -16,7 +16,7 @@ import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles'
 import { useTheme } from '@/hooks/use-theme';
 import type { ProfessionalRepository } from '@/features/auth/registration';
 import type { SqliteProfessionalRepository } from '@/db/professional-repository';
-import { verifyPassword } from '@/features/auth/password';
+import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
 
 type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
 
@@ -64,13 +64,16 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
     try {
       setLoading(true);
       const professional = await repository.findByEmail(trimmedEmail);
-      if (!professional) {
-        Alert.alert('Login', 'E-mail não cadastrado.');
-        return;
-      }
 
-      const ok = await verifyPassword(password, professional.passwordHash);
-      if (!ok) {
+      // Roda verifyPassword mesmo quando o e-mail não existe (contra um hash
+      // fixo), para que o tempo de resposta não denuncie quais e-mails estão
+      // cadastrados. A mensagem também é a mesma nos dois casos, pelo mesmo
+      // motivo (evitar enumeração de e-mail).
+      const ok = professional
+        ? await verifyPassword(password, professional.passwordHash)
+        : await verifyPassword(password, DUMMY_PASSWORD_HASH).then(() => false);
+
+      if (!professional || !ok) {
         Alert.alert('Login', 'E-mail ou senha inválidos.');
         return;
       }
