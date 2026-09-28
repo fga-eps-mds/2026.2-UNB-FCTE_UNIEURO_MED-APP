@@ -116,6 +116,7 @@ const toRegistrationInput = (formValues: RegisterValues): RegistrationInput => (
   name: formValues.fullName,
   email: formValues.email,
   crm: formValues.crm,
+  cpf: formValues.cpf,
   password: formValues.password,
   passwordConfirmation: formValues.confirmPassword,
 });
@@ -145,7 +146,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
 
   const submitRegistration = async () => {
     const input = toRegistrationInput(values);
-    const errors = collectRegistrationErrors(input, values.cpf);
+    const errors = collectRegistrationErrors(input);
     if (errors.length > 0) return showFailure(errors.join('\n'));
 
     const validation = validateRegistration(input);

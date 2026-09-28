@@ -1,4 +1,5 @@
 import {
+  parseCpf,
   parseCrm,
   registerProfessional,
   validateRegistration,
@@ -15,14 +16,16 @@ const validInput: RegistrationInput = {
   name: '  Ana Carolina Souza ',
   email: ' Ana.Souza@Unieuro.com.br ',
   crm: '12345/df',
+  cpf: '111.444.777-35',
   password: 'senhaForte123',
   passwordConfirmation: 'senhaForte123',
 };
 
-function createRepository(existing: { email?: boolean; crm?: boolean } = {}) {
+function createRepository(existing: { email?: boolean; crm?: boolean; cpf?: boolean } = {}) {
   return {
     emailExists: jest.fn(async () => existing.email ?? false),
     crmExists: jest.fn(async () => existing.crm ?? false),
+    cpfExists: jest.fn(async () => existing.cpf ?? false),
     insert: jest.fn(async () => undefined),
   } satisfies ProfessionalRepository;
 }
@@ -42,14 +45,34 @@ describe('parseCrm', () => {
   });
 });
 
+describe('parseCpf', () => {
+  it.each([
+    ['111.444.777-35', '11144477735'],
+    ['11144477735', '11144477735'],
+    ['  111.444.777-35  ', '11144477735'],
+  ])('aceita "%s"', (input, expected) => {
+    expect(parseCpf(input)).toBe(expected);
+  });
+
+  it.each([
+    ['111.444.777-30', 'dígito verificador errado'],
+    ['111.444.777', 'quantidade de dígitos errada'],
+    ['000.000.000-00', 'todos os dígitos iguais'],
+    ['', 'vazio'],
+  ])('recusa "%s" (%s)', (input) => {
+    expect(parseCpf(input)).toBeNull();
+  });
+});
+
 describe('validateRegistration', () => {
-  it('normaliza nome, e-mail e CRM de um cadastro válido', () => {
+  it('normaliza nome, e-mail, CRM e CPF de um cadastro válido', () => {
     expect(validateRegistration(validInput)).toEqual({
       valid: true,
       registration: {
         name: 'Ana Carolina Souza',
         email: 'ana.souza@unieuro.com.br',
         crm: { number: '12345', state: 'DF' },
+        cpf: '11144477735',
         password: 'senhaForte123',
       },
     });
@@ -59,6 +82,7 @@ describe('validateRegistration', () => {
     ['nome vazio', { name: '   ' }, 'Preencha todos os campos para continuar.'],
     ['e-mail sem domínio', { email: 'ana.souza' }, 'Informe um e-mail válido.'],
     ['CRM sem UF', { crm: '12345' }, 'Informe o CRM no formato 12345/DF.'],
+    ['CPF com dígito verificador errado', { cpf: '111.444.777-30' }, 'Informe um CPF válido.'],
     [
       'senha curta',
       { password: 'curta', passwordConfirmation: 'curta' },
@@ -79,6 +103,7 @@ describe('registerProfessional', () => {
     name: 'Ana Carolina Souza',
     email: 'ana.souza@unieuro.com.br',
     crm: { number: '12345', state: 'DF' },
+    cpf: '11144477735',
     password: 'senhaForte123',
   };
 
@@ -98,11 +123,13 @@ describe('registerProfessional', () => {
     });
     expect(repository.emailExists).toHaveBeenCalledWith('ana.souza@unieuro.com.br');
     expect(repository.crmExists).toHaveBeenCalledWith('12345', 'DF');
+    expect(repository.cpfExists).toHaveBeenCalledWith('11144477735');
     expect(repository.insert).toHaveBeenCalledWith({
       name: 'Ana Carolina Souza',
       email: 'ana.souza@unieuro.com.br',
       crmNumber: '12345',
       crmState: 'DF',
+      cpf: '11144477735',
       passwordHash: 'hash-da-senha',
       createdAt: '2026-09-26T13:00:00.000Z',
     });
@@ -111,6 +138,7 @@ describe('registerProfessional', () => {
   it.each([
     ['e-mail já cadastrado', { email: true }, 'Já existe um profissional cadastrado com este e-mail.'],
     ['CRM já cadastrado', { crm: true }, 'Já existe um profissional cadastrado com este CRM.'],
+    ['CPF já cadastrado', { cpf: true }, 'Já existe um profissional cadastrado com este CPF.'],
   ])('não insere quando há %s', async (_case, existing, message) => {
     const repository = createRepository(existing);
 

@@ -15,6 +15,7 @@ function criarRepositorio(
   return {
     emailExists: jest.fn(async () => false),
     crmExists: jest.fn(async () => false),
+    cpfExists: jest.fn(async () => false),
     insert: jest.fn(async () => undefined),
     ...sobrescritas,
   };
@@ -29,7 +30,7 @@ async function preencherFormulario(
   await user.type(screen.getByLabelText('NOME COMPLETO'), 'Ana Carolina Souza');
   await user.type(screen.getByLabelText('E-MAIL'), 'ana.souza@unieuro.com.br');
   await user.type(screen.getByLabelText('CRM'), '12345/DF');
-  await user.type(screen.getByLabelText('CPF'), '000.000.000-00');
+  await user.type(screen.getByLabelText('CPF'), '111.444.777-35');
   await user.type(screen.getByLabelText('SENHA'), senha);
   await user.type(screen.getByLabelText('CONFIRMAR SENHA'), confirmacao);
 }
@@ -152,6 +153,7 @@ describe('RegisterScreen', () => {
           email: 'ana.souza@unieuro.com.br',
           crmNumber: '12345',
           crmState: 'DF',
+          cpf: '11144477735',
           passwordHash: 'hash-da-senha',
         }),
       );

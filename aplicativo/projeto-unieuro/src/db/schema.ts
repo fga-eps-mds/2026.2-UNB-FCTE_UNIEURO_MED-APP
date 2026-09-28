@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS profissional (
     email TEXT NOT NULL COLLATE NOCASE UNIQUE,
     crm_numero TEXT NOT NULL,
     uf_crm TEXT NOT NULL,
+    cpf TEXT NOT NULL UNIQUE,
     senha_hash TEXT NOT NULL,
     criacao TEXT NOT NULL,
     last_update TEXT NOT NULL,
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS profissional (
     CHECK (length(trim(crm_numero)) > 0),
     CHECK (crm_numero NOT GLOB '*[^0-9]*'),
     CHECK (uf_crm GLOB '[A-Z][A-Z]'),
+    CHECK (cpf GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
     CHECK (length(trim(senha_hash)) > 0)
 );
 `;

@@ -7,6 +7,7 @@ export type ProfessionalInsert = {
   email: string;
   crmNumber: string;
   crmState: string;
+  cpf: string;
   passwordHash: string;
   createdAt: string;
 };
@@ -17,6 +18,7 @@ export type Professional = {
   email: string;
   crmNumber: string;
   crmState: string;
+  cpf: string;
   passwordHash: string;
   createdAt: string;
   updatedAt: string;
@@ -29,6 +31,7 @@ type ProfessionalRow = {
   email: string;
   crm_numero: string;
   uf_crm: string;
+  cpf: string;
   senha_hash: string;
   criacao: string;
   last_update: string;
@@ -36,7 +39,7 @@ type ProfessionalRow = {
 };
 
 const SELECT_PROFESSIONAL =
-  'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo FROM profissional';
+  'SELECT id, nome, email, crm_numero, uf_crm, cpf, senha_hash, criacao, last_update, ativo FROM profissional';
 
 const toProfessional = (row: ProfessionalRow): Professional => ({
   id: row.id,
@@ -44,6 +47,7 @@ const toProfessional = (row: ProfessionalRow): Professional => ({
   email: row.email,
   crmNumber: row.crm_numero,
   crmState: row.uf_crm,
+  cpf: row.cpf,
   passwordHash: row.senha_hash,
   createdAt: row.criacao,
   updatedAt: row.last_update,
@@ -86,16 +90,25 @@ export function createProfessionalRepository(open: () => Promise<SQLiteDatabase>
       return row !== null;
     },
 
+    async cpfExists(cpf: string): Promise<boolean> {
+      const database = await open();
+      const row = await database.getFirstAsync('SELECT 1 FROM profissional WHERE cpf = ? LIMIT 1', [
+        cpf,
+      ]);
+      return row !== null;
+    },
+
     async insert(professional: ProfessionalInsert): Promise<void> {
       const database = await open();
       await database.runAsync(
-        `INSERT INTO profissional (nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf, senha_hash, criacao, last_update)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           professional.name,
           professional.email,
           professional.crmNumber,
           professional.crmState,
+          professional.cpf,
           professional.passwordHash,
           professional.createdAt,
           professional.createdAt,

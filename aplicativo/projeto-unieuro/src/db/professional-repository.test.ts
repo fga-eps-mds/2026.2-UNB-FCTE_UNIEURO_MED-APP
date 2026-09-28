@@ -13,6 +13,7 @@ const row = {
   email: 'ana.souza@unieuro.com.br',
   crm_numero: '12345',
   uf_crm: 'DF',
+  cpf: '11144477735',
   senha_hash: 'hash-da-senha',
   criacao: '2026-09-26T13:00:00.000Z',
   last_update: '2026-09-26T13:00:00.000Z',
@@ -69,6 +70,21 @@ describe('crmExists', () => {
   });
 });
 
+describe('cpfExists', () => {
+  it.each([
+    ['existe', { 1: 1 }, true],
+    ['não existe', null, false],
+  ])('informa quando o CPF %s', async (_case, firstRow, expected) => {
+    const database = createDatabase(firstRow);
+
+    await expect(createRepository(database).cpfExists('11144477735')).resolves.toBe(expected);
+    expect(database.getFirstAsync).toHaveBeenCalledWith(
+      'SELECT 1 FROM profissional WHERE cpf = ? LIMIT 1',
+      ['11144477735'],
+    );
+  });
+});
+
 describe('insert', () => {
   it('grava o profissional com a data de criação nas duas datas', async () => {
     const database = createDatabase();
@@ -78,19 +94,21 @@ describe('insert', () => {
       email: 'ana.souza@unieuro.com.br',
       crmNumber: '12345',
       crmState: 'DF',
+      cpf: '11144477735',
       passwordHash: 'hash-da-senha',
       createdAt: '2026-09-26T13:00:00.000Z',
     });
 
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining(
-        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update)',
+        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf, senha_hash, criacao, last_update)',
       ),
       [
         'Ana Carolina Souza',
         'ana.souza@unieuro.com.br',
         '12345',
         'DF',
+        '11144477735',
         'hash-da-senha',
         '2026-09-26T13:00:00.000Z',
         '2026-09-26T13:00:00.000Z',
@@ -106,6 +124,7 @@ describe('consultas', () => {
     email: 'ana.souza@unieuro.com.br',
     crmNumber: '12345',
     crmState: 'DF',
+    cpf: '11144477735',
     passwordHash: 'hash-da-senha',
     createdAt: '2026-09-26T13:00:00.000Z',
     updatedAt: '2026-09-26T13:00:00.000Z',
