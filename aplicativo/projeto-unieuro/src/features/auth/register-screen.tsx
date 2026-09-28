@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -14,6 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useTheme } from '@/hooks/use-theme';
+import {
+  registerProfessional,
+  validateRegistration,
+  collectRegistrationErrors,
+  type ProfessionalRepository,
+  type RegistrationInput,
+} from '@/features/auth/registration';
 import { createRegisterStyles, getRegisterLayout } from '@/features/auth/register.styles';
 
 type RegisterValues = {
@@ -104,7 +112,22 @@ const fieldRows: {
   ],
 ];
 
-export default function RegisterScreen() {
+const toRegistrationInput = (formValues: RegisterValues): RegistrationInput => ({
+  name: formValues.fullName,
+  email: formValues.email,
+  crm: formValues.crm,
+  cpf: formValues.cpf,
+  password: formValues.password,
+  passwordConfirmation: formValues.confirmPassword,
+});
+
+const showFailure = (message: string) => Alert.alert('Cadastro não concluído', message);
+
+type RegisterScreenProps = {
+  repository?: ProfessionalRepository;
+};
+
+export default function RegisterScreen({ repository }: RegisterScreenProps) {
   const router = useRouter();
   const theme = useTheme();
   const styles = useMemo(() => createRegisterStyles(theme), [theme]);
@@ -115,26 +138,37 @@ export default function RegisterScreen() {
   const layout = getRegisterLayout(width, height);
   const [values, setValues] = useState(initialValues);
   const [focusedField, setFocusedField] = useState<keyof RegisterValues | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const updateValue = (name: keyof RegisterValues, value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
   };
 
-  const submitRegistration = () => {
-    if (Object.values(values).some((value) => value.trim().length === 0)) {
-      Alert.alert('Cadastro incompleto', 'Preencha todos os campos para continuar.');
+  const submitRegistration = async () => {
+    const input = toRegistrationInput(values);
+    const errors = collectRegistrationErrors(input);
+    if (errors.length > 0) return showFailure(errors.join('\n'));
+
+    const validation = validateRegistration(input);
+    if (!validation.valid) return showFailure(validation.message);
+
+    if (!repository) {
+      Alert.alert('Cadastro', 'O cadastro será conectado ao banco de dados em uma próxima etapa.');
       return;
     }
 
-    if (values.password !== values.confirmPassword) {
-      Alert.alert('Senhas diferentes', 'Confira a senha e a confirmação.');
-      return;
-    }
+    setSubmitting(true);
+    try {
+      const result = await registerProfessional(validation.registration, repository);
+      if (!result.success) return showFailure(result.message);
 
-    Alert.alert(
-      'Cadastro',
-      'O cadastro sera conectado ao servico da aplicacao em uma proxima etapa.',
-    );
+      Alert.alert('Cadastro concluído', 'Entre com o e-mail e a senha cadastrados.');
+      router.replace('/');
+    } catch {
+      showFailure('Não foi possível salvar o cadastro. Tente novamente.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -232,10 +266,20 @@ export default function RegisterScreen() {
               ))}
 
               <Pressable
+                accessibilityLabel="CRIAR CONTA"
                 accessibilityRole="button"
+                accessibilityState={{ busy: submitting, disabled: submitting }}
+                disabled={submitting}
                 onPress={submitRegistration}
-                style={({ pressed }) => [styles.submitButton, pressed && styles.pressed]}>
-                <Text style={styles.submitText}>CRIAR CONTA</Text>
+                style={({ pressed }) => [
+                  styles.submitButton,
+                  (pressed || submitting) && styles.pressed,
+                ]}>
+                {submitting ? (
+                  <ActivityIndicator color={theme.onPrimary} />
+                ) : (
+                  <Text style={styles.submitText}>CRIAR CONTA</Text>
+                )}
               </Pressable>
             </View>
 
