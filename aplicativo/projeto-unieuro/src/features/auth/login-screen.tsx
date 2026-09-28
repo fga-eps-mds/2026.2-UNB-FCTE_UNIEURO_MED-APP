@@ -76,7 +76,7 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       }
 
       // Autenticação bem-sucedida — navegar para a tela principal
-      router.replace('/');
+      router.replace('/menu');
     } catch (error) {
       Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
       // eslint-disable-next-line no-console
@@ -202,5 +202,3 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
     </SafeAreaView>
   );
 }
-
-
