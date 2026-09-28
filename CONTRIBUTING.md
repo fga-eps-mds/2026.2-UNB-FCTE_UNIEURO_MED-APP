@@ -42,6 +42,38 @@ chore(gradle): atualiza versão do plugin do Android
 
 Commits atômicos: uma alteração lógica por commit.
 
+## Testes
+
+O projeto Expo fica em `aplicativo/projeto-unieuro`. Os comandos abaixo rodam a partir dessa pasta:
+
+```bash
+npm ci
+npm test              # executa a suíte
+npm run test:watch    # reexecuta a cada alteração
+npm run test:coverage # gera o relatório em coverage/lcov.info
+```
+
+O runner é o Jest com o preset `jest-expo/android`, já que o produto roda apenas em tablet Android. A biblioteca de testes de componente é a Testing Library para React Native.
+
+### Onde escrever
+
+O arquivo de teste fica ao lado do arquivo testado, com o mesmo nome e o sufixo `.test.ts` ou `.test.tsx`:
+
+```
+src/features/auth/register-screen.tsx
+src/features/auth/register-screen.test.tsx
+```
+
+### O que vale testar
+
+- Prefira consultas por papel e por rótulo de acessibilidade, como `getByRole` e `getByLabelText`, em vez de detalhes de estilo. O público da avaliação tem 60 anos ou mais, então acessibilidade quebrada é defeito.
+- Teste o comportamento observável: o que o usuário vê e o que acontece quando ele toca. Evite fixar detalhes internos que mudam sem mudar o comportamento.
+- Nenhum teste pode depender de rede, de aparelho físico ou de dado real de paciente, pelas mesmas razões da seção de restrições do produto.
+
+### Cobertura
+
+O `jest.config.js` define um piso de cobertura, e o comando de cobertura falha abaixo dele. O piso sobe a cada release, acompanhando a cobertura real. Se uma alteração derrubar a cobertura, escreva o teste que falta em vez de baixar o piso.
+
 ## Antes de abrir o Pull Request
 
 Confirme localmente que o projeto compila e que os testes passam.
@@ -77,3 +109,4 @@ Se uma biblioteca útil exigir rede como efeito colateral, registre isso no PR e
 | Versão | Descrição | Autor(es) | Data | Revisor(es) | Data de Revisão |
 |---|---|---|---|---|---|
 | 1.0 | Criação do Guia de Contribuição do repositório do aplicativo | [Artur Mendonça Arruda](https://github.com/ArtyMend07) | 19/09/2026 | [Lucas Mendonça Arruda](https://github.com/lucasarruda9), [Gabriel Lopes de Amorim](https://github.com/BrzGab) | 21/09/2026 |
+| 1.1 | Inclusão da seção de testes, com comandos, convenção de arquivos e política de cobertura | [Thales Germano](https://github.com/thalesgvl) | 25/09/2026 | A definir | — |
