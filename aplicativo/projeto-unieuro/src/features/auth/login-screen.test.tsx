@@ -189,7 +189,7 @@ describe('LoginScreen', () => {
       expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
     });
 
-    it('realiza o login com sucesso e navega para a rota principal', async () => {
+    it('realiza o login com sucesso e navega para o menu principal', async () => {
       const mockRepository = {
         findByEmail: jest.fn().mockResolvedValue({
           id: '1',
@@ -207,7 +207,7 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senha_correta');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(useRouter().replace).toHaveBeenCalledWith('/');
+      expect(useRouter().replace).toHaveBeenCalledWith('/menu');
     });
     it('alerta se ocorrer um erro inesperado no repositório', async () => {
       const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
