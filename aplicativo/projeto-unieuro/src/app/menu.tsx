@@ -1,4 +1,12 @@
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FontFamilies } from '@/constants/theme';
@@ -41,7 +49,9 @@ export default function MainMenuScreen() {
             </View>
             <View>
               <Text style={[styles.brandName, { color: colors.text }]}>MNEMA</Text>
-              <Text style={[styles.brandCaption, { color: colors.textSecondary }]}>RASTREAMENTO COGNITIVO</Text>
+              <Text style={[styles.brandCaption, { color: colors.textSecondary }]}>
+                RASTREAMENTO COGNITIVO
+              </Text>
             </View>
           </View>
           <Text style={[styles.role, { color: colors.textSecondary }]}>Área do profissional</Text>
@@ -49,7 +59,9 @@ export default function MainMenuScreen() {
 
         <View style={[styles.hero, { backgroundColor: colors.primary }]}>
           <Text style={styles.eyebrow}>BEM-VINDO(A)</Text>
-          <Text accessibilityRole="header" style={styles.heroTitle}>Vamos começar?</Text>
+          <Text accessibilityRole="header" style={styles.heroTitle}>
+            Vamos começar?
+          </Text>
           <Text style={styles.heroDescription}>
             Inicie uma nova avaliação cognitiva com seu paciente.
           </Text>
@@ -57,16 +69,24 @@ export default function MainMenuScreen() {
             accessibilityRole="button"
             onPress={() => showComingSoon('Realizar novo teste')}
             style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}>
-            <Text style={[styles.primaryActionText, { color: colors.primary }]}>Realizar novo teste</Text>
-            <Text style={[styles.primaryActionArrow, { color: colors.primary }]} accessibilityElementsHidden>
+            <Text style={[styles.primaryActionText, { color: colors.primary }]}>
+              Realizar novo teste
+            </Text>
+            <Text
+              style={[styles.primaryActionArrow, { color: colors.primary }]}
+              accessibilityElementsHidden>
               →
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Acesso rápido</Text>
-          <Text style={[styles.sectionCaption, { color: colors.textSecondary }]}>O que você deseja fazer?</Text>
+          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>
+            Acesso rápido
+          </Text>
+          <Text style={[styles.sectionCaption, { color: colors.textSecondary }]}>
+            O que você deseja fazer?
+          </Text>
         </View>
 
         <View style={[styles.shortcutGrid, isWide && styles.shortcutGridWide]}>
@@ -83,7 +103,9 @@ export default function MainMenuScreen() {
                 pressed && styles.pressed,
               ]}>
               <View style={[styles.shortcutIcon, { backgroundColor: colors.field }]}>
-                <Text style={[styles.shortcutIconText, { color: colors.primary }]} accessibilityElementsHidden>
+                <Text
+                  style={[styles.shortcutIconText, { color: colors.primary }]}
+                  accessibilityElementsHidden>
                   {shortcut.icon}
                 </Text>
               </View>
@@ -93,7 +115,9 @@ export default function MainMenuScreen() {
                   {shortcut.description}
                 </Text>
               </View>
-              <Text style={[styles.shortcutArrow, { color: colors.primary }]} accessibilityElementsHidden>
+              <Text
+                style={[styles.shortcutArrow, { color: colors.primary }]}
+                accessibilityElementsHidden>
                 ›
               </Text>
             </Pressable>
@@ -128,7 +152,13 @@ const styles = StyleSheet.create({
   logo: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   logoText: { fontFamily: FontFamilies.bold, fontSize: 23, fontWeight: '700' },
   brandName: { fontFamily: FontFamilies.bold, fontSize: 17, fontWeight: '700', letterSpacing: 0.5 },
-  brandCaption: { marginTop: 2, fontFamily: FontFamilies.semibold, fontSize: 9, fontWeight: '600', letterSpacing: 0.7 },
+  brandCaption: {
+    marginTop: 2,
+    fontFamily: FontFamilies.semibold,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+  },
   role: { fontFamily: FontFamilies.semibold, fontSize: 14, fontWeight: '600' },
   hero: {
     position: 'relative',
@@ -139,7 +169,13 @@ const styles = StyleSheet.create({
     minHeight: 270,
     justifyContent: 'center',
   },
-  eyebrow: { color: '#FDE8D7', fontFamily: FontFamilies.semibold, fontSize: 12, fontWeight: '600', letterSpacing: 1.2 },
+  eyebrow: {
+    color: '#FDE8D7',
+    fontFamily: FontFamilies.semibold,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+  },
   heroTitle: {
     maxWidth: 600,
     marginTop: 8,
@@ -187,11 +223,22 @@ const styles = StyleSheet.create({
     boxShadow: '0px 6px 16px rgba(15, 23, 42, 0.05)',
   },
   shortcutCardWide: { width: '48%', flexGrow: 1 },
-  shortcutIcon: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  shortcutIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   shortcutIconText: { fontSize: 23, fontWeight: '600' },
   shortcutCopy: { flex: 1, gap: 4 },
   shortcutTitle: { fontFamily: FontFamilies.semibold, fontSize: 16, fontWeight: '600' },
-  shortcutDescription: { fontFamily: FontFamilies.regular, fontSize: 13, fontWeight: '400', lineHeight: 19 },
+  shortcutDescription: {
+    fontFamily: FontFamilies.regular,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
+  },
   shortcutArrow: { fontFamily: FontFamilies.regular, fontSize: 28, fontWeight: '400' },
   pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
 });

@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import LoginScreen  from '@/features/auth/login-screen';
+import LoginScreen from '@/features/auth/login-screen';
 
 jest.mock('@/features/auth/password', () => ({
   DUMMY_PASSWORD_HASH: 'dummy-hash',
-  verifyPassword: jest.fn().mockImplementation(async (senha, hash) => hash !== 'dummy-hash' && senha !== 'senhaerrada'),
+  verifyPassword: jest
+    .fn()
+    .mockImplementation(async (senha, hash) => hash !== 'dummy-hash' && senha !== 'senhaerrada'),
 }));
 
 describe('LoginScreen', () => {
@@ -26,10 +28,7 @@ describe('LoginScreen', () => {
     render(<LoginScreen />);
 
     expect(screen.getByLabelText('E-MAIL')).toHaveProp('accessibilityLabelledBy', 'email-label');
-    expect(screen.getByLabelText('SENHA')).toHaveProp(
-      'accessibilityLabelledBy',
-      'password-label',
-    );
+    expect(screen.getByLabelText('SENHA')).toHaveProp('accessibilityLabelledBy', 'password-label');
   });
 
   it('esconde o conteúdo do campo de senha', () => {
@@ -63,7 +62,6 @@ describe('LoginScreen', () => {
 
     expect(useRouter().push).toHaveBeenCalledWith('/register');
   });
-
 
   it('avisa que o acesso ainda não está conectado', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -109,7 +107,6 @@ describe('LoginScreen', () => {
 
       expect(screen.getByRole('header', { name: 'MNEMA' })).toHaveStyle({ fontSize: 36 });
     });
-
 
     it('mantém a disposição quando a mesma medida chega de novo', () => {
       render(<LoginScreen />);
@@ -215,7 +212,7 @@ describe('LoginScreen', () => {
     it('alerta se ocorrer um erro inesperado no repositório', async () => {
       const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const consoleErro = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-      
+
       const mockRepository = {
         findByEmail: jest.fn().mockRejectedValue(new Error('Erro de base de dados')),
       };
@@ -227,14 +224,17 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senha1234');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(alerta).toHaveBeenCalledWith('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
-      
-      consoleErro.mockRestore(); 
+      expect(alerta).toHaveBeenCalledWith(
+        'Erro',
+        'Erro ao tentar efetuar o login. Tente novamente.',
+      );
+
+      consoleErro.mockRestore();
     });
 
     it('impede cliques repetidos enquanto o carregamento está ativo', async () => {
       const mockRepository = {
-        findByEmail: jest.fn().mockReturnValue(new Promise(() => {})), 
+        findByEmail: jest.fn().mockReturnValue(new Promise(() => {})),
       };
 
       const user = userEvent.setup();
@@ -242,10 +242,10 @@ describe('LoginScreen', () => {
 
       await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
       await user.type(screen.getByLabelText('SENHA'), 'senha1234');
-      
+
       const botao = screen.getByRole('button', { name: 'ENTRAR' });
-      await user.press(botao); 
-      await user.press(botao); 
+      await user.press(botao);
+      await user.press(botao);
 
       expect(mockRepository.findByEmail).toHaveBeenCalledTimes(1);
     });
@@ -264,5 +264,4 @@ describe('LoginScreen', () => {
       expect(mockRepository.findByEmail).not.toHaveBeenCalled();
     });
   });
-}); 
-
+});

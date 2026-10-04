@@ -35,6 +35,10 @@ jobs:
       - name: Verificar o lint
         run: npm run lint -- --max-warnings 0
 
+      # O código precisa seguir o padrão do Prettier. Para corrigir, rode `npm run format`.
+      - name: Verificar a formatação
+        run: npm run format:check
+
       # O job falha aqui quando algum teste quebra, antes de chegar ao Sonar.
       - name: Executar os testes com cobertura
         run: npm run test:coverage

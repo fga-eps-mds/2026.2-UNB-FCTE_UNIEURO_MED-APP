@@ -5,8 +5,33 @@ export const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CRM_PATTERN = /^(\d+)\s*\/\s*([A-Za-z]{2})$/;
 const BRAZILIAN_STATES = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
-  'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
 ];
 
 export type RegistrationInput = {
@@ -50,7 +75,9 @@ export type ProfessionalRepository = {
 
 export type RegistrationResult = { success: true } | { success: false; message: string };
 
-type Validation = { valid: true; registration: ValidRegistration } | { valid: false; message: string };
+type Validation =
+  | { valid: true; registration: ValidRegistration }
+  | { valid: false; message: string };
 
 const failure = (message: string) => ({ success: false, message }) as const;
 const invalid = (message: string) => ({ valid: false, message }) as const;

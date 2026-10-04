@@ -8,6 +8,8 @@
  */
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
+// Desliga as regras de estilo que o Prettier já resolve, para as duas ferramentas não brigarem.
+const prettierConfig = require('eslint-config-prettier/flat');
 
 module.exports = defineConfig([
   expoConfig,
@@ -15,4 +17,5 @@ module.exports = defineConfig([
     // Saídas geradas: build, relatórios de teste e cache do Expo.
     ignores: ['dist/*', 'coverage/*', '.expo/*'],
   },
+  prettierConfig,
 ]);

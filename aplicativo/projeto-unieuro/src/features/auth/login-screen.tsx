@@ -131,13 +131,19 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
               ]}
               accessible
               accessibilityLabel="Espaco reservado para o logo">
-              <Text style={styles.logoMark} accessibilityElementsHidden>M</Text>
+              <Text style={styles.logoMark} accessibilityElementsHidden>
+                M
+              </Text>
             </View>
-            <Text accessibilityRole="header" style={[styles.title, { fontSize: titleFontSize }]}>MNEMA</Text>
+            <Text accessibilityRole="header" style={[styles.title, { fontSize: titleFontSize }]}>
+              MNEMA
+            </Text>
             <Text style={styles.subtitle}>NOME PROVISORIO - RASTREIO COGNITIVO</Text>
 
             <View style={styles.form}>
-              <Text nativeID="email-label" style={styles.label}>E-MAIL</Text>
+              <Text nativeID="email-label" style={styles.label}>
+                E-MAIL
+              </Text>
               <TextInput
                 accessibilityLabel="E-mail"
                 accessibilityLabelledBy={Platform.OS === 'android' ? 'email-label' : undefined}
@@ -155,7 +161,9 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
                 value={email}
               />
 
-              <Text nativeID="password-label" style={[styles.label, styles.passwordLabel]}>SENHA</Text>
+              <Text nativeID="password-label" style={[styles.label, styles.passwordLabel]}>
+                SENHA
+              </Text>
               <TextInput
                 accessibilityLabel="Senha"
                 accessibilityLabelledBy={Platform.OS === 'android' ? 'password-label' : undefined}
