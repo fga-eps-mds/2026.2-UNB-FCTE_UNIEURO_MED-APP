@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
-import type { ProfessionalRepository } from '@/features/auth/registration';
 import type { SqliteProfessionalRepository } from '@/db/professional-repository';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
 
@@ -82,7 +81,6 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       router.replace('/menu');
     } catch (error) {
       Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
-      // eslint-disable-next-line no-console
       console.error('Login error', error);
     } finally {
       setLoading(false);
