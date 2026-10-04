@@ -30,6 +30,18 @@ module.exports = {
   coverageReporters: ['text-summary', 'lcov'],
 
   /**
+   * Além da saída no terminal, grava `coverage/test-report.xml` no formato
+   * genérico de execução de testes do SonarCloud. É desse relatório que o Sonar
+   * calcula tests, test_errors, test_failures e test_execution_time, medidas que
+   * o lcov não traz. Os caminhos saem relativos à pasta do projeto Expo, a mesma
+   * base usada na análise.
+   */
+  reporters: [
+    'default',
+    ['jest-sonar', { outputDirectory: 'coverage', outputName: 'test-report.xml' }],
+  ],
+
+  /**
    * Piso de cobertura, com folga sobre o número atual para não quebrar a
    * integração por variação pequena. A cada release o piso sobe até se
    * aproximar da cobertura real, conforme combinado na issue #27.
