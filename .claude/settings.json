@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(gh pr review*)",
+      "Bash(gh issue close*)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}
