@@ -12,7 +12,9 @@ const mockOpenDatabaseAsync = jest.mocked(openDatabaseAsync);
 function createDatabase(userVersion: number | null = 0) {
   const database = {
     execAsync: jest.fn(async () => undefined),
-    getFirstAsync: jest.fn(async () => (userVersion === null ? null : { user_version: userVersion })),
+    getFirstAsync: jest.fn(async () =>
+      userVersion === null ? null : { user_version: userVersion },
+    ),
     withTransactionAsync: jest.fn(async (task: () => Promise<void>) => task()),
     closeAsync: jest.fn(async () => undefined),
   };

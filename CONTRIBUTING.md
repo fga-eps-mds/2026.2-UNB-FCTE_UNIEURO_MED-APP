@@ -76,7 +76,15 @@ O `jest.config.js` define um piso de cobertura, e o comando de cobertura falha a
 
 ## Antes de abrir o Pull Request
 
-Confirme localmente que o projeto compila e que os testes passam.
+Na pasta `aplicativo/projeto-unieuro`, confirme localmente:
+
+```bash
+npm run lint -- --max-warnings 0   # nenhum erro nem aviso do ESLint
+npm run format:check               # código no padrão do Prettier; corrija com npm run format
+npm run test:coverage              # testes passando e cobertura acima do piso
+```
+
+O pipeline de build roda os mesmos comandos e reprova o PR se algum deles falhar.
 
 ## Pull Requests
 
@@ -110,3 +118,4 @@ Se uma biblioteca útil exigir rede como efeito colateral, registre isso no PR e
 |---|---|---|---|---|---|
 | 1.0 | Criação do Guia de Contribuição do repositório do aplicativo | [Artur Mendonça Arruda](https://github.com/ArtyMend07) | 19/09/2026 | [Lucas Mendonça Arruda](https://github.com/lucasarruda9), [Gabriel Lopes de Amorim](https://github.com/BrzGab) | 21/09/2026 |
 | 1.1 | Inclusão da seção de testes, com comandos, convenção de arquivos e política de cobertura | [Thales Germano](https://github.com/thalesgvl) | 25/09/2026 | A definir | — |
+| 1.2 | Inclusão do lint e da verificação de formatação na checagem antes do PR | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |

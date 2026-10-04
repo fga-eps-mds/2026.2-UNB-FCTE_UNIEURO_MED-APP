@@ -75,9 +75,10 @@ export function createProfessionalRepository(open: () => Promise<SQLiteDatabase>
   return {
     async emailExists(email: string): Promise<boolean> {
       const database = await open();
-      const row = await database.getFirstAsync('SELECT 1 FROM profissional WHERE email = ? LIMIT 1', [
-        email.trim(),
-      ]);
+      const row = await database.getFirstAsync(
+        'SELECT 1 FROM profissional WHERE email = ? LIMIT 1',
+        [email.trim()],
+      );
       return row !== null;
     },
 

@@ -39,14 +39,7 @@ describe('RegisterScreen', () => {
   it('identifica os seis campos para leitores de tela', () => {
     render(<RegisterScreen />);
 
-    for (const rotulo of [
-      'NOME COMPLETO',
-      'E-MAIL',
-      'CRM',
-      'CPF',
-      'SENHA',
-      'CONFIRMAR SENHA',
-    ]) {
+    for (const rotulo of ['NOME COMPLETO', 'E-MAIL', 'CRM', 'CPF', 'SENHA', 'CONFIRMAR SENHA']) {
       expect(screen.getByLabelText(rotulo)).toBeOnTheScreen();
     }
   });
@@ -172,17 +165,20 @@ describe('RegisterScreen', () => {
         { insert: jest.fn(async () => Promise.reject(new Error('falha no banco'))) },
         'Não foi possível salvar o cadastro. Tente novamente.',
       ],
-    ])('mostra o motivo e continua no cadastro quando %s', async (_caso, sobrescritas, mensagem) => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-      const user = userEvent.setup();
-      render(<RegisterScreen repository={criarRepositorio(sobrescritas)} />);
+    ])(
+      'mostra o motivo e continua no cadastro quando %s',
+      async (_caso, sobrescritas, mensagem) => {
+        const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+        const user = userEvent.setup();
+        render(<RegisterScreen repository={criarRepositorio(sobrescritas)} />);
 
-      await preencherFormulario(user);
-      await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
+        await preencherFormulario(user);
+        await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith('Cadastro não concluído', mensagem);
-      expect(useRouter().replace).not.toHaveBeenCalled();
-    });
+        expect(alerta).toHaveBeenCalledWith('Cadastro não concluído', mensagem);
+        expect(useRouter().replace).not.toHaveBeenCalled();
+      },
+    );
 
     it('não envia de novo enquanto o cadastro está sendo salvo', async () => {
       const repositorio = criarRepositorio({

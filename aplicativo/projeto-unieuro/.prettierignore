@@ -1,0 +1,9 @@
+# Gerados ou de terceiros: não são formatados.
+node_modules/
+coverage/
+dist/
+.expo/
+android/
+ios/
+assets/
+package-lock.json

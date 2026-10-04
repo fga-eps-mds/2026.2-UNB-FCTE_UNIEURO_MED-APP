@@ -45,9 +45,9 @@ describe('emailExists', () => {
   ])('informa quando o e-mail %s', async (_case, firstRow, expected) => {
     const database = createDatabase(firstRow);
 
-    await expect(createRepository(database).emailExists(' ana.souza@unieuro.com.br ')).resolves.toBe(
-      expected,
-    );
+    await expect(
+      createRepository(database).emailExists(' ana.souza@unieuro.com.br '),
+    ).resolves.toBe(expected);
     expect(database.getFirstAsync).toHaveBeenCalledWith(
       'SELECT 1 FROM profissional WHERE email = ? LIMIT 1',
       ['ana.souza@unieuro.com.br'],
@@ -160,6 +160,8 @@ describe('consultas', () => {
   });
 
   it('devolve null quando não encontra o profissional', async () => {
-    await expect(createRepository(createDatabase()).findByEmail('outra@unieuro.com.br')).resolves.toBeNull();
+    await expect(
+      createRepository(createDatabase()).findByEmail('outra@unieuro.com.br'),
+    ).resolves.toBeNull();
   });
 });

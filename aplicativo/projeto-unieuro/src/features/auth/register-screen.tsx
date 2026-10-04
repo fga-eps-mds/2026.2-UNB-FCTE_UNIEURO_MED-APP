@@ -253,10 +253,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                         placeholderTextColor={theme.placeholder}
                         returnKeyType={rowIndex === fieldRows.length - 1 ? 'done' : 'next'}
                         secureTextEntry={field.secureTextEntry}
-                        style={[
-                          styles.input,
-                          focusedField === field.name && styles.inputFocused,
-                        ]}
+                        style={[styles.input, focusedField === field.name && styles.inputFocused]}
                         textContentType={field.textContentType}
                         value={values[field.name]}
                       />
@@ -287,9 +284,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
               accessibilityRole="button"
               onPress={() => router.replace('/')}
               style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-              <Text style={styles.backText}>
-                {'J\u00e1 tenho conta? ENTRAR'}
-              </Text>
+              <Text style={styles.backText}>{'J\u00e1 tenho conta? ENTRAR'}</Text>
             </Pressable>
           </View>
         </ScrollView>

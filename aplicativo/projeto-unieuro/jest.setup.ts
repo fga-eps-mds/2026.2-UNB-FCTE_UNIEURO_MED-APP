@@ -41,8 +41,9 @@ jest.mock('expo-splash-screen', () => ({
 // A área segura depende de medidas do aparelho. O próprio pacote fornece um
 // substituto para testes. Ele usa `export default`, então é o `.default` que
 // carrega os componentes; sem isso o `SafeAreaView` chega indefinido às telas.
-jest.mock('react-native-safe-area-context', () =>
-  require('react-native-safe-area-context/jest/mock').default,
+jest.mock(
+  'react-native-safe-area-context',
+  () => require('react-native-safe-area-context/jest/mock').default,
 );
 
 afterEach(() => {
