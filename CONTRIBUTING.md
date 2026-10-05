@@ -88,7 +88,9 @@ O pipeline de build roda os mesmos comandos e reprova o PR se algum deles falhar
 
 ## Pull Requests
 
-- Todo PR deve estar vinculado a uma Issue. Use `Closes #numero` na descrição.
+- Todo PR deve estar vinculado a uma Issue:
+  - em PR de **história de usuário**, use `Refs #numero`. A história só é fechada depois do aceite do PO no teste de aceitação, e o `Closes` a fecharia já no merge, porque a `develop` é a branch padrão do repositório;
+  - em PR de tarefa ou de correção, use `Closes #numero`.
 - O PR aponta para `develop`, não para `main`.
 - Solicite revisão de no mínimo 1 colega antes do merge.
 - O quality gate do SonarCloud precisa passar. PR com gate reprovado não é mergeado.
@@ -99,6 +101,16 @@ O pipeline de build roda os mesmos comandos e reprova o PR se algum deles falhar
 - Não aprove um Pull Request sem ter lido e compreendido o que está sendo alterado.
 - Mantenha o foco construtivo: aponte o problema concreto e, quando possível, sugira o caminho.
 - Sem contexto para avaliar, peça a revisão de quem tem, em vez de aprovar por omissão.
+
+## Fluxo com o Claude Code
+
+Quem usa o [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) encontra neste repositório:
+
+- o `CLAUDE.md`, com o resumo do produto, as regras da disciplina e as convenções de código;
+- o comando `/nova-historia <número da issue>`, que conduz a história da validação ao PR, parando para você aprovar o plano e antes de qualquer push;
+- os agentes `revisor-testes` e `revisor-lgpd`, para revisar o diff antes do PR.
+
+O uso é opcional, e o checklist vale para todo mundo: história validada pelo PO, testes escritos por quem implementa, lint, formatação e testes passando, e revisão de um colega. Com ou sem IA, quem abre o PR precisa saber explicar cada trecho dele.
 
 ## Restrições do produto
 
@@ -119,3 +131,4 @@ Se uma biblioteca útil exigir rede como efeito colateral, registre isso no PR e
 | 1.0 | Criação do Guia de Contribuição do repositório do aplicativo | [Artur Mendonça Arruda](https://github.com/ArtyMend07) | 19/09/2026 | [Lucas Mendonça Arruda](https://github.com/lucasarruda9), [Gabriel Lopes de Amorim](https://github.com/BrzGab) | 21/09/2026 |
 | 1.1 | Inclusão da seção de testes, com comandos, convenção de arquivos e política de cobertura | [Thales Germano](https://github.com/thalesgvl) | 25/09/2026 | A definir | — |
 | 1.2 | Inclusão do lint e da verificação de formatação na checagem antes do PR | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
+| 1.3 | Regra de `Refs` para histórias de usuário e seção do fluxo com o Claude Code | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
