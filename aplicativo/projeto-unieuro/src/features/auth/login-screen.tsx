@@ -16,11 +16,13 @@ import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles'
 import { useTheme } from '@/hooks/use-theme';
 import type { SqliteProfessionalRepository } from '@/db/professional-repository';
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
+import { useSession } from '@/features/auth/session';
 
 type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
 
 export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();
+  const { signIn } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [focused, setFocused] = useState<'email' | 'password' | null>(null);
@@ -77,7 +79,9 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
         return;
       }
 
-      // Autenticação bem-sucedida — navegar para a tela principal
+      // Autenticação bem-sucedida: guarda o profissional na sessão e abre a
+      // tela inicial, que mostra o nome dele e os pacientes que ele atendeu.
+      signIn(professional);
       router.replace('/menu');
     } catch (error) {
       Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
