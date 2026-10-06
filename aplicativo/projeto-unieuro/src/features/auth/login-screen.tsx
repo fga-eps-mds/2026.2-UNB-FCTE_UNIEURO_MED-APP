@@ -14,11 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
-import type { ProfessionalRepository } from '@/features/auth/registration';
-import type { SqliteProfessionalRepository } from '@/db/professional-repository';
-import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
+import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
 
-type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
+type LoginScreenProps = { repository?: CredentialsRepository };
 
 export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();
@@ -55,34 +53,18 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail || password.length === 0) {
-      Alert.alert('Login', 'Preencha e-mail e senha para continuar.');
-      return;
-    }
-
     try {
       setLoading(true);
-      const professional = await repository.findByEmail(trimmedEmail);
+      const result = await authenticate({ email, password }, repository);
 
-      // Roda verifyPassword mesmo quando o e-mail não existe (contra um hash
-      // fixo), para que o tempo de resposta não denuncie quais e-mails estão
-      // cadastrados. A mensagem também é a mesma nos dois casos, pelo mesmo
-      // motivo (evitar enumeração de e-mail).
-      const ok = professional
-        ? await verifyPassword(password, professional.passwordHash)
-        : await verifyPassword(password, DUMMY_PASSWORD_HASH).then(() => false);
-
-      if (!professional || !ok) {
-        Alert.alert('Login', 'E-mail ou senha inválidos.');
+      if (!result.success) {
+        Alert.alert('Login', result.message);
         return;
       }
 
-      // Autenticação bem-sucedida — navegar para a tela principal
       router.replace('/menu');
     } catch (error) {
       Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
-      // eslint-disable-next-line no-console
       console.error('Login error', error);
     } finally {
       setLoading(false);
