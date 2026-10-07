@@ -1,23 +1,31 @@
 import Constants from 'expo-constants';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import type { AccountRepository } from '@/features/auth/account';
 import { formatCrm, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
+import { createAccountFormStyles } from '@/features/settings/account-form.styles';
+import { DeactivateAccountDialog } from '@/features/settings/deactivate-account-dialog';
 import { createSettingsStyles, type SettingsStyles } from '@/features/settings/settings.styles';
 import { useTheme } from '@/hooks/use-theme';
 
+type SettingsScreenProps = { repository: AccountRepository };
+
 /**
  * Configurações do profissional, aberta pela tela inicial (#46): os dados da
- * conta, a versão do aplicativo e a saída da sessão.
+ * conta, a versão do aplicativo e a saída da sessão. Daqui o profissional edita
+ * os dados, troca a senha e desativa a conta (#5).
  */
-export default function SettingsScreen() {
+export default function SettingsScreen({ repository }: SettingsScreenProps) {
   const router = useRouter();
   const { professional, signOut } = useSession();
   const theme = useTheme();
   const styles = useMemo(() => createSettingsStyles(theme), [theme]);
+  const form = useMemo(() => createAccountFormStyles(theme), [theme]);
+  const [confirmingDeactivation, setConfirmingDeactivation] = useState(false);
   const isWide = useWindowDimensions().width >= WIDE_LAYOUT_MIN_WIDTH;
 
   // Como na tela inicial: sem sessão, inclusive depois de "Sair", volta ao login.
@@ -57,6 +65,22 @@ export default function SettingsScreen() {
             <Field styles={styles} label="NOME" value={professional.name} />
             <Field styles={styles} label="E-MAIL" value={professional.email} />
             <Field styles={styles} label="CRM" value={formatCrm(professional)} />
+            <View style={form.actions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Editar dados"
+                onPress={() => router.push('/edit-account')}
+                style={({ pressed }) => [form.secondaryButton, pressed && styles.pressed]}>
+                <Text style={form.secondaryButtonText}>Editar dados</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Trocar senha"
+                onPress={() => router.push('/edit-account')}
+                style={({ pressed }) => [form.secondaryButton, pressed && styles.pressed]}>
+                <Text style={form.secondaryButtonText}>Trocar senha</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.card}>
@@ -80,9 +104,25 @@ export default function SettingsScreen() {
               style={({ pressed }) => [styles.dangerButton, pressed && styles.pressed]}>
               <Text style={styles.dangerButtonText}>Sair do aplicativo</Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setConfirmingDeactivation(true)}
+              style={({ pressed }) => [form.linkButton, pressed && styles.pressed]}>
+              <Text style={form.dangerLinkText}>Desativar minha conta</Text>
+            </Pressable>
           </View>
         </View>
       </ScrollView>
+      <DeactivateAccountDialog
+        visible={confirmingDeactivation}
+        professionalId={professional.id}
+        repository={repository}
+        onCancel={() => setConfirmingDeactivation(false)}
+        onDeactivated={() => {
+          setConfirmingDeactivation(false);
+          signOut();
+        }}
+      />
     </SafeAreaView>
   );
 }
