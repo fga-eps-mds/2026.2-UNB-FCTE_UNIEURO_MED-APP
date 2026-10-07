@@ -2,6 +2,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import { closeDatabase, getDatabase, migrate } from '@/db/database';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
+import { createMemoryDatabase } from '@/test-utils/sqlite';
 
 jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
@@ -67,7 +68,42 @@ describe('esquema', () => {
     expect(schemaV1).toContain('CREATE TABLE IF NOT EXISTS profissional');
     expect(schemaV1).toContain('email TEXT NOT NULL COLLATE NOCASE UNIQUE');
     expect(schemaV1).toContain('UNIQUE (crm_numero, uf_crm)');
-    expect(SCHEMA_VERSION).toBe(1);
+  });
+
+  it('acrescenta a data da desativação na versão 2', () => {
+    expect(MIGRATIONS[1]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
+    expect(SCHEMA_VERSION).toBe(2);
+  });
+
+  it('leva um banco da versão 1 para a 2 sem recriar a tabela', async () => {
+    const database = createDatabase(1);
+
+    await migrate(database);
+
+    expect(database.execAsync).not.toHaveBeenCalledWith(MIGRATIONS[0]);
+    expect(database.execAsync).toHaveBeenCalledWith(MIGRATIONS[1]);
+    expect(database.execAsync).toHaveBeenLastCalledWith('PRAGMA user_version = 2');
+  });
+});
+
+describe('migração com SQLite real', () => {
+  it('preserva os profissionais de um banco da versão 1 ao chegar na versão 2', async () => {
+    const database = createMemoryDatabase();
+    await database.execAsync(`${MIGRATIONS[0]} PRAGMA user_version = 1;`);
+    await database.runAsync(
+      `INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf, senha_hash, criacao, last_update)
+       VALUES ('Ana Carolina Souza', 'ana@unieuro.com.br', '12345', 'DF', '11144477735', 'hash', 'c', 'c')`,
+    );
+
+    await migrate(database);
+
+    await expect(database.getFirstAsync('PRAGMA user_version')).resolves.toEqual({
+      user_version: 2,
+    });
+    await expect(
+      database.getFirstAsync('SELECT nome, ativo, desativacao FROM profissional'),
+    ).resolves.toEqual({ nome: 'Ana Carolina Souza', ativo: 1, desativacao: null });
+    await database.closeAsync();
   });
 });
 

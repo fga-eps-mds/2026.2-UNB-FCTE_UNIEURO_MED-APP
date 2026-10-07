@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { createProfessionalRepository } from '@/db/professional-repository';
+import type { AccountRepository } from '@/features/auth/account';
 import type { ProfessionalRepository } from '@/features/auth/registration';
 
 jest.mock('@/db/database', () => ({
@@ -18,6 +19,7 @@ const row = {
   criacao: '2026-09-26T13:00:00.000Z',
   last_update: '2026-09-26T13:00:00.000Z',
   ativo: 1,
+  desativacao: null,
 };
 
 function createDatabase(firstRow: object | null = null) {
@@ -32,8 +34,9 @@ function createRepository(database: SQLiteDatabase) {
   return createProfessionalRepository(async () => database);
 }
 
-it('atende ao contrato usado pelo cadastro', () => {
-  const repository = createRepository(createDatabase()) satisfies ProfessionalRepository;
+it('atende aos contratos usados pelo cadastro e pela manutenção da conta', () => {
+  const repository = createRepository(createDatabase()) satisfies ProfessionalRepository &
+    AccountRepository;
 
   expect(repository).toBeDefined();
 });
@@ -129,6 +132,7 @@ describe('consultas', () => {
     createdAt: '2026-09-26T13:00:00.000Z',
     updatedAt: '2026-09-26T13:00:00.000Z',
     active: true,
+    deactivatedAt: null,
   };
 
   it('busca o profissional pelo e-mail', async () => {
@@ -153,15 +157,81 @@ describe('consultas', () => {
     );
   });
 
-  it('marca como inativo o profissional desativado', async () => {
-    const database = createDatabase({ ...row, ativo: 0 });
+  it('marca como inativo o profissional desativado, com a data da desativação', async () => {
+    const database = createDatabase({ ...row, ativo: 0, desativacao: '2026-10-07T12:00:00.000Z' });
 
-    await expect(createRepository(database).findById(7)).resolves.toMatchObject({ active: false });
+    await expect(createRepository(database).findById(7)).resolves.toMatchObject({
+      active: false,
+      deactivatedAt: '2026-10-07T12:00:00.000Z',
+    });
   });
 
   it('devolve null quando não encontra o profissional', async () => {
     await expect(
       createRepository(createDatabase()).findByEmail('outra@unieuro.com.br'),
     ).resolves.toBeNull();
+  });
+});
+
+describe('manutenção da conta', () => {
+  it('procura o e-mail em outras contas, ignorando a do próprio profissional', async () => {
+    const database = createDatabase({ 1: 1 });
+
+    await expect(
+      createRepository(database).emailInUseByOther(' outra@unieuro.com.br ', 7),
+    ).resolves.toBe(true);
+    expect(database.getFirstAsync).toHaveBeenCalledWith(
+      'SELECT 1 FROM profissional WHERE email = ? AND id <> ? LIMIT 1',
+      ['outra@unieuro.com.br', 7],
+    );
+  });
+
+  it('procura o CRM em outras contas, ignorando a do próprio profissional', async () => {
+    const database = createDatabase();
+
+    await expect(createRepository(database).crmInUseByOther('54321', 'GO', 7)).resolves.toBe(false);
+    expect(database.getFirstAsync).toHaveBeenCalledWith(
+      'SELECT 1 FROM profissional WHERE crm_numero = ? AND uf_crm = ? AND id <> ? LIMIT 1',
+      ['54321', 'GO', 7],
+    );
+  });
+
+  it('atualiza os dados do cadastro e a data da última alteração', async () => {
+    const database = createDatabase();
+
+    await createRepository(database).updateProfile(
+      7,
+      { name: 'Ana Souza', email: 'ana@unieuro.com.br', crmNumber: '54321', crmState: 'GO' },
+      '2026-10-07T12:00:00.000Z',
+    );
+
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE profissional SET nome = ?, email = ?, crm_numero = ?'),
+      ['Ana Souza', 'ana@unieuro.com.br', '54321', 'GO', '2026-10-07T12:00:00.000Z', 7],
+    );
+  });
+
+  it('troca o hash da senha', async () => {
+    const database = createDatabase();
+
+    await createRepository(database).updatePasswordHash(7, 'novo-hash', '2026-10-07T12:00:00.000Z');
+
+    expect(database.runAsync).toHaveBeenCalledWith(
+      'UPDATE profissional SET senha_hash = ?, last_update = ? WHERE id = ?',
+      ['novo-hash', '2026-10-07T12:00:00.000Z', 7],
+    );
+  });
+
+  it('desativa só uma conta ativa, gravando a data da desativação', async () => {
+    const database = createDatabase();
+
+    await createRepository(database).deactivate(7, '2026-10-07T12:00:00.000Z');
+
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /SET ativo = 0, desativacao = \?, last_update = \?\s+WHERE id = \? AND ativo = 1/,
+      ),
+      ['2026-10-07T12:00:00.000Z', '2026-10-07T12:00:00.000Z', 7],
+    );
   });
 });
