@@ -1,5 +1,6 @@
 import {
   acrescentarAcao,
+  acrescentarPonto,
   acrescentarTraco,
   calcularVelocidades,
   reconstruirTracos,
@@ -47,6 +48,40 @@ describe('registro dos eventos do traçado', () => {
     acrescentarAcao(eventos, 'limpar', 300);
 
     expect(eventos).toHaveLength(2);
+  });
+});
+
+describe('pontos do traço em andamento', () => {
+  it('acrescenta o ponto no fim do traço, sem alterar o traço recebido', () => {
+    const traco: Traco = [{ x: 0, y: 0, instante: 0 }];
+
+    const novo = acrescentarPonto(traco, { x: 1, y: 1, instante: 8 });
+
+    expect(novo).toEqual([
+      { x: 0, y: 0, instante: 0 },
+      { x: 1, y: 1, instante: 8 },
+    ]);
+    expect(traco).toHaveLength(1);
+  });
+
+  it('descarta o mesmo evento entregue duas vezes', () => {
+    const traco: Traco = [{ x: 4, y: 4, instante: 16 }];
+
+    expect(acrescentarPonto(traco, { x: 4, y: 4, instante: 16 })).toBe(traco);
+  });
+
+  it('mantém a caneta parada em outro instante, porque a pressão pode ter mudado', () => {
+    const traco: Traco = [{ x: 4, y: 4, instante: 16, pressao: 0.3 }];
+
+    const novo = acrescentarPonto(traco, { x: 4, y: 4, instante: 24, pressao: 0.7 });
+
+    expect(novo).toHaveLength(2);
+  });
+
+  it('começa o traço quando ele ainda está vazio', () => {
+    expect(acrescentarPonto([], { x: 2, y: 3, instante: 0 })).toEqual([
+      { x: 2, y: 3, instante: 0 },
+    ]);
   });
 });
 

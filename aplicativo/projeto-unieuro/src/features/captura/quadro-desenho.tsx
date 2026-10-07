@@ -6,7 +6,14 @@
  * colado na caneta (história #9, cenário "traço na hora"). Quando o traço
  * termina, a lista de pontos vai de uma vez para a tela, que guarda o registro.
  */
-import { Canvas, Path, Skia, usePathValue, type SkPath } from '@shopify/react-native-skia';
+import {
+  Canvas,
+  Path,
+  Skia,
+  usePathValue,
+  type SkPath,
+  type SkPathBuilder,
+} from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
@@ -14,6 +21,7 @@ import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import {
+  acrescentarPonto,
   tracoParaCaminhoSvg,
   type PontoTracado,
   type TipoPonteiro,
@@ -23,7 +31,13 @@ import { ESPESSURA_TRACO, type Dimensoes } from '@/features/captura/imagem-desen
 
 /** O quadro imita o papel: fundo branco e traço escuro, nos dois temas. */
 const COR_FUNDO = '#FFFFFF';
-const COR_TRACO = '#0F172A';
+const ESTILO_TRACO = {
+  style: 'stroke',
+  strokeWidth: ESPESSURA_TRACO,
+  strokeCap: 'round',
+  strokeJoin: 'round',
+  color: '#0F172A',
+} as const;
 
 type DadosDaCaneta = { pressure: number; tiltX: number; tiltY: number };
 
@@ -60,33 +74,48 @@ function lerPonto({ x, y, stylusData }: EventoDoGesto): PontoTracado {
   return ponto;
 }
 
+function montarCaminho(construtor: SkPathBuilder, pontos: readonly PontoTracado[]) {
+  'worklet';
+  if (pontos.length === 0) return;
+  construtor.moveTo(pontos[0].x, pontos[0].y);
+  // Um toque sem arrasto vira segmento de comprimento zero, que a ponta redonda mostra.
+  const seguintes = pontos.length > 1 ? pontos.slice(1) : pontos;
+  for (const ponto of seguintes) construtor.lineTo(ponto.x, ponto.y);
+}
+
 export function QuadroDesenho({ tracos, onTracoConcluido, onDimensoes }: QuadroDesenhoProps) {
-  const pontos = useSharedValue<PontoTracado[]>([]);
+  // `emAndamento` é o traço que a caneta está fazendo, e só a thread de UI o
+  // zera, ao começar um traço novo. `aguardando` é o traço recém-concluído, que
+  // fica na tela até a lista de traços recebida já o incluir. Se o JavaScript
+  // zerasse o traço em andamento, um traço começado logo depois do anterior
+  // perderia o começo, na tela e nos dados.
+  const emAndamento = useSharedValue<PontoTracado[]>([]);
+  const aguardando = useSharedValue<PontoTracado[]>([]);
   const ponteiro = useSharedValue<TipoPonteiro>('desconhecido');
 
-  const caminhoAtual = usePathValue((construtor) => {
+  const caminhoEmAndamento = usePathValue((construtor) => {
     'worklet';
-    const atuais = pontos.get();
-    if (atuais.length === 0) return;
-    construtor.moveTo(atuais[0].x, atuais[0].y);
-    // Um toque sem arrasto vira segmento de comprimento zero, que a ponta redonda mostra.
-    const seguintes = atuais.length > 1 ? atuais.slice(1) : atuais;
-    for (const ponto of seguintes) construtor.lineTo(ponto.x, ponto.y);
+    montarCaminho(construtor, emAndamento.get());
+  });
+  const caminhoAguardando = usePathValue((construtor) => {
+    'worklet';
+    montarCaminho(construtor, aguardando.get());
   });
 
+  // O Skia nativo lança erro, em vez de devolver null, quando não consegue ler o
+  // caminho. Por isso traço vazio nem chega a ele.
   const caminhosConcluidos = useMemo(
     () =>
       tracos
+        .filter((traco) => traco.length > 0)
         .map((traco) => Skia.Path.MakeFromSVGString(tracoParaCaminhoSvg(traco)))
         .filter((caminho): caminho is SkPath => caminho !== null),
     [tracos],
   );
 
-  // O traço em andamento só some depois que os traços recebidos já incluem o
-  // traço concluído, para ele não piscar na passagem de uma thread para a outra.
   useEffect(() => {
-    pontos.set([]);
-  }, [tracos, pontos]);
+    aguardando.set([]);
+  }, [tracos, aguardando]);
 
   const arrasto = Gesture.Pan()
     .minDistance(0)
@@ -95,7 +124,7 @@ export function QuadroDesenho({ tracos, onTracoConcluido, onDimensoes }: QuadroD
     .onBegin((evento) => {
       'worklet';
       ponteiro.set(tipoDoPonteiro(evento.pointerType));
-      pontos.set([lerPonto(evento)]);
+      emAndamento.set([lerPonto(evento)]);
     })
     // A ativação do gesto chega no `onStart`, e não no `onUpdate`, e traz a
     // posição da caneta naquele instante: sem ela, o segundo ponto de cada traço
@@ -103,19 +132,20 @@ export function QuadroDesenho({ tracos, onTracoConcluido, onDimensoes }: QuadroD
     .onStart((evento) => {
       'worklet';
       const ponto = lerPonto(evento);
-      pontos.set((atuais) => [...atuais, ponto]);
+      emAndamento.set((atuais) => acrescentarPonto(atuais, ponto));
     })
     .onUpdate((evento) => {
       'worklet';
       const ponto = lerPonto(evento);
-      pontos.set((atuais) => [...atuais, ponto]);
+      emAndamento.set((atuais) => acrescentarPonto(atuais, ponto));
     })
     .onFinalize(() => {
       'worklet';
-      const concluidos = pontos.get();
-      if (concluidos.length > 0) {
-        scheduleOnRN(onTracoConcluido, [...concluidos], ponteiro.get());
-      }
+      const concluidos = emAndamento.get();
+      if (concluidos.length === 0) return;
+      aguardando.set(concluidos);
+      emAndamento.set([]);
+      scheduleOnRN(onTracoConcluido, [...concluidos], ponteiro.get());
     })
     .withTestId('quadro-desenho');
 
@@ -133,24 +163,10 @@ export function QuadroDesenho({ tracos, onTracoConcluido, onDimensoes }: QuadroD
         style={styles.quadro}>
         <Canvas style={StyleSheet.absoluteFill}>
           {caminhosConcluidos.map((caminho, indice) => (
-            <Path
-              key={indice}
-              path={caminho}
-              style="stroke"
-              strokeWidth={ESPESSURA_TRACO}
-              strokeCap="round"
-              strokeJoin="round"
-              color={COR_TRACO}
-            />
+            <Path key={indice} path={caminho} {...ESTILO_TRACO} />
           ))}
-          <Path
-            path={caminhoAtual}
-            style="stroke"
-            strokeWidth={ESPESSURA_TRACO}
-            strokeCap="round"
-            strokeJoin="round"
-            color={COR_TRACO}
-          />
+          <Path path={caminhoAguardando} {...ESTILO_TRACO} />
+          <Path path={caminhoEmAndamento} {...ESTILO_TRACO} />
         </Canvas>
       </View>
     </GestureDetector>

@@ -99,7 +99,10 @@ function desenhar(
   pincel.setStrokeJoin(StrokeJoin.Round);
   pincel.setAntiAlias(true);
 
+  // O Skia nativo lança erro, em vez de devolver null, quando não consegue ler o
+  // caminho. Por isso traço vazio nem chega a ele.
   for (const traco of tracos) {
+    if (traco.length === 0) continue;
     const caminho = Skia.Path.MakeFromSVGString(tracoParaCaminhoSvg(traco));
     if (caminho) tela.drawPath(caminho, pincel);
   }

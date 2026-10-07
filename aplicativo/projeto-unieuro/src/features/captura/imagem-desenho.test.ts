@@ -129,18 +129,53 @@ describe('geração da imagem do desenho', () => {
     gerarImagemDesenho(tracos, { largura: 1280, altura: 800 });
     const [quadro, modelo] = superficiesCriadas();
 
-    expect(quadro.tela.drawPath).toHaveBeenCalledTimes(2);
+    expect(
+      quadro.tela.drawPath.mock.calls.map(([caminho]: [{ svg: string }]) => caminho.svg),
+    ).toEqual(['M10 10 L50 10', 'M30 40 L30 40']);
     expect(quadro.tela.scale).toHaveBeenCalledWith(1, 1);
     expect(modelo.tela.drawPath).toHaveBeenCalledTimes(2);
     expect(modelo.tela.scale).toHaveBeenCalledWith(0.175, 0.175);
     expect(modelo.tela.translate).toHaveBeenCalledWith(0, (224 - 140) / 2);
   });
 
-  it('devolve os tons de cinza do modelo, um valor por pixel', () => {
+  it('desloca antes de escalar, para a faixa branca não encolher junto com o desenho', () => {
+    gerarImagemDesenho(tracos, { largura: 1280, altura: 800 });
+    const [, modelo] = superficiesCriadas();
+
+    const [ordemDeslocar] = modelo.tela.translate.mock.invocationCallOrder;
+    const [ordemEscalar] = modelo.tela.scale.mock.invocationCallOrder;
+    const [ordemDesenhar] = modelo.tela.drawPath.mock.invocationCallOrder;
+    expect(ordemDeslocar).toBeLessThan(ordemEscalar);
+    expect(ordemEscalar).toBeLessThan(ordemDesenhar);
+  });
+
+  it('não manda traço vazio para o Skia, que lançaria erro', () => {
+    gerarImagemDesenho([[], ...tracos], { largura: 1280, altura: 800 });
+
+    expect(Skia.Path.MakeFromSVGString).not.toHaveBeenCalledWith('');
+    expect(superficiesCriadas()[0].tela.drawPath).toHaveBeenCalledTimes(2);
+  });
+
+  it('converte os pixels lidos da imagem do modelo em tons de cinza, um valor por pixel', () => {
+    // A imagem do modelo volta com o primeiro pixel preto e os demais brancos.
+    const original = criarSuperficie.getMockImplementation()!;
+    criarSuperficie
+      .mockImplementationOnce(original)
+      .mockImplementationOnce((largura: number, altura: number) => {
+        const superficie = original(largura, altura);
+        const pixels = new Uint8Array(largura * altura * 4).fill(255);
+        pixels.set([0, 0, 0, 255], 0);
+        return {
+          ...superficie,
+          makeImageSnapshot: () => ({ encodeToBase64: () => '', readPixels: () => pixels }),
+        };
+      });
+
     const imagem = gerarImagemDesenho(tracos, { largura: 640, altura: 400 }, 8);
 
     expect(imagem.cinza).toHaveLength(64);
-    expect(Array.from(imagem.cinza).every((valor) => Math.abs(valor - 1) < 1e-6)).toBe(true);
+    expect(imagem.cinza[0]).toBeCloseTo(0);
+    expect(imagem.cinza[1]).toBeCloseTo(1);
   });
 
   it('avisa quando o aparelho não cria a superfície de desenho', () => {

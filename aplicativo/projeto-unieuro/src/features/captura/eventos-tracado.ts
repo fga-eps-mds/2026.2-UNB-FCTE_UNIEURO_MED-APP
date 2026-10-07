@@ -59,6 +59,23 @@ function paraPonto({ x, y, instante, pressao, inclinacaoX, inclinacaoY }: Evento
   return ponto;
 }
 
+/**
+ * Acrescenta um ponto ao traço em andamento. Roda na thread de UI, a cada
+ * evento do gesto. Um ponto na mesma posição e no mesmo milissegundo do
+ * anterior é o mesmo evento entregue duas vezes e fica de fora; parado no mesmo
+ * lugar em outro instante, ele entra, porque a caneta pode mudar a pressão.
+ */
+export function acrescentarPonto(traco: Traco, ponto: PontoTracado): Traco {
+  'worklet';
+  const ultimo = traco[traco.length - 1];
+  const repetido =
+    ultimo !== undefined &&
+    ultimo.x === ponto.x &&
+    ultimo.y === ponto.y &&
+    ultimo.instante === ponto.instante;
+  return repetido ? traco : [...traco, ponto];
+}
+
 /** Acrescenta um traço concluído ao registro, sem alterar o registro recebido. */
 export function acrescentarTraco(
   eventos: readonly EventoTracado[],
