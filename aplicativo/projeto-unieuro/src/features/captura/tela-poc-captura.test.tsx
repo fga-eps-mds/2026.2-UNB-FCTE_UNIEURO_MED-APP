@@ -7,12 +7,15 @@ import { gerarImagemDesenho } from '@/features/captura/imagem-desenho';
 import TelaPocCaptura from '@/features/captura/tela-poc-captura';
 
 // O Reanimated e o Worklets dependem de módulos nativos. Os substitutos que os
-// próprios pacotes oferecem rodam os worklets na mesma thread do teste.
+// próprios pacotes oferecem rodam os worklets na mesma thread do teste, então o
+// descompasso entre as threads do aparelho não aparece aqui.
 jest.mock('react-native-reanimated', () => jest.requireActual('react-native-reanimated/mock'));
 jest.mock('react-native-worklets', () => jest.requireActual('react-native-worklets/src/mock'));
 
 // O Skia desenha em código nativo, que não existe no Jest. O substituto
-// renderiza o quadro sem pixels e executa a montagem do traço em andamento.
+// renderiza o quadro sem pixels. Ele só chama a montagem do caminho na
+// renderização, quando ainda não há ponto em andamento: o desenho do traço em
+// andamento só é verificado no aparelho.
 jest.mock('@shopify/react-native-skia', () => ({
   Canvas: 'Canvas',
   Path: 'Path',
@@ -38,8 +41,10 @@ const dadosDaCaneta = { pressure: 0.6, tiltX: 12, tiltY: -3, azimuthAngle: 0, al
 
 // Cada leitura do relógio avança 10 ms, então os pontos chegam a 100 por segundo.
 let relogio = 0;
+let tracosDesenhados = 0;
 beforeEach(() => {
   relogio = 1_000;
+  tracosDesenhados = 0;
   jest.spyOn(Date, 'now').mockImplementation(() => (relogio += 10));
 });
 
@@ -63,11 +68,12 @@ function desenhar(pontos: [number, number][], ponteiro = PointerType.STYLUS) {
   ]);
 }
 
+/** Desenha e espera o traço chegar ao registro, que é atualizado fora do gesto. */
 async function desenharEAguardar(pontos: [number, number][], ponteiro?: PointerType) {
-  const antes = screen.getByText(/pontos em \d+ traços registrados/).props.children;
   desenhar(pontos, ponteiro);
+  tracosDesenhados += 1;
   await waitFor(() =>
-    expect(screen.getByText(/pontos em \d+ traços registrados/).props.children).not.toEqual(antes),
+    expect(screen.getByText(new RegExp(`em ${tracosDesenhados} traços registrados$`))).toBeTruthy(),
   );
 }
 
@@ -82,7 +88,7 @@ describe('prova de conceito da captura do traçado', () => {
     expect(screen.getByText('0 pontos em 0 traços registrados')).toBeTruthy();
     expect(screen.getByText('Ponteiro: nenhum ainda')).toBeTruthy();
     expect(botao('Desfazer')).toBeDisabled();
-    expect(botao('Limpar')).toBeDisabled();
+    expect(botao('Apagar tudo')).toBeDisabled();
     expect(botao('Gerar imagem')).toBeDisabled();
   });
 
@@ -129,21 +135,21 @@ describe('prova de conceito da captura do traçado', () => {
     expect(screen.getByText('4 pontos em 2 traços registrados')).toBeTruthy();
   });
 
-  it('refazer o desenho: limpar descarta todos os traços e desabilita as ações', async () => {
+  it('refazer o desenho: apagar tudo descarta os traços e desabilita as ações', async () => {
     render(<TelaPocCaptura />);
     await desenharEAguardar([
       [10, 10],
       [20, 20],
     ]);
 
-    fireEvent.press(botao('Limpar'));
+    fireEvent.press(botao('Apagar tudo'));
 
     expect(screen.getByText('0 traços valem no desenho')).toBeTruthy();
-    expect(botao('Limpar')).toBeDisabled();
+    expect(botao('Apagar tudo')).toBeDisabled();
     expect(botao('Gerar imagem')).toBeDisabled();
   });
 
-  it('gera a imagem do modelo a partir dos traços que valem e mostra a prévia', async () => {
+  it('gera a imagem com os pontos no tempo da tarefa e a inclinação da caneta', async () => {
     render(<TelaPocCaptura />);
     medirQuadro();
     await desenharEAguardar([
@@ -153,11 +159,44 @@ describe('prova de conceito da captura do traçado', () => {
 
     fireEvent.press(botao('Gerar imagem'));
 
-    expect(gerarImagemDesenho).toHaveBeenCalledWith(
-      [expect.arrayContaining([expect.objectContaining({ x: 10, y: 10, pressao: 0.6 })])],
-      { largura: 800, altura: 600 },
-    );
+    const [[tracos, quadro]] = jest.mocked(gerarImagemDesenho).mock.calls;
+    expect(quadro).toEqual({ largura: 800, altura: 600 });
+    expect(tracos).toHaveLength(1);
+    const [primeiro] = tracos[0];
+    expect(primeiro).toMatchObject({
+      x: 10,
+      y: 10,
+      pressao: 0.6,
+      inclinacaoX: 12,
+      inclinacaoY: -3,
+    });
+    // O instante conta a partir da abertura da tarefa, e não do relógio do aparelho.
+    expect(primeiro.instante).toBeGreaterThan(0);
+    expect(primeiro.instante).toBeLessThan(1_000);
     expect(screen.getByLabelText('Imagem para o modelo, 224 por 224 pixels')).toBeTruthy();
+  });
+
+  it('desfazer antes de gerar: só os traços que valem vão para a imagem', async () => {
+    render(<TelaPocCaptura />);
+    medirQuadro();
+    await desenharEAguardar([
+      [10, 10],
+      [20, 20],
+    ]);
+    await desenharEAguardar([
+      [50, 50],
+      [60, 60],
+    ]);
+
+    fireEvent.press(botao('Desfazer'));
+    fireEvent.press(botao('Gerar imagem'));
+
+    const [[tracos]] = jest.mocked(gerarImagemDesenho).mock.calls;
+    expect(tracos).toHaveLength(1);
+    expect(tracos[0].map(({ x, y }) => [x, y])).toEqual([
+      [10, 10],
+      [20, 20],
+    ]);
   });
 
   it('não gera a imagem antes de saber o tamanho do quadro', async () => {
@@ -167,7 +206,7 @@ describe('prova de conceito da captura do traçado', () => {
     expect(botao('Gerar imagem')).toBeDisabled();
   });
 
-  it('mostra o motivo quando a imagem não pode ser gerada', async () => {
+  it('mostra uma mensagem fixa, sem o motivo técnico, quando a imagem não pode ser gerada', async () => {
     jest.mocked(gerarImagemDesenho).mockImplementationOnce(() => {
       throw new Error('Não foi possível ler os pixels da imagem do desenho.');
     });
@@ -178,8 +217,9 @@ describe('prova de conceito da captura do traçado', () => {
     fireEvent.press(botao('Gerar imagem'));
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Não foi possível ler os pixels da imagem do desenho.',
+      'Não foi possível gerar a imagem do desenho. Tente de novo.',
     );
+    expect(screen.queryByText(/ler os pixels/)).toBeNull();
   });
 
   it('apaga a prévia quando o desenho muda depois de gerar a imagem', async () => {

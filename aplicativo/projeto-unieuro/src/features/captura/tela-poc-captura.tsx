@@ -6,7 +6,8 @@
  * que iria para o modelo. Nada é gravado: o registro existe só enquanto a tela
  * está aberta.
  */
-import { useMemo, useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useMemo, useState, type ComponentProps } from 'react';
 import {
   Image,
   Pressable,
@@ -45,22 +46,42 @@ const NOMES_PONTEIRO: Record<TipoPonteiro, string> = {
   desconhecido: 'não identificado',
 };
 
-type BotaoProps = { rotulo: string; desabilitado: boolean; onPress: () => void };
+/** Mensagem fixa: o motivo técnico da falha não vai para a tela que o paciente pode ver. */
+const ERRO_AO_GERAR_IMAGEM = 'Não foi possível gerar a imagem do desenho. Tente de novo.';
 
-function Botao({ rotulo, desabilitado, onPress }: BotaoProps) {
+type BotaoProps = {
+  rotulo: string;
+  /** Ícone da lista do guia de identidade visual, sempre ao lado do rótulo. */
+  icone?: ComponentProps<typeof MaterialCommunityIcons>['name'];
+  desabilitado: boolean;
+  onPress: () => void;
+};
+
+/** Botão secundário do guia de identidade visual: fundo branco, contorno e texto na cor principal. */
+function Botao({ rotulo, icone, desabilitado, onPress }: BotaoProps) {
   const tema = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={rotulo}
       accessibilityState={{ disabled: desabilitado }}
       disabled={desabilitado}
       onPress={onPress}
       style={({ pressed }) => [
         styles.botao,
-        { borderColor: tema.primary },
+        { borderColor: tema.primary, backgroundColor: tema.surface },
         desabilitado && styles.botaoDesabilitado,
         pressed && styles.pressionado,
       ]}>
+      {icone ? (
+        <MaterialCommunityIcons
+          name={icone}
+          size={22}
+          color={tema.primary}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
       <Text style={[styles.textoBotao, { color: tema.primary }]}>{rotulo}</Text>
     </Pressable>
   );
@@ -97,9 +118,9 @@ export default function TelaPocCaptura() {
     try {
       setImagem(gerarImagemDesenho(tracos, dimensoes));
       setErro(null);
-    } catch (falha) {
+    } catch {
       setImagem(null);
-      setErro(falha instanceof Error ? falha.message : 'Não foi possível gerar a imagem.');
+      setErro(ERRO_AO_GERAR_IMAGEM);
     }
   }
 
@@ -140,11 +161,13 @@ export default function TelaPocCaptura() {
             <View style={styles.botoes}>
               <Botao
                 rotulo="Desfazer"
+                icone="undo"
                 desabilitado={semTracos}
                 onPress={() => registrarAcao('desfazer')}
               />
               <Botao
-                rotulo="Limpar"
+                rotulo="Apagar tudo"
+                icone="eraser"
                 desabilitado={semTracos}
                 onPress={() => registrarAcao('limpar')}
               />
@@ -200,11 +223,16 @@ const styles = StyleSheet.create({
   painelLargo: { width: 320, maxHeight: '100%' },
   conteudoPainel: { gap: 12 },
   botoes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  // Alvo de toque mínimo de 48 × 48 dp e contorno de 2 dp, como no guia.
   botao: {
     minHeight: 48,
+    minWidth: 48,
     paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    gap: 8,
+    borderWidth: 2,
     borderRadius: 12,
   },
   botaoDesabilitado: { opacity: 0.4 },
