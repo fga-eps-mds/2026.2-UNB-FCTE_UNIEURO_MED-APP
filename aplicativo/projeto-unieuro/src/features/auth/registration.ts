@@ -82,12 +82,20 @@ type Validation =
 const failure = (message: string) => ({ success: false, message }) as const;
 const invalid = (message: string) => ({ valid: false, message }) as const;
 
+export function isValidEmail(email: string): boolean {
+  return EMAIL_PATTERN.test(email);
+}
+
+export function isBrazilianState(state: string): boolean {
+  return BRAZILIAN_STATES.includes(state.toUpperCase());
+}
+
 export function parseCrm(fullCrm: string): Crm | null {
   const parts = CRM_PATTERN.exec(fullCrm.trim());
   if (!parts) return null;
 
   const state = parts[2].toUpperCase();
-  if (!BRAZILIAN_STATES.includes(state)) return null;
+  if (!isBrazilianState(state)) return null;
 
   return { number: parts[1], state };
 }

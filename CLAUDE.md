@@ -89,9 +89,10 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
   arquivo de teste fica ao lado do testado, com sufixo `.test.ts` ou `.test.tsx`.
 - Cada cenário BDD da história vira pelo menos um teste, com o nome do cenário.
 - Teste de integração (tela → regra → banco) usa SQLite real, sem mock do
-  repositório. Ainda não existe adaptador de SQLite real para o Jest: a primeira
-  história que precisar cria esse suporte (por exemplo, um banco em memória com a
-  mesma interface do `expo-sqlite`), e as seguintes reutilizam.
+  repositório. `openTestDatabase()`, de `src/test-utils/sqlite.ts`, abre um banco em
+  memória pelo `node:sqlite`, com a interface do `expo-sqlite` e as migrations já
+  aplicadas. Exige Node 22, a mesma versão do CI. `src/test-utils/professionals.ts`
+  cadastra profissionais de teste nesse banco.
 - O `jest.config.js` define o piso de cobertura (90% de instruções, linhas e
   funções; 80% de ramos). Não baixe o piso: escreva o teste que falta.
 - Prefira consultas por papel e rótulo de acessibilidade. O público tem 60 anos ou

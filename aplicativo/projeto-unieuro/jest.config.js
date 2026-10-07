@@ -24,6 +24,8 @@ module.exports = {
     '!src/app/**',
     // O produto é distribuído só como APK; as variantes web não são embarcadas.
     '!src/**/*.web.{ts,tsx}',
+    // Apoio aos testes, como o banco SQLite em memória.
+    '!src/test-utils/**',
   ],
   coverageDirectory: 'coverage',
   // O `lcov` é o formato consumido pelo SonarCloud.
