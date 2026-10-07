@@ -69,12 +69,13 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       // Roda verifyPassword mesmo quando o e-mail não existe (contra um hash
       // fixo), para que o tempo de resposta não denuncie quais e-mails estão
       // cadastrados. A mensagem também é a mesma nos dois casos, pelo mesmo
-      // motivo (evitar enumeração de e-mail).
+      // motivo (evitar enumeração de e-mail). Conta desativada recebe a mesma
+      // mensagem, depois da mesma verificação de senha.
       const ok = professional
         ? await verifyPassword(password, professional.passwordHash)
         : await verifyPassword(password, DUMMY_PASSWORD_HASH).then(() => false);
 
-      if (!professional || !ok) {
+      if (!professional || !ok || !professional.active) {
         Alert.alert('Login', 'E-mail ou senha inválidos.');
         return;
       }
