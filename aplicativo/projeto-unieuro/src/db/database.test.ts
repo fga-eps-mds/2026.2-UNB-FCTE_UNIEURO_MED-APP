@@ -1,11 +1,29 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
+import { protectStoredCpfs } from '@/db/cpf-migration';
+import type { CpfProtector } from '@/db/cpf-protection';
 import { closeDatabase, getDatabase, migrate } from '@/db/database';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
 }));
+
+// A conversão do CPF tem teste próprio em `cpf-migration.test.ts`. Aqui só
+// importa que `migrate` a execute no passo certo.
+jest.mock('@/db/cpf-migration', () => ({
+  protectStoredCpfs: jest.fn(async () => undefined),
+}));
+
+// O módulo de runtime usa o cofre seguro e a cifra nativa, que só existem no
+// aplicativo. Nestes testes o protetor é sempre passado de fora.
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
+
+const protector: CpfProtector = {
+  blindIndex: jest.fn(),
+  encrypt: jest.fn(),
+  decrypt: jest.fn(),
+};
 
 const mockOpenDatabaseAsync = jest.mocked(openDatabaseAsync);
 
@@ -29,7 +47,7 @@ describe('migrate', () => {
   it('ativa o WAL e as chaves estrangeiras antes de tudo', async () => {
     const database = createDatabase();
 
-    await migrate(database);
+    await migrate(database, protector);
 
     expect(database.execAsync).toHaveBeenNthCalledWith(
       1,
@@ -43,18 +61,52 @@ describe('migrate', () => {
   ])('cria o esquema em uma transação quando o banco está %s', async (_case, userVersion) => {
     const database = createDatabase(userVersion);
 
-    await migrate(database);
+    await migrate(database, protector);
 
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
-    MIGRATIONS.forEach((step) => expect(database.execAsync).toHaveBeenCalledWith(step));
+    expect(database.execAsync).toHaveBeenCalledWith(MIGRATIONS[0]);
+    expect(protectStoredCpfs).toHaveBeenCalledWith(database, protector);
+    expect(database.execAsync).toHaveBeenLastCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  });
+
+  it('só protege o CPF, sem recriar o esquema, quando o banco está na versão 1', async () => {
+    const database = createDatabase(1);
+
+    await migrate(database, protector);
+
+    expect(database.execAsync).not.toHaveBeenCalledWith(MIGRATIONS[0]);
+    expect(protectStoredCpfs).toHaveBeenCalledWith(database, protector);
+    expect(database.execAsync).toHaveBeenCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  });
+
+  it('refaz o arquivo e esvazia o WAL, fora da transação, depois de reescrever dados antigos', async () => {
+    const database = createDatabase(1);
+
+    await migrate(database, protector);
+
+    const vacuum = 'VACUUM; PRAGMA wal_checkpoint(TRUNCATE);';
+    expect(database.execAsync).toHaveBeenLastCalledWith(vacuum);
+    const vacuumOrder = database.execAsync.mock.invocationCallOrder.at(-1)!;
+    const transactionOrder = database.withTransactionAsync.mock.invocationCallOrder[0];
+    expect(vacuumOrder).toBeGreaterThan(transactionOrder);
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('não refaz o arquivo num banco novo, que não tem dado antigo a apagar', async () => {
+    const database = createDatabase(0);
+
+    await migrate(database, protector);
+
+    expect(database.execAsync).not.toHaveBeenCalledWith('VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
     expect(database.execAsync).toHaveBeenLastCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });
 
   it('não executa nada quando o banco já está na versão atual', async () => {
     const database = createDatabase(SCHEMA_VERSION);
 
-    await migrate(database);
+    await migrate(database, protector);
 
+    expect(protectStoredCpfs).not.toHaveBeenCalled();
     expect(database.withTransactionAsync).not.toHaveBeenCalled();
     expect(database.execAsync).toHaveBeenCalledTimes(1);
   });
@@ -67,7 +119,11 @@ describe('esquema', () => {
     expect(schemaV1).toContain('CREATE TABLE IF NOT EXISTS profissional');
     expect(schemaV1).toContain('email TEXT NOT NULL COLLATE NOCASE UNIQUE');
     expect(schemaV1).toContain('UNIQUE (crm_numero, uf_crm)');
-    expect(SCHEMA_VERSION).toBe(1);
+  });
+
+  it('chega à versão 2 com o passo que protege o CPF', () => {
+    expect(SCHEMA_VERSION).toBe(2);
+    expect(MIGRATIONS[1]).toBe(protectStoredCpfs);
   });
 });
 
