@@ -20,6 +20,12 @@ export const Colors = {
     field: '#F3F4FB',
     border: '#C7D2E5',
     placeholder: '#94A3B8',
+    error: '#B91C1C',
+    errorBg: '#FEE2E2',
+    success: '#166534',
+    successBg: '#DCFCE7',
+    info: '#1E40AF',
+    infoBg: '#DBEAFE',
   },
   dark: {
     primary: '#9A3412',
@@ -31,6 +37,12 @@ export const Colors = {
     field: '#334155',
     border: '#475569',
     placeholder: '#CBD5E1',
+    error: '#FCA5A5',
+    errorBg: '#7F1D1D',
+    success: '#86EFAC',
+    successBg: '#14532D',
+    info: '#93C5FD',
+    infoBg: '#1E3A8A',
   },
 } as const;
 
