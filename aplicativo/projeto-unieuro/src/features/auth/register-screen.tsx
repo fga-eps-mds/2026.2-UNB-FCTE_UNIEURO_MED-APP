@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,11 +17,13 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   registerProfessional,
   validateRegistration,
-  collectRegistrationErrors,
+  collectRegistrationFieldErrors,
   type ProfessionalRepository,
+  type RegistrationFieldErrors,
   type RegistrationInput,
 } from '@/features/auth/registration';
 import { createRegisterStyles, getRegisterLayout } from '@/features/auth/register.styles';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
 
 type RegisterValues = {
   fullName: string;
@@ -121,7 +122,14 @@ const toRegistrationInput = (formValues: RegisterValues): RegistrationInput => (
   passwordConfirmation: formValues.confirmPassword,
 });
 
-const showFailure = (message: string) => Alert.alert('Cadastro não concluído', message);
+const registrationField: Record<keyof RegisterValues, keyof RegistrationInput> = {
+  fullName: 'name',
+  email: 'email',
+  crm: 'crm',
+  cpf: 'cpf',
+  password: 'password',
+  confirmPassword: 'passwordConfirmation',
+};
 
 type RegisterScreenProps = {
   repository?: ProfessionalRepository;
@@ -139,33 +147,53 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
   const [values, setValues] = useState(initialValues);
   const [focusedField, setFocusedField] = useState<keyof RegisterValues | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<RegistrationFieldErrors>({});
+  const [banner, setBanner] = useState<{ kind: 'error' | 'info'; message: string } | null>(null);
+  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    if (!completed) return;
+    const timer = setTimeout(() => router.replace('/'), 4000);
+    return () => clearTimeout(timer);
+  }, [completed, router]);
 
   const updateValue = (name: keyof RegisterValues, value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
+    setFieldErrors((current) => ({ ...current, [registrationField[name]]: undefined }));
+    setBanner(null);
   };
 
   const submitRegistration = async () => {
+    if (submitting || completed) return;
+    setBanner(null);
     const input = toRegistrationInput(values);
-    const errors = collectRegistrationErrors(input);
-    if (errors.length > 0) return showFailure(errors.join('\n'));
+    const errors = collectRegistrationFieldErrors(input);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const validation = validateRegistration(input);
-    if (!validation.valid) return showFailure(validation.message);
+    if (!validation.valid) {
+      setBanner({ kind: 'error', message: validation.message });
+      return;
+    }
 
     if (!repository) {
-      Alert.alert('Cadastro', 'O cadastro será conectado ao banco de dados em uma próxima etapa.');
+      setBanner({ kind: 'info', message: 'O cadastro ainda não está disponível.' });
       return;
     }
 
     setSubmitting(true);
     try {
       const result = await registerProfessional(validation.registration, repository);
-      if (!result.success) return showFailure(result.message);
+      if (!result.success) {
+        if (result.field) setFieldErrors({ [result.field]: result.message });
+        else setBanner({ kind: 'error', message: result.message });
+        return;
+      }
 
-      Alert.alert('Cadastro concluído', 'Entre com o e-mail e a senha cadastrados.');
-      router.replace('/');
+      setCompleted(true);
     } catch {
-      showFailure('Não foi possível salvar o cadastro. Tente novamente.');
+      setBanner({ kind: 'error', message: 'Não foi possível salvar o cadastro. Tente novamente.' });
     } finally {
       setSubmitting(false);
     }
@@ -228,6 +256,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
             <Text style={styles.subtitle}>
               {'Cadastro do profissional de sa\u00fade que vai aplicar o teste.'}
             </Text>
+            {banner && <FeedbackMessage kind={banner.kind} message={banner.message} />}
 
             <View style={styles.form}>
               {fieldRows.map((row, rowIndex) => (
@@ -242,6 +271,7 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                       <Text style={styles.label}>{field.label}</Text>
                       <TextInput
                         accessibilityLabel={field.label}
+                        accessibilityHint={fieldErrors[registrationField[field.name]]}
                         autoCapitalize={field.autoCapitalize ?? 'none'}
                         autoComplete={field.autoComplete}
                         keyboardType={field.keyboardType ?? 'default'}
@@ -253,10 +283,21 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                         placeholderTextColor={theme.placeholder}
                         returnKeyType={rowIndex === fieldRows.length - 1 ? 'done' : 'next'}
                         secureTextEntry={field.secureTextEntry}
-                        style={[styles.input, focusedField === field.name && styles.inputFocused]}
+                        style={[
+                          styles.input,
+                          focusedField === field.name && styles.inputFocused,
+                          fieldErrors[registrationField[field.name]] && styles.inputError,
+                        ]}
                         textContentType={field.textContentType}
                         value={values[field.name]}
                       />
+                      {fieldErrors[registrationField[field.name]] && (
+                        <FeedbackMessage
+                          kind="error"
+                          inline
+                          message={fieldErrors[registrationField[field.name]]!}
+                        />
+                      )}
                     </View>
                   ))}
                 </View>
@@ -265,12 +306,12 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
               <Pressable
                 accessibilityLabel="CRIAR CONTA"
                 accessibilityRole="button"
-                accessibilityState={{ busy: submitting, disabled: submitting }}
-                disabled={submitting}
+                accessibilityState={{ busy: submitting, disabled: submitting || completed }}
+                disabled={submitting || completed}
                 onPress={submitRegistration}
                 style={({ pressed }) => [
                   styles.submitButton,
-                  (pressed || submitting) && styles.pressed,
+                  (pressed || submitting || completed) && styles.pressed,
                 ]}>
                 {submitting ? (
                   <ActivityIndicator color={theme.onPrimary} />
@@ -278,6 +319,12 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                   <Text style={styles.submitText}>CRIAR CONTA</Text>
                 )}
               </Pressable>
+              {completed && (
+                <FeedbackMessage
+                  kind="success"
+                  message="Conta criada. Entre com o e-mail e a senha cadastrados."
+                />
+              )}
             </View>
 
             <Pressable

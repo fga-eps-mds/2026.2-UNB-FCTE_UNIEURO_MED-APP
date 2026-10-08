@@ -103,6 +103,10 @@ export function createRegisterStyles(colors: ThemeColors) {
       borderColor: colors.primary,
       borderWidth: 2,
     },
+    inputError: {
+      borderColor: colors.error,
+      borderWidth: 2,
+    },
     submitButton: {
       minHeight: 64,
       borderRadius: 14,

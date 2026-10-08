@@ -73,13 +73,17 @@ export type ProfessionalRepository = {
   insert(professional: NewProfessional): Promise<void>;
 };
 
-export type RegistrationResult = { success: true } | { success: false; message: string };
+export type RegistrationFieldErrors = Partial<Record<keyof RegistrationInput, string>>;
+export type RegistrationResult =
+  | { success: true }
+  | { success: false; message: string; field?: 'email' | 'crm' | 'cpf' };
 
 type Validation =
   | { valid: true; registration: ValidRegistration }
   | { valid: false; message: string };
 
-const failure = (message: string) => ({ success: false, message }) as const;
+const failure = (message: string, field: 'email' | 'crm' | 'cpf') =>
+  ({ success: false, message, field }) as const;
 const invalid = (message: string) => ({ valid: false, message }) as const;
 
 export function parseCrm(fullCrm: string): Crm | null {
@@ -147,8 +151,8 @@ export function validateRegistration(input: RegistrationInput): Validation {
   };
 }
 
-export function collectRegistrationErrors(input: RegistrationInput): string[] {
-  const errors: string[] = [];
+export function collectRegistrationFieldErrors(input: RegistrationInput): RegistrationFieldErrors {
+  const errors: RegistrationFieldErrors = {};
   const name = input.name.trim();
   const email = input.email.trim();
   const crmRaw = input.crm.trim();
@@ -156,25 +160,26 @@ export function collectRegistrationErrors(input: RegistrationInput): string[] {
   const password = input.password;
   const passwordConfirmation = input.passwordConfirmation;
 
-  if (name.length === 0) errors.push('Preencha o nome.');
-  if (email.length === 0) errors.push('Preencha o e-mail.');
-  if (crmRaw.length === 0) errors.push('Preencha o CRM.');
-  if (cpfRaw.length === 0) errors.push('Preencha o CPF.');
-  if (password.length === 0) errors.push('Preencha a senha.');
-  if (passwordConfirmation.length === 0) errors.push('Preencha a confirmação de senha.');
+  if (name.length === 0) errors.name = 'Preencha o nome.';
+  if (email.length === 0) errors.email = 'Preencha o e-mail.';
+  if (crmRaw.length === 0) errors.crm = 'Preencha o CRM.';
+  if (cpfRaw.length === 0) errors.cpf = 'Preencha o CPF.';
+  if (password.length === 0) errors.password = 'Preencha a senha.';
+  if (passwordConfirmation.length === 0)
+    errors.passwordConfirmation = 'Preencha a confirmação de senha.';
 
-  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.push('Informe um e-mail válido.');
+  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.email = 'Informe um e-mail válido.';
 
   const crm = parseCrm(crmRaw);
-  if (crmRaw.length > 0 && !crm) errors.push('Informe o CRM no formato 12345/DF.');
+  if (crmRaw.length > 0 && !crm) errors.crm = 'Informe o CRM no formato 12345/DF.';
 
-  if (cpfRaw.length > 0 && !parseCpf(cpfRaw)) errors.push('Informe um CPF válido.');
+  if (cpfRaw.length > 0 && !parseCpf(cpfRaw)) errors.cpf = 'Informe um CPF válido.';
 
   if (password.length > 0 && password.length < MIN_PASSWORD_LENGTH)
-    errors.push(`A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+    errors.password = `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`;
 
   if (password.length > 0 && passwordConfirmation.length > 0 && password !== passwordConfirmation)
-    errors.push('Confira a senha e a confirmação.');
+    errors.passwordConfirmation = 'Confira a senha e a confirmação.';
 
   return errors;
 }
@@ -184,13 +189,13 @@ export async function registerProfessional(
   repository: ProfessionalRepository,
 ): Promise<RegistrationResult> {
   if (await repository.emailExists(email)) {
-    return failure('Já existe um profissional cadastrado com este e-mail.');
+    return failure('Já existe um profissional cadastrado com este e-mail.', 'email');
   }
   if (await repository.crmExists(crm.number, crm.state)) {
-    return failure('Já existe um profissional cadastrado com este CRM.');
+    return failure('Já existe um profissional cadastrado com este CRM.', 'crm');
   }
   if (await repository.cpfExists(cpf)) {
-    return failure('Já existe um profissional cadastrado com este CPF.');
+    return failure('Já existe um profissional cadastrado com este CPF.', 'cpf');
   }
 
   await repository.insert({
