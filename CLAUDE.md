@@ -80,6 +80,11 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
 - Proibido (ver `CONTRIBUTING.md`, "Restrições do produto"): permissão de rede, SDK
   de telemetria ou analytics, envio de dado para fora do aparelho, log de
   identificação de paciente, traçado, imagem ou escore, e escore na tela do paciente.
+- O APK de entrega não declara a permissão de internet: o `app.config.js` bloqueia as
+  permissões sem uso nos perfis `preview` e `production`. O backup automático do
+  Android e a transferência entre aparelhos ficam desligados em todos os builds
+  (`android.allowBackup` e `plugins/with-data-extraction-rules.js`). Permissão nova
+  precisa de justificativa no PR.
 - A sincronização entre tablets está em estudo. Qualquer canal de sincronização é um
   ponto de exposição de dados e precisa ser discutido com o PO antes de implementado.
 

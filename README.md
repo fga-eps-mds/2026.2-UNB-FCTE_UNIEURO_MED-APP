@@ -88,6 +88,20 @@ Perfis disponíveis:
 | `preview`     | APK de distribuição interna, usado nas entregas      |
 | `production`  | Build de produção, com incremento automático de versão |
 
+### Permissões e backup do APK
+
+O APK de entrega não acessa a internet. Nos perfis `preview` e `production`, o `app.config.js` bloqueia a permissão `INTERNET` e as permissões que o modelo do Expo acrescenta sem uso. O build de desenvolvimento continua com a internet, porque precisa dela para falar com o Metro.
+
+Em todos os perfis, o backup automático do Android fica desligado (`android.allowBackup: false`), e o plugin `plugins/with-data-extraction-rules.js` impede a transferência dos dados para outro aparelho no Android 12 ou mais novo. Assim, os dados do aplicativo não saem do tablet.
+
+Para conferir o manifesto do APK de entrega sem passar pelo EAS:
+
+``` bash
+EAS_BUILD_PROFILE=preview npx expo prebuild --platform android --clean
+```
+
+O manifesto gerado fica em `android/app/src/main/AndroidManifest.xml`. A pasta `android/` não é versionada. O prebuild também troca os scripts `android` e `ios` do `package.json`; desfaça essa mudança antes de commitar.
+
 ## Verificação
 
 Para verificar o código com o linter:
