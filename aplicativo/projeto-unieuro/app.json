@@ -21,7 +21,7 @@
       "package": "com.hgaldino05.projetounieuro"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
