@@ -1,5 +1,4 @@
 import {
-  ageOn,
   countExams,
   describeTotals,
   filterPatients,
@@ -12,7 +11,6 @@ const paciente = (dados: Partial<PatientSummary>): PatientSummary => ({
   id: 1,
   name: 'José Alves Martins',
   recordNumber: '2026-0184',
-  birthDate: '1948-03-14',
   lastExamAt: '2026-10-05T14:32:00',
   lastExamStatus: 'concluido',
   examCount: 2,
@@ -30,6 +28,14 @@ describe('ordem da lista', () => {
     expect(sortByLastExam(lista).map((p) => p.id)).toEqual([2, 1, 3]);
   });
 
+  it('compara o momento do exame, e não o texto da data', () => {
+    // 23h30 em UTC é 20h30 em Brasília: este exame é anterior ao das 21h.
+    const emUtc = paciente({ id: 1, lastExamAt: '2026-10-05T23:30:00Z' });
+    const comFuso = paciente({ id: 2, lastExamAt: '2026-10-05T21:00:00-03:00' });
+
+    expect(sortByLastExam([emUtc, comFuso]).map((p) => p.id)).toEqual([2, 1]);
+  });
+
   it('não altera a lista recebida', () => {
     sortByLastExam(lista);
 
@@ -45,6 +51,12 @@ describe('busca de paciente', () => {
 
   it('encontra pelo número da ficha', () => {
     expect(filterPatients(lista, '0179').map((p) => p.id)).toEqual([2]);
+  });
+
+  it('encontra a ficha com letras sem diferenciar maiúsculas', () => {
+    const comLetra = [paciente({ id: 9, recordNumber: 'AB-0042' })];
+
+    expect(filterPatients(comLetra, 'ab-0042').map((p) => p.id)).toEqual([9]);
   });
 
   it('devolve todos quando a busca está vazia', () => {
@@ -77,14 +89,16 @@ describe('resumo do cabeçalho', () => {
 });
 
 describe('datas', () => {
-  it('calcula a idade antes e depois do aniversário', () => {
-    expect(ageOn('1948-03-14', new Date(2026, 2, 13))).toBe(77);
-    expect(ageOn('1948-03-14', new Date(2026, 2, 14))).toBe(78);
-    expect(ageOn('1948-03-14', new Date(2026, 9, 5))).toBe(78);
-  });
-
   it('formata datas e datas com hora no padrão brasileiro', () => {
     expect(formatDate('1948-03-14')).toBe('14/03/1948');
     expect(formatDate('2026-10-05T14:32:00')).toBe('05/10/2026');
+  });
+
+  it('mostra o dia do tablet para um exame gravado em UTC', () => {
+    // Exame às 22h30 no horário do aparelho. Em Brasília, o texto em UTC já é
+    // do dia 06, e a tela precisa continuar mostrando o dia 05.
+    const gravado = new Date(2026, 9, 5, 22, 30).toISOString();
+
+    expect(formatDate(gravado)).toBe('05/10/2026');
   });
 });

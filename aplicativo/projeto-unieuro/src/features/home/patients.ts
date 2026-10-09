@@ -11,8 +11,6 @@ export type PatientSummary = {
   name: string;
   /** Número da ficha do paciente na clínica. */
   recordNumber: string;
-  /** Data de nascimento no formato AAAA-MM-DD. */
-  birthDate: string;
   /** Data e hora ISO do exame mais recente, ou `null` se ainda não houve exame. */
   lastExamAt: string | null;
   lastExamStatus: ExamStatus | null;
@@ -32,9 +30,18 @@ const normalize = (text: string) =>
     .toLowerCase()
     .trim();
 
+// Compara instantes, e não textos: "2026-10-05T23:30:00Z" e
+// "2026-10-05T20:30:00-03:00" são o mesmo momento escrito de formas diferentes.
+const examTime = (patient: PatientSummary) =>
+  patient.lastExamAt ? Date.parse(patient.lastExamAt) : Number.NEGATIVE_INFINITY;
+
 /** O paciente com o exame mais recente vem primeiro; quem não fez exame vai para o fim. */
 export function sortByLastExam(patients: readonly PatientSummary[]): PatientSummary[] {
-  return [...patients].sort((a, b) => (b.lastExamAt ?? '').localeCompare(a.lastExamAt ?? ''));
+  return [...patients].sort((a, b) => {
+    const [timeA, timeB] = [examTime(a), examTime(b)];
+    if (timeA === timeB) return 0;
+    return timeB > timeA ? 1 : -1;
+  });
 }
 
 /** Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, ou pelo número da ficha. */
@@ -45,7 +52,8 @@ export function filterPatients(
   const term = normalize(query);
   if (!term) return [...patients];
   return patients.filter(
-    (patient) => normalize(patient.name).includes(term) || patient.recordNumber.includes(term),
+    (patient) =>
+      normalize(patient.name).includes(term) || normalize(patient.recordNumber).includes(term),
   );
 }
 
@@ -62,16 +70,21 @@ export function describeTotals(patients: readonly PatientSummary[]): string {
   return `${pacientes} e ${exames} por você.`;
 }
 
-/** Idade completa na data de referência. */
-export function ageOn(birthDate: string, today: Date = new Date()): number {
-  const [year, month, day] = birthDate.split('-').map(Number);
-  const currentMonth = today.getMonth() + 1;
-  const beforeBirthday = currentMonth < month || (currentMonth === month && today.getDate() < day);
-  return today.getFullYear() - year - (beforeBirthday ? 1 : 0);
-}
+const twoDigits = (value: number) => String(value).padStart(2, '0');
 
-/** Data no formato DD/MM/AAAA, a partir de AAAA-MM-DD ou de data e hora ISO. */
+/**
+ * Data no formato DD/MM/AAAA, no horário do tablet.
+ *
+ * Uma data sem hora (AAAA-MM-DD) é mostrada como está. Uma data com hora é
+ * convertida para o fuso do aparelho antes: um exame gravado com
+ * `toISOString()` às 22h em Brasília fica com o dia seguinte em UTC, e cortar o
+ * texto mostraria a data errada.
+ */
 export function formatDate(isoDate: string): string {
-  const [year, month, day] = isoDate.slice(0, 10).split('-');
-  return `${day}/${month}/${year}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    const [year, month, day] = isoDate.split('-');
+    return `${day}/${month}/${year}`;
+  }
+  const date = new Date(isoDate);
+  return `${twoDigits(date.getDate())}/${twoDigits(date.getMonth() + 1)}/${date.getFullYear()}`;
 }

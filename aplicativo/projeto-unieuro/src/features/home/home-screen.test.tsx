@@ -19,7 +19,6 @@ const pacientes: PatientSummary[] = [
     id: 1,
     name: 'José Alves Martins',
     recordNumber: '2026-0184',
-    birthDate: '1948-03-14',
     lastExamAt: '2026-09-28T10:05:00',
     lastExamStatus: 'interrompido',
     examCount: 2,
@@ -28,7 +27,6 @@ const pacientes: PatientSummary[] = [
     id: 2,
     name: 'Antônio Carlos Ferreira',
     recordNumber: '2026-0179',
-    birthDate: '1945-11-21',
     lastExamAt: '2026-10-05T14:32:00',
     lastExamStatus: 'concluido',
     examCount: 1,
@@ -37,7 +35,6 @@ const pacientes: PatientSummary[] = [
     id: 3,
     name: 'Raimundo Nonato Costa',
     recordNumber: '2026-0166',
-    birthDate: '1949-01-17',
     lastExamAt: '2026-09-29T09:00:00',
     lastExamStatus: 'recusado',
     examCount: 1,
@@ -97,6 +94,12 @@ describe('HomeScreen', () => {
       expect(screen.getByText('Nenhum exame aplicado ainda.')).toBeOnTheScreen();
     });
 
+    it('não mostra a busca enquanto não há paciente', () => {
+      renderTela([]);
+
+      expect(screen.queryByLabelText('Buscar paciente')).toBeNull();
+    });
+
     it('desabilita a exportação de todos enquanto não há exame', async () => {
       const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
@@ -114,9 +117,6 @@ describe('HomeScreen', () => {
 
       expect(screen.getByText('Sem exame')).toBeOnTheScreen();
       expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeDisabled();
-      expect(
-        screen.getByRole('button', { name: 'Exportar os exames de José Alves Martins' }),
-      ).toBeDisabled();
     });
   });
 
@@ -146,9 +146,17 @@ describe('HomeScreen', () => {
         nativeEvent: { layout: { width: 1280, height: 800 } },
       });
 
-      expect(screen.getByText('NASCIMENTO')).toBeOnTheScreen();
-      expect(screen.getByText('14/03/1948')).toBeOnTheScreen();
+      for (const coluna of ['PACIENTE', 'FICHA', 'ÚLTIMO EXAME', 'EXAMES']) {
+        expect(screen.getByText(coluna)).toBeOnTheScreen();
+      }
+      expect(screen.getByText('2026-0184')).toBeOnTheScreen();
       expect(screen.queryByText('Ficha 2026-0184')).toBeNull();
+    });
+
+    it('deixa a exportação de um paciente para a tela dos exames dele', () => {
+      renderTela();
+
+      expect(screen.queryByRole('button', { name: /^Exportar os exames de/ })).toBeNull();
     });
 
     it('junta a ficha ao nome quando a tela é estreita', () => {
@@ -159,7 +167,7 @@ describe('HomeScreen', () => {
       });
 
       expect(screen.getByText('Ficha 2026-0184')).toBeOnTheScreen();
-      expect(screen.queryByText('NASCIMENTO')).toBeNull();
+      expect(screen.queryByText('FICHA')).toBeNull();
     });
   });
 
@@ -191,6 +199,21 @@ describe('HomeScreen', () => {
       await user.type(screen.getByLabelText('Buscar paciente'), 'Helena');
 
       expect(screen.getByText('Nenhum paciente encontrado para “Helena”.')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Cenário: sincronizar tablets', () => {
+    it('informa que a sincronização ainda não está disponível', async () => {
+      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      const user = userEvent.setup();
+      renderTela();
+
+      await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+
+      expect(alerta).toHaveBeenCalledWith(
+        'Sincronizar tablets',
+        expect.stringMatching(/ainda não está disponível/),
+      );
     });
   });
 
@@ -229,7 +252,6 @@ describe('HomeScreen', () => {
       ['Novo exame', 'Novo exame', /registro do atendimento/],
       ['Sincronizar tablets', 'Sincronizar tablets', /em estudo/],
       ['Exportar todos (XML)', 'Exportar todos (XML)', /exportação em XML/],
-      ['Exportar os exames de José Alves Martins', 'Exportar XML do paciente', /exportação em XML/],
     ])('o botão "%s" avisa o que ainda falta', async (botao, titulo, mensagem) => {
       const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();

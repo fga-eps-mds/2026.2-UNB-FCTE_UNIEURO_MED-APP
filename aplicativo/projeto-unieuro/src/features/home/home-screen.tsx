@@ -19,7 +19,6 @@ import {
 } from '@/features/home/home.styles';
 import {
   EXAM_STATUS_LABEL,
-  ageOn,
   countExams,
   describeTotals,
   filterPatients,
@@ -67,6 +66,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);
   const visible = useMemo(() => filterPatients(ordered, query), [ordered, query]);
   const hasExams = countExams(patients) > 0;
+  const hasPatients = patients.length > 0;
 
   if (!professional) return null;
 
@@ -125,16 +125,19 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
         </View>
 
         <View style={styles.toolbar}>
-          <TextInput
-            accessibilityLabel="Buscar paciente"
-            placeholder="Buscar por nome ou número da ficha"
-            placeholderTextColor={theme.placeholder}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-            returnKeyType="search"
-            style={styles.search}
-          />
+          {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+          {hasPatients && (
+            <TextInput
+              accessibilityLabel="Buscar paciente"
+              placeholder="Buscar por nome ou número da ficha"
+              placeholderTextColor={theme.placeholder}
+              value={query}
+              onChangeText={setQuery}
+              autoCorrect={false}
+              returnKeyType="search"
+              style={styles.search}
+            />
+          )}
           <View style={styles.toolbarActions}>
             <Pressable
               accessibilityRole="button"
@@ -160,7 +163,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
         </View>
 
         <View style={styles.listCard}>
-          {patients.length === 0 ? (
+          {!hasPatients ? (
             <EmptyState styles={styles} />
           ) : (
             <FlatList
@@ -194,10 +197,8 @@ function ColumnHeader({ styles }: { styles: HomeStyles }) {
     <View style={styles.columnHeader}>
       <Text style={[styles.columnLabel, styles.colName]}>PACIENTE</Text>
       <Text style={[styles.columnLabel, styles.colRecord]}>FICHA</Text>
-      <Text style={[styles.columnLabel, styles.colBirth]}>NASCIMENTO</Text>
       <Text style={[styles.columnLabel, styles.colLastExam]}>ÚLTIMO EXAME</Text>
       <Text style={[styles.columnLabel, styles.colCount]}>EXAMES</Text>
-      <View style={styles.colAction} />
     </View>
   );
 }
@@ -219,7 +220,6 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
   const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
-  const canExport = patient.examCount > 0;
   const description = [
     patient.name,
     `ficha ${patient.recordNumber}`,
@@ -243,12 +243,6 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
             {!isWide && <Text style={styles.cellSecondary}>Ficha {patient.recordNumber}</Text>}
           </View>
           {isWide && <Text style={[styles.record, styles.colRecord]}>{patient.recordNumber}</Text>}
-          {isWide && (
-            <View style={styles.colBirth}>
-              <Text style={styles.cell}>{formatDate(patient.birthDate)}</Text>
-              <Text style={styles.cellSecondary}>{ageOn(patient.birthDate)} anos</Text>
-            </View>
-          )}
           <View style={styles.colLastExam}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
@@ -260,23 +254,6 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
             )}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Exportar os exames de ${patient.name}`}
-          accessibilityState={{ disabled: !canExport }}
-          disabled={!canExport}
-          onPress={() => Alert.alert('Exportar XML do paciente', PENDING.export)}
-          style={({ pressed }) => [
-            styles.outlineButton,
-            styles.rowExport,
-            styles.colAction,
-            !canExport && styles.disabledButton,
-            pressed && styles.pressed,
-          ]}>
-          <Text style={[styles.outlineButtonText, !canExport && styles.disabledButtonText]}>
-            Exportar
-          </Text>
         </Pressable>
       </View>
     </View>
