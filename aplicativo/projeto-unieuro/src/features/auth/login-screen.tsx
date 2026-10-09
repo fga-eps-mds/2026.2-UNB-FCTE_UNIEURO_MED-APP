@@ -14,11 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
-import type { SqliteProfessionalRepository } from '@/db/professional-repository';
-import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
+import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
 import { useSession } from '@/features/auth/session';
 
-type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
+type LoginScreenProps = { repository?: CredentialsRepository };
 
 export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();
@@ -56,32 +55,18 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       return;
     }
 
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail || password.length === 0) {
-      Alert.alert('Login', 'Preencha e-mail e senha para continuar.');
-      return;
-    }
-
     try {
       setLoading(true);
-      const professional = await repository.findByEmail(trimmedEmail);
+      const result = await authenticate({ email, password }, repository);
 
-      // Roda verifyPassword mesmo quando o e-mail não existe (contra um hash
-      // fixo), para que o tempo de resposta não denuncie quais e-mails estão
-      // cadastrados. A mensagem também é a mesma nos dois casos, pelo mesmo
-      // motivo (evitar enumeração de e-mail).
-      const ok = professional
-        ? await verifyPassword(password, professional.passwordHash)
-        : await verifyPassword(password, DUMMY_PASSWORD_HASH).then(() => false);
-
-      if (!professional || !ok) {
-        Alert.alert('Login', 'E-mail ou senha inválidos.');
+      if (!result.success) {
+        Alert.alert('Login', result.message);
         return;
       }
 
       // Autenticação bem-sucedida: guarda o profissional na sessão e abre a
       // tela inicial, que mostra o nome dele e os pacientes que ele atendeu.
-      signIn(professional);
+      signIn(result.professional);
       router.replace('/menu');
     } catch (error) {
       Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
