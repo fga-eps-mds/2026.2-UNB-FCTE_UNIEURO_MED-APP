@@ -72,9 +72,13 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
 - Senha: só com `hashPassword` e `verifyPassword`, de
   `src/features/auth/password.ts` (PBKDF2-SHA256, sal aleatório, 100 mil iterações).
   Nunca grave senha em texto nem crie outro esquema de hash.
-- Identificadores como o CPF devem ser gravados cifrados. O CPF ainda está em texto
-  puro (pendência conhecida): não amplie o problema gravando novos identificadores
-  em texto puro.
+- Identificadores como o CPF são gravados cifrados, nunca em texto. O CPF do
+  profissional usa `cpfProtector` (`src/db/cpf-runtime.ts`): AES-GCM mais um índice
+  de busca (HMAC-SHA256), com chave própria do tablet no Android Keystore. O
+  repositório só lê o CPF em texto por `getCpf`, sob demanda. A cifra e o índice
+  valem só no tablet que os gerou: na sincronização, o CPF viaja dentro do canal
+  cifrado e cada tablet o protege de novo com a própria chave. Novos identificadores
+  sensíveis seguem o mesmo padrão.
 - SQL sempre com parâmetros (`?`), nunca concatenando valores.
 - A exportação em XML só acontece por comando explícito do profissional.
 - Proibido (ver `CONTRIBUTING.md`, "Restrições do produto"): permissão de rede, SDK

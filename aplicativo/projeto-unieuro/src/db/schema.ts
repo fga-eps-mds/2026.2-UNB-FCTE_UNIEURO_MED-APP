@@ -3,8 +3,15 @@
  *
  * A versão 1 é o `dados/schema.sql` do repositório MED-IA (branch
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
- * que cria o banco. As duas cópias precisam continuar iguais.
+ * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
+ * de busca, e ainda não existe no `schema.sql` do MED-IA: as duas cópias
+ * divergem a partir dela até que o repositório MED-IA seja atualizado.
  */
+
+import type { SQLiteDatabase } from 'expo-sqlite';
+
+import { protectStoredCpfs } from '@/db/cpf-migration';
+import type { CpfProtector } from '@/db/cpf-protection';
 
 export const DATABASE_NAME = 'med.db';
 
@@ -31,11 +38,19 @@ CREATE TABLE IF NOT EXISTS profissional (
 `;
 
 /**
- * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
- * cria a versão 1, a posição 1 criará a versão 2, e assim por diante. Para
- * mudar o esquema, acrescente um passo no fim; não altere os que já existem,
- * porque os tablets com o banco criado não os executam de novo.
+ * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
+ * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
-export const MIGRATIONS: readonly string[] = [SCHEMA_V1];
+export type MigrationStep =
+  | string
+  | ((database: SQLiteDatabase, protector: CpfProtector) => Promise<void>);
+
+/**
+ * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
+ * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), e assim por
+ * diante. Para mudar o esquema, acrescente um passo no fim; não altere os que já
+ * existem, porque os tablets com o banco criado não os executam de novo.
+ */
+export const MIGRATIONS: readonly MigrationStep[] = [SCHEMA_V1, protectStoredCpfs];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
