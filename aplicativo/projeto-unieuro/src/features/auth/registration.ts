@@ -1,4 +1,5 @@
 import { hashPassword } from '@/features/auth/password';
+import { parseCpf } from '@/features/shared/cpf';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -90,34 +91,6 @@ export function parseCrm(fullCrm: string): Crm | null {
   if (!BRAZILIAN_STATES.includes(state)) return null;
 
   return { number: parts[1], state };
-}
-
-function cpfCheckDigit(base: string): number {
-  let sum = 0;
-  let weight = base.length + 1;
-  for (const digit of base) {
-    sum += Number(digit) * weight;
-    weight -= 1;
-  }
-  const remainder = sum % 11;
-  return remainder < 2 ? 0 : 11 - remainder;
-}
-
-/** Valida o CPF pelos dígitos verificadores, não só pela quantidade de dígitos. */
-function isValidCpf(digits: string): boolean {
-  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
-
-  const firstNine = digits.slice(0, 9);
-  const firstCheck = cpfCheckDigit(firstNine);
-  const secondCheck = cpfCheckDigit(firstNine + String(firstCheck));
-
-  return digits === `${firstNine}${firstCheck}${secondCheck}`;
-}
-
-/** Normaliza o CPF (mantendo só os dígitos) e valida os dígitos verificadores. */
-export function parseCpf(fullCpf: string): string | null {
-  const digits = fullCpf.replace(/\D/g, '');
-  return isValidCpf(digits) ? digits : null;
 }
 
 export function validateRegistration(input: RegistrationInput): Validation {
