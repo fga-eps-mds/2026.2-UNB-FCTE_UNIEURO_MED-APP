@@ -1,7 +1,7 @@
 import { createCpfProtector } from '@/db/cpf-protection';
 import { migrate } from '@/db/database';
 import { createProfessionalRepository } from '@/db/professional-repository';
-import { MIGRATIONS } from '@/db/schema';
+import { MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 import { createTempDatabase, type TempDatabase } from '../../test-support/real-sqlite';
 import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
@@ -111,7 +111,7 @@ describe('banco da versão 1, com CPF em texto', () => {
     await expect(repository.getCpf(first!.id)).resolves.toBe(CPF);
     await expect(
       database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'),
-    ).resolves.toEqual({ user_version: 2 });
+    ).resolves.toEqual({ user_version: SCHEMA_VERSION });
     await database.closeAsync();
   });
 

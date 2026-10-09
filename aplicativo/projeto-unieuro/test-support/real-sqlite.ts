@@ -13,6 +13,7 @@ type Statement = {
   get(...params: unknown[]): unknown;
   all(...params: unknown[]): unknown[];
 };
+type RunResult = { lastInsertRowid: number | bigint; changes: number | bigint };
 type NodeDatabase = { exec(sql: string): void; prepare(sql: string): Statement; close(): void };
 type BuiltinLoader = { getBuiltinModule(id: string): unknown };
 
@@ -52,8 +53,14 @@ export function createTempDatabase(): TempDatabase {
       async execAsync(sql: string) {
         database.exec(sql);
       },
+      // Devolve o mesmo formato do `expo-sqlite`, que os repositórios usam para
+      // saber o id da linha inserida.
       async runAsync(sql: string, params: unknown[] = []) {
-        database.prepare(sql).run(...params);
+        const result = database.prepare(sql).run(...params) as RunResult;
+        return {
+          lastInsertRowId: Number(result.lastInsertRowid),
+          changes: Number(result.changes),
+        };
       },
       async getFirstAsync(sql: string, params: unknown[] = []) {
         return database.prepare(sql).get(...params) ?? null;
