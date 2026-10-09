@@ -1,6 +1,6 @@
 import LoginScreen from '@/features/auth/login-screen';
-import { professionalRepository } from '@/db/professional-repository';
+import { credentialsRepository } from '@/features/auth/composition';
 
 export default function IndexRoute() {
-  return <LoginScreen repository={professionalRepository} />;
+  return <LoginScreen repository={credentialsRepository} />;
 }
