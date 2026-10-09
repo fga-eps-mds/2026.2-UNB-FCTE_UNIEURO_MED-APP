@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { formatCrm, useSession } from '@/features/auth/session';
+import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import {
   createHomeStyles,
   WIDE_LAYOUT_MIN_WIDTH,
@@ -61,7 +61,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
   // Sem profissional autenticado a tela não abre. Isso também cobre o "Sair":
   // ao encerrar a sessão, o aplicativo volta para o login por aqui.
   useEffect(() => {
-    if (!professional) router.replace('/');
+    if (!professional) returnToLogin(router);
   }, [professional, router]);
 
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);

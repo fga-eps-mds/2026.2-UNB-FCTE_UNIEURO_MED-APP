@@ -60,6 +60,18 @@ describe('SettingsScreen', () => {
     expect(screen.queryByRole('header', { name: 'Configurações' })).toBeNull();
   });
 
+  it('ao sair, fecha a tela inicial que ficou embaixo antes de voltar ao login', async () => {
+    const router = useRouter();
+    jest.mocked(router.canDismiss).mockReturnValueOnce(true);
+    const user = userEvent.setup();
+    renderTela();
+
+    await user.press(screen.getByRole('button', { name: 'Sair do aplicativo' }));
+
+    expect(router.dismissAll).toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/');
+  });
+
   it('volta para o login quando ninguém entrou', () => {
     renderTela(null);
 

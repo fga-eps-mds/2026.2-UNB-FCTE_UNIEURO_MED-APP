@@ -16,6 +16,8 @@ const mockRouter = {
   replace: jest.fn(),
   back: jest.fn(),
   navigate: jest.fn(),
+  canDismiss: jest.fn(() => false),
+  dismissAll: jest.fn(),
 };
 
 jest.mock('expo-router', () => ({

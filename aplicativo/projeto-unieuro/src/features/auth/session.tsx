@@ -69,6 +69,25 @@ export function toSessionProfessional(source: SessionProfessional): SessionProfe
   };
 }
 
+/** O que `returnToLogin` usa do roteador do Expo Router. */
+type LoginNavigator = {
+  canDismiss: () => boolean;
+  dismissAll: () => void;
+  replace: (href: '/') => void;
+};
+
+/**
+ * Volta para o login sem deixar telas da sessão encerrada na pilha.
+ *
+ * Ao sair pelas configurações, a tela inicial continua montada embaixo. Só o
+ * `replace` trocaria a tela do topo, e o botão voltar do Android levaria a uma
+ * tela inicial vazia. Fechar a pilha antes evita isso.
+ */
+export function returnToLogin(router: LoginNavigator): void {
+  if (router.canDismiss()) router.dismissAll();
+  router.replace('/');
+}
+
 /** CRM no formato das telas, por exemplo "12345/DF". */
 export function formatCrm({
   crmNumber,

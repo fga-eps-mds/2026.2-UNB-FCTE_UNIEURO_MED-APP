@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { formatCrm, useSession } from '@/features/auth/session';
+import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createSettingsStyles, type SettingsStyles } from '@/features/settings/settings.styles';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,7 +22,7 @@ export default function SettingsScreen() {
 
   // Como na tela inicial: sem sessão, inclusive depois de "Sair", volta ao login.
   useEffect(() => {
-    if (!professional) router.replace('/');
+    if (!professional) returnToLogin(router);
   }, [professional, router]);
 
   if (!professional) return null;

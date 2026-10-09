@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 import {
   SessionProvider,
   formatCrm,
+  returnToLogin,
   toSessionProfessional,
   useSession,
   type SessionProfessional,
@@ -77,5 +78,34 @@ describe('sessão do profissional', () => {
 
   it('formata o CRM com a UF', () => {
     expect(formatCrm(profissional)).toBe('12345/DF');
+  });
+});
+
+describe('volta para o login', () => {
+  const roteador = (podeFechar: boolean) => ({
+    canDismiss: jest.fn(() => podeFechar),
+    dismissAll: jest.fn(),
+    replace: jest.fn(),
+  });
+
+  it('fecha as telas empilhadas antes de abrir o login', () => {
+    const router = roteador(true);
+
+    returnToLogin(router);
+
+    expect(router.dismissAll).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledWith('/');
+    expect(router.dismissAll.mock.invocationCallOrder[0]).toBeLessThan(
+      router.replace.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('só troca a tela quando não há o que fechar', () => {
+    const router = roteador(false);
+
+    returnToLogin(router);
+
+    expect(router.dismissAll).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/');
   });
 });
