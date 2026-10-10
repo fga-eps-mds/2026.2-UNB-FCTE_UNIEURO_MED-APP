@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { FontFamilies, type ThemeColors } from '@/constants/theme';
@@ -13,9 +14,9 @@ type FeedbackMessageProps = {
 };
 
 const feedback = {
-  error: { label: 'Erro', icon: '⊗' },
-  success: { label: 'Sucesso', icon: '✓' },
-  info: { label: 'Informação', icon: 'ⓘ' },
+  error: { label: 'Erro', icon: 'close-circle' },
+  success: { label: 'Sucesso', icon: 'check-circle' },
+  info: { label: 'Informação', icon: 'information' },
 } as const;
 
 function createFeedbackStyles(colors: ThemeColors) {
@@ -37,11 +38,8 @@ function createFeedbackStyles(colors: ThemeColors) {
     success: { backgroundColor: colors.successBg },
     info: { backgroundColor: colors.infoBg },
     icon: {
-      width: 22,
-      marginRight: 6,
-      fontSize: 20,
-      lineHeight: 24,
-      fontFamily: FontFamilies.semibold,
+      width: 24,
+      marginRight: 8,
     },
     text: { flex: 1, fontSize: 16, lineHeight: 24, fontFamily: FontFamilies.regular },
     errorText: { color: colors.error },
@@ -55,6 +53,7 @@ export function FeedbackMessage({ kind, message, inline = false }: FeedbackMessa
   const styles = useMemo(() => createFeedbackStyles(colors), [colors]);
   const tone =
     kind === 'error' ? styles.errorText : kind === 'success' ? styles.successText : styles.infoText;
+  const iconColor = colors[kind];
 
   return (
     <View
@@ -62,12 +61,14 @@ export function FeedbackMessage({ kind, message, inline = false }: FeedbackMessa
       accessibilityLabel={`${feedback[kind].label}. ${message}`}
       accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
       style={[styles.container, inline ? styles.inline : styles[kind]]}>
-      <Text
+      <MaterialCommunityIcons
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        style={[styles.icon, tone]}>
-        {feedback[kind].icon}
-      </Text>
+        name={feedback[kind].icon}
+        size={24}
+        color={iconColor}
+        style={styles.icon}
+      />
       <Text style={[styles.text, tone]}>{message}</Text>
     </View>
   );
