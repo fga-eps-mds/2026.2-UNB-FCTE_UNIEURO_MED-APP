@@ -186,9 +186,14 @@ describe('RegisterScreen', () => {
       expect(
         screen.getByLabelText('Sucesso. Conta criada. Entre com o e-mail e a senha cadastrados.'),
       ).toBeOnTheScreen();
+      expect(screen.getByTestId('success-toast')).toHaveStyle({ position: 'absolute', bottom: 24 });
+      expect(
+        screen.UNSAFE_getByType(ScrollView).findAllByProps({ testID: 'success-toast' }),
+      ).toHaveLength(0);
       expect(useRouter().replace).not.toHaveBeenCalled();
 
       act(() => jest.advanceTimersByTime(4000));
+      expect(screen.queryByTestId('success-toast')).not.toBeOnTheScreen();
       expect(useRouter().replace).toHaveBeenCalledWith('/');
       jest.useRealTimers();
     });

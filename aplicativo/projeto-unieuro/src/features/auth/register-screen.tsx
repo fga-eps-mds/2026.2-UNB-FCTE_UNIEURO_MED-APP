@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -150,10 +151,14 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
   const [fieldErrors, setFieldErrors] = useState<RegistrationFieldErrors>({});
   const [banner, setBanner] = useState<{ kind: 'error' | 'info'; message: string } | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   useEffect(() => {
     if (!completed) return;
-    const timer = setTimeout(() => router.replace('/'), 4000);
+    const timer = setTimeout(() => {
+      setShowSuccessToast(false);
+      router.replace('/');
+    }, 4000);
     return () => clearTimeout(timer);
   }, [completed, router]);
 
@@ -191,6 +196,8 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
         return;
       }
 
+      Keyboard.dismiss();
+      setShowSuccessToast(true);
       setCompleted(true);
     } catch {
       setBanner({ kind: 'error', message: 'Não foi possível salvar o cadastro. Tente novamente.' });
@@ -319,12 +326,6 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                   <Text style={styles.submitText}>CRIAR CONTA</Text>
                 )}
               </Pressable>
-              {completed && (
-                <FeedbackMessage
-                  kind="success"
-                  message="Conta criada. Entre com o e-mail e a senha cadastrados."
-                />
-              )}
             </View>
 
             <Pressable
@@ -336,6 +337,16 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {showSuccessToast && (
+        <View pointerEvents="none" style={styles.successToastPosition} testID="success-toast">
+          <View style={styles.successToastBody}>
+            <FeedbackMessage
+              kind="success"
+              message="Conta criada. Entre com o e-mail e a senha cadastrados."
+            />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
