@@ -1,11 +1,13 @@
 import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
+import { toSessionProfessional, type SessionProfessional } from '@/features/auth/session';
 
 export type Credentials = {
   email: string;
   password: string;
 };
 
-export type StoredCredentials = {
+/** O que o login lê do banco: os dados da sessão e o hash para conferir a senha. */
+export type StoredCredentials = SessionProfessional & {
   passwordHash: string;
 };
 
@@ -13,8 +15,10 @@ export type CredentialsRepository = {
   findByEmail(email: string): Promise<StoredCredentials | null>;
 };
 
+// O profissional sai daqui só com os campos da sessão: o hash da senha e o CPF
+// ficam na camada de dados.
 export type AuthenticationResult =
-  | { success: true }
+  | { success: true; professional: SessionProfessional }
   | { success: false; reason: 'missing-fields' | 'invalid-credentials'; message: string };
 
 const MISSING_FIELDS_MESSAGE = 'Preencha e-mail e senha para continuar.';
@@ -36,5 +40,5 @@ export async function authenticate(
     return { success: false, reason: 'invalid-credentials', message: INVALID_CREDENTIALS_MESSAGE };
   }
 
-  return { success: true };
+  return { success: true, professional: toSessionProfessional(professional) };
 }
