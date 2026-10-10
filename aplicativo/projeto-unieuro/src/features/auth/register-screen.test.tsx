@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Alert, ScrollView } from 'react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { ProfessionalRepository } from '@/features/auth/registration';
@@ -59,20 +59,28 @@ describe('RegisterScreen', () => {
 
   describe('validação', () => {
     it('recusa o envio com campos em branco', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       render(<RegisterScreen />);
 
       await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Cadastro não concluído',
-        expect.stringContaining('Preencha o nome.'),
+      for (const message of [
+        'Preencha o nome.',
+        'Preencha o e-mail.',
+        'Preencha o CRM.',
+        'Preencha o CPF.',
+        'Preencha a senha.',
+        'Preencha a confirmação de senha.',
+      ]) {
+        expect(screen.getByText(message)).toBeOnTheScreen();
+      }
+      expect(screen.getByLabelText('NOME COMPLETO')).toHaveProp(
+        'accessibilityHint',
+        'Preencha o nome.',
       );
     });
 
     it('recusa o envio quando falta apenas um campo', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       render(<RegisterScreen />);
 
@@ -83,14 +91,38 @@ describe('RegisterScreen', () => {
       await user.type(screen.getByLabelText('CONFIRMAR SENHA'), 'senha-forte');
       await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Cadastro não concluído',
-        expect.stringContaining('Preencha o CPF.'),
+      expect(screen.getByText('Preencha o CPF.')).toBeOnTheScreen();
+      expect(screen.queryByText('Preencha o nome.')).not.toBeOnTheScreen();
+    });
+
+    it('remove o erro do campo corrigido sem esconder os demais', async () => {
+      const user = userEvent.setup();
+      render(<RegisterScreen />);
+
+      await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
+      await user.type(screen.getByLabelText('NOME COMPLETO'), 'Ana Souza');
+
+      expect(screen.queryByText('Preencha o nome.')).not.toBeOnTheScreen();
+      expect(screen.getByText('Preencha o CPF.')).toBeOnTheScreen();
+    });
+
+    it('indica um CPF inválido no próprio campo', async () => {
+      const user = userEvent.setup();
+      render(<RegisterScreen />);
+
+      await preencherFormulario(user);
+      await user.clear(screen.getByLabelText('CPF'));
+      await user.type(screen.getByLabelText('CPF'), '000.000.000-00');
+      await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
+
+      expect(screen.getByText('Informe um CPF válido.')).toBeOnTheScreen();
+      expect(screen.getByLabelText('CPF')).toHaveProp(
+        'accessibilityHint',
+        'Informe um CPF válido.',
       );
     });
 
     it('trata campo só com espaços como campo em branco', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       render(<RegisterScreen />);
 
@@ -99,47 +131,45 @@ describe('RegisterScreen', () => {
       await user.type(screen.getByLabelText('CRM'), '   ');
       await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Cadastro não concluído',
-        expect.stringContaining('Preencha o CRM.'),
-      );
+      expect(screen.getByText('Preencha o CRM.')).toBeOnTheScreen();
     });
 
     it('recusa o envio quando a confirmação não bate com a senha', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       render(<RegisterScreen />);
 
       await preencherFormulario(user, 'senha-forte', 'senha-errada');
       await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Cadastro não concluído',
+      expect(screen.getByText('Confira a senha e a confirmação.')).toBeOnTheScreen();
+      expect(screen.getByLabelText('CONFIRMAR SENHA')).toHaveProp(
+        'accessibilityHint',
         'Confira a senha e a confirmação.',
       );
     });
 
     it('avisa que o banco ainda não está conectado quando a tela não recebe repositório', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       render(<RegisterScreen />);
 
       await preencherFormulario(user);
       await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-      expect(alerta).toHaveBeenCalledWith('Cadastro', expect.any(String));
+      expect(screen.getByText('O cadastro ainda não está disponível.')).toBeOnTheScreen();
     });
   });
 
   describe('com o banco conectado', () => {
     it('salva o profissional e volta para a tela de acesso', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const repositorio = criarRepositorio();
       const user = userEvent.setup();
       render(<RegisterScreen repository={repositorio} />);
 
       await preencherFormulario(user);
-      await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
+      jest.useFakeTimers();
+      await act(async () => {
+        fireEvent.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
+      });
 
       expect(repositorio.insert).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -150,8 +180,22 @@ describe('RegisterScreen', () => {
           passwordHash: 'hash-da-senha',
         }),
       );
-      expect(alerta).toHaveBeenCalledWith('Cadastro concluído', expect.any(String));
+      expect(
+        screen.getByText('Conta criada. Entre com o e-mail e a senha cadastrados.'),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText('Sucesso. Conta criada. Entre com o e-mail e a senha cadastrados.'),
+      ).toBeOnTheScreen();
+      expect(screen.getByTestId('success-toast')).toHaveStyle({ position: 'absolute', bottom: 24 });
+      expect(
+        screen.UNSAFE_getByType(ScrollView).findAllByProps({ testID: 'success-toast' }),
+      ).toHaveLength(0);
+      expect(useRouter().replace).not.toHaveBeenCalled();
+
+      act(() => jest.advanceTimersByTime(4000));
+      expect(screen.queryByTestId('success-toast')).not.toBeOnTheScreen();
       expect(useRouter().replace).toHaveBeenCalledWith('/');
+      jest.useRealTimers();
     });
 
     it.each([
@@ -159,23 +203,41 @@ describe('RegisterScreen', () => {
         'o e-mail já está cadastrado',
         { emailExists: jest.fn(async () => true) },
         'Já existe um profissional cadastrado com este e-mail.',
+        'E-MAIL',
+      ],
+      [
+        'o CRM já está cadastrado',
+        { crmExists: jest.fn(async () => true) },
+        'Já existe um profissional cadastrado com este CRM.',
+        'CRM',
+      ],
+      [
+        'o CPF já está cadastrado',
+        { cpfExists: jest.fn(async () => true) },
+        'Já existe um profissional cadastrado com este CPF.',
+        'CPF',
       ],
       [
         'o banco falha ao salvar',
         { insert: jest.fn(async () => Promise.reject(new Error('falha no banco'))) },
         'Não foi possível salvar o cadastro. Tente novamente.',
+        null,
       ],
     ])(
       'mostra o motivo e continua no cadastro quando %s',
-      async (_caso, sobrescritas, mensagem) => {
-        const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      async (_caso, sobrescritas, mensagem, campo) => {
         const user = userEvent.setup();
         render(<RegisterScreen repository={criarRepositorio(sobrescritas)} />);
 
         await preencherFormulario(user);
         await user.press(screen.getByRole('button', { name: 'CRIAR CONTA' }));
 
-        expect(alerta).toHaveBeenCalledWith('Cadastro não concluído', mensagem);
+        expect(screen.getByText(mensagem)).toBeOnTheScreen();
+        if (campo) {
+          expect(screen.getByLabelText(campo)).toHaveProp('accessibilityHint', mensagem);
+        } else {
+          expect(screen.getByLabelText(`Erro. ${mensagem}`)).toBeOnTheScreen();
+        }
         expect(useRouter().replace).not.toHaveBeenCalled();
       },
     );

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
 
 type LoginScreenProps = { repository?: CredentialsRepository };
@@ -39,17 +39,30 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
   const theme = useTheme();
   const styles = useMemo(() => createLoginStyles(theme), [theme]);
   const [loading, setLoading] = useState(false);
-
-  const showPending = (action: string) =>
-    Alert.alert(action, 'Esta funcionalidade sera conectada em uma proxima etapa.');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [feedback, setFeedback] = useState<{ kind: 'error' | 'info'; message: string } | null>(
+    null,
+  );
 
   async function handleLogin() {
     if (loading) return;
 
+    setFeedback(null);
+
     // Se não houver camada de acesso ao banco fornecida, a funcionalidade
-    // de autenticação está pendente — manter o alerta placeholder.
+    // de autenticação está pendente.
     if (!repository) {
-      showPending('Entrar');
+      setFeedback({ kind: 'info', message: 'O acesso ainda não está disponível.' });
+      return;
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const errors = {
+      email: trimmedEmail ? undefined : 'Preencha o e-mail.',
+      password: password.length > 0 ? undefined : 'Preencha a senha.',
+    };
+    setFieldErrors(errors);
+    if (errors.email || errors.password) {
       return;
     }
 
@@ -58,14 +71,13 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
       const result = await authenticate({ email, password }, repository);
 
       if (!result.success) {
-        Alert.alert('Login', result.message);
+        setFeedback({ kind: 'error', message: result.message });
         return;
       }
 
       router.replace('/menu');
-    } catch (error) {
-      Alert.alert('Erro', 'Erro ao tentar efetuar o login. Tente novamente.');
-      console.error('Login error', error);
+    } catch {
+      setFeedback({ kind: 'error', message: 'Não foi possível entrar. Tente novamente.' });
     } finally {
       setLoading(false);
     }
@@ -125,57 +137,92 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
             <Text style={styles.subtitle}>NOME PROVISORIO - RASTREIO COGNITIVO</Text>
 
             <View style={styles.form}>
+              {feedback && (
+                <View style={styles.feedback}>
+                  <FeedbackMessage kind={feedback.kind} message={feedback.message} />
+                </View>
+              )}
               <Text nativeID="email-label" style={styles.label}>
                 E-MAIL
               </Text>
               <TextInput
                 accessibilityLabel="E-mail"
+                accessibilityHint={fieldErrors.email}
                 accessibilityLabelledBy={Platform.OS === 'android' ? 'email-label' : undefined}
                 autoCapitalize="none"
                 autoComplete="email"
                 keyboardType="email-address"
                 onBlur={() => setFocused(null)}
                 onFocus={() => setFocused('email')}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setFieldErrors((current) => ({ ...current, email: undefined }));
+                  setFeedback(null);
+                }}
                 placeholder="nome@instituicao.br"
                 placeholderTextColor={theme.placeholder}
                 returnKeyType="next"
-                style={[styles.input, focused === 'email' && styles.inputFocused]}
+                style={[
+                  styles.input,
+                  focused === 'email' && styles.inputFocused,
+                  fieldErrors.email && styles.inputError,
+                ]}
                 textContentType="emailAddress"
                 value={email}
               />
+              {fieldErrors.email && (
+                <FeedbackMessage kind="error" inline message={fieldErrors.email} />
+              )}
 
               <Text nativeID="password-label" style={[styles.label, styles.passwordLabel]}>
                 SENHA
               </Text>
               <TextInput
                 accessibilityLabel="Senha"
+                accessibilityHint={fieldErrors.password}
                 accessibilityLabelledBy={Platform.OS === 'android' ? 'password-label' : undefined}
                 autoCapitalize="none"
                 autoComplete="current-password"
                 onBlur={() => setFocused(null)}
                 onFocus={() => setFocused('password')}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setFieldErrors((current) => ({ ...current, password: undefined }));
+                  setFeedback(null);
+                }}
                 placeholder="******"
                 placeholderTextColor={theme.placeholder}
                 secureTextEntry
-                style={[styles.input, focused === 'password' && styles.inputFocused]}
+                style={[
+                  styles.input,
+                  focused === 'password' && styles.inputFocused,
+                  fieldErrors.password && styles.inputError,
+                ]}
                 textContentType="password"
                 value={password}
               />
+              {fieldErrors.password && (
+                <FeedbackMessage kind="error" inline message={fieldErrors.password} />
+              )}
 
               <Pressable
                 accessibilityRole="button"
                 onPress={handleLogin}
+                disabled={loading}
                 style={({ pressed }) => [styles.loginButton, pressed && styles.pressed]}
-                accessibilityState={{ busy: loading }}>
+                accessibilityState={{ busy: loading, disabled: loading }}>
                 <Text style={styles.loginText}>{loading ? 'ENTRANDO...' : 'ENTRAR'}</Text>
               </Pressable>
 
               <View style={styles.actions}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => showPending('Esqueci minha senha')}
+                  onPress={() =>
+                    setFeedback({
+                      kind: 'info',
+                      message: 'A recuperação de senha ainda não está disponível.',
+                    })
+                  }
                   style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
                   <Text style={styles.actionText}>ESQUECI MINHA SENHA</Text>
                 </Pressable>

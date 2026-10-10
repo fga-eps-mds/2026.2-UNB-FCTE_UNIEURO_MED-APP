@@ -24,6 +24,17 @@ export function createRegisterStyles(colors: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1 },
     safeArea: { flex: 1, backgroundColor: colors.background },
+    successToastPosition: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 24,
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      zIndex: 2,
+      elevation: 4,
+    },
+    successToastBody: { width: '100%', maxWidth: 506 },
     scrollContent: {
       flexGrow: 1,
       justifyContent: 'center',
@@ -101,6 +112,10 @@ export function createRegisterStyles(colors: ThemeColors) {
     },
     inputFocused: {
       borderColor: colors.primary,
+      borderWidth: 2,
+    },
+    inputError: {
+      borderColor: colors.error,
       borderWidth: 2,
     },
     submitButton: {
