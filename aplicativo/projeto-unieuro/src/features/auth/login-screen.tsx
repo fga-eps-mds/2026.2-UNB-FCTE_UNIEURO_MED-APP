@@ -13,11 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { createLoginStyles, getLoginLayout } from '@/features/auth/login.styles';
 import { useTheme } from '@/hooks/use-theme';
-import type { SqliteProfessionalRepository } from '@/db/professional-repository';
-import { DUMMY_PASSWORD_HASH, verifyPassword } from '@/features/auth/password';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
 
-type LoginScreenProps = { repository?: Pick<SqliteProfessionalRepository, 'findByEmail'> };
+type LoginScreenProps = { repository?: CredentialsRepository };
 
 export default function LoginScreen({ repository }: LoginScreenProps) {
   const router = useRouter();
@@ -69,22 +68,13 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
 
     try {
       setLoading(true);
-      const professional = await repository.findByEmail(trimmedEmail);
+      const result = await authenticate({ email, password }, repository);
 
-      // Roda verifyPassword mesmo quando o e-mail não existe (contra um hash
-      // fixo), para que o tempo de resposta não denuncie quais e-mails estão
-      // cadastrados. A mensagem também é a mesma nos dois casos, pelo mesmo
-      // motivo (evitar enumeração de e-mail).
-      const ok = professional
-        ? await verifyPassword(password, professional.passwordHash)
-        : await verifyPassword(password, DUMMY_PASSWORD_HASH).then(() => false);
-
-      if (!professional || !ok) {
-        setFeedback({ kind: 'error', message: 'E-mail ou senha inválidos.' });
+      if (!result.success) {
+        setFeedback({ kind: 'error', message: result.message });
         return;
       }
 
-      // Autenticação bem-sucedida — navegar para a tela principal
       router.replace('/menu');
     } catch {
       setFeedback({ kind: 'error', message: 'Não foi possível entrar. Tente novamente.' });
