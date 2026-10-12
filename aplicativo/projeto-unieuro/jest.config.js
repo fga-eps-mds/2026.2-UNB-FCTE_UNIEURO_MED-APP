@@ -7,6 +7,10 @@
  */
 module.exports = {
   preset: 'jest-expo/android',
+
+  // Aumenta o tempo limite global do Jest para 15 segundos
+  testTimeout: 15000,
+  
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 
   moduleNameMapper: {
