@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Alert, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import LoginScreen from '@/features/auth/login-screen';
 
@@ -64,24 +64,22 @@ describe('LoginScreen', () => {
   });
 
   it('avisa que o acesso ainda não está conectado', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const user = userEvent.setup();
     render(<LoginScreen />);
 
     await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-    expect(alerta).toHaveBeenCalledWith('Entrar', expect.any(String));
+    expect(screen.getByText('O acesso ainda não está disponível.')).toBeOnTheScreen();
     expect(useRouter().push).not.toHaveBeenCalled();
   });
 
   it('avisa que a recuperação de senha ainda não está conectada', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const user = userEvent.setup();
     render(<LoginScreen />);
 
     await user.press(screen.getByRole('button', { name: 'ESQUECI MINHA SENHA' }));
 
-    expect(alerta).toHaveBeenCalledWith('Esqueci minha senha', expect.any(String));
+    expect(screen.getByText('A recuperação de senha ainda não está disponível.')).toBeOnTheScreen();
   });
 
   describe('medição da área disponível', () => {
@@ -119,13 +117,16 @@ describe('LoginScreen', () => {
   });
 
   describe('fluxo de autenticação real', () => {
-    it('alerta se tentar entrar com campos em branco', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    it('indica os campos vazios sem consultar o banco', async () => {
       const user = userEvent.setup();
-      render(<LoginScreen />);
+      const repository = { findByEmail: jest.fn() };
+      render(<LoginScreen repository={repository as any} />);
 
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
-      expect(alerta).toHaveBeenCalledWith('Entrar', expect.any(String));
+      expect(screen.getByText('Preencha o e-mail.')).toBeOnTheScreen();
+      expect(screen.getByText('Preencha a senha.')).toBeOnTheScreen();
+      expect(screen.getByLabelText('E-MAIL')).toHaveProp('accessibilityHint', 'Preencha o e-mail.');
+      expect(repository.findByEmail).not.toHaveBeenCalled();
     });
 
     it('realiza o login com sucesso quando o repositório encontra o profissional', async () => {
@@ -149,10 +150,9 @@ describe('LoginScreen', () => {
       expect(mockRepository.findByEmail).toHaveBeenCalledWith('teste@unieuro.com.br');
     });
 
-    it('alerta com mensagem genérica quando o e-mail não é encontrado no repositório', async () => {
+    it('mostra mensagem genérica quando o e-mail não é encontrado no repositório', async () => {
       // A mensagem é a mesma de senha incorreta, de propósito: evita que a tela
       // revele quais e-mails estão cadastrados (enumeração de e-mail).
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const mockRepository = {
         findByEmail: jest.fn().mockResolvedValue(null),
       };
@@ -164,11 +164,11 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senha1234');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
+      expect(screen.getByText('E-mail ou senha inválidos.')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Erro. E-mail ou senha inválidos.')).toBeOnTheScreen();
     });
 
-    it('alerta quando a senha está incorreta', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    it('mostra a mesma mensagem quando a senha está incorreta', async () => {
       const mockRepository = {
         findByEmail: jest.fn().mockResolvedValue({
           id: '1',
@@ -186,7 +186,7 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senhaerrada');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
+      expect(screen.getByText('E-mail ou senha inválidos.')).toBeOnTheScreen();
     });
 
     it('realiza o login com sucesso e navega para o menu principal', async () => {
@@ -209,10 +209,7 @@ describe('LoginScreen', () => {
 
       expect(useRouter().replace).toHaveBeenCalledWith('/menu');
     });
-    it('alerta se ocorrer um erro inesperado no repositório', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-      const consoleErro = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-
+    it('mostra uma faixa se ocorrer um erro inesperado no repositório', async () => {
       const mockRepository = {
         findByEmail: jest.fn().mockRejectedValue(new Error('Erro de base de dados')),
       };
@@ -224,12 +221,7 @@ describe('LoginScreen', () => {
       await user.type(screen.getByLabelText('SENHA'), 'senha1234');
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Erro',
-        'Erro ao tentar efetuar o login. Tente novamente.',
-      );
-
-      consoleErro.mockRestore();
+      expect(screen.getByText('Não foi possível entrar. Tente novamente.')).toBeOnTheScreen();
     });
 
     it('impede cliques repetidos enquanto o carregamento está ativo', async () => {
@@ -249,8 +241,7 @@ describe('LoginScreen', () => {
 
       expect(mockRepository.findByEmail).toHaveBeenCalledTimes(1);
     });
-    it('alerta se tentar entrar com campos em branco mesmo com repositório fornecido', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    it('limpa o erro do campo quando a pessoa começa a corrigi-lo', async () => {
       const mockRepository = {
         findByEmail: jest.fn(),
       };
@@ -259,8 +250,10 @@ describe('LoginScreen', () => {
       render(<LoginScreen repository={mockRepository as any} />);
 
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+      await user.type(screen.getByLabelText('E-MAIL'), 'ana@unieuro.com.br');
 
-      expect(alerta).toHaveBeenCalledWith('Login', 'Preencha e-mail e senha para continuar.');
+      expect(screen.queryByText('Preencha o e-mail.')).not.toBeOnTheScreen();
+      expect(screen.getByText('Preencha a senha.')).toBeOnTheScreen();
       expect(mockRepository.findByEmail).not.toHaveBeenCalled();
     });
   });
