@@ -6,7 +6,7 @@ import LoginScreen from '@/features/auth/login-screen';
 import RegisterScreen from '../../src/features/auth/register-screen';
 import { SessionProvider, useSession } from '@/features/auth/session';
 
-import { abrirTablet, type TabletDeTeste } from '../../test-support/tablet';
+import { abrirTablet, type TabletDeTeste } from '../test-support/tablet';
 
 /**
  * Teste de sistema: o caminho completo de um profissional novo, da tela de

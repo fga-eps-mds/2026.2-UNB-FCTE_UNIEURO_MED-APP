@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import { createCpfProtector } from '@/db/cpf-protection';
 
-import { webCryptoAesGcm } from '../../../test-support/web-crypto-aes-gcm';
+import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
 
 const protector = createCpfProtector(async () => new Uint8Array(32).fill(3), webCryptoAesGcm);
 

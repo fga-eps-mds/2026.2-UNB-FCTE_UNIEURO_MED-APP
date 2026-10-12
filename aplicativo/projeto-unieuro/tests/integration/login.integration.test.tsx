@@ -11,7 +11,7 @@ import {
   SENHA_DE_TESTE,
   abrirTabletComAnaEBruno,
   type TabletDeTeste,
-} from '../../test-support/tablet';
+} from '../test-support/tablet';
 
 /**
  * Integração do login: tela → verificação de senha → repositório → SQLite real.

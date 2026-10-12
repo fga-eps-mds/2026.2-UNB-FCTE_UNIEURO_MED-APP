@@ -9,7 +9,7 @@ import {
   abrirTablet,
   abrirTabletComAnaEBruno,
   type TabletDeTeste,
-} from '../../test-support/tablet';
+} from '../test-support/tablet';
 
 /**
  * Integração do cadastro: tela → regras de validação → repositório → SQLite real.
