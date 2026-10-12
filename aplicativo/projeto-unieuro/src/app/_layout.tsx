@@ -5,6 +5,8 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { SessionProvider } from '@/features/auth/session';
+
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -25,5 +27,9 @@ export default function RootLayout() {
     return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <SessionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </SessionProvider>
+  );
 }

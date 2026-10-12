@@ -8,16 +8,24 @@ jest.mock('@/features/auth/password', () => ({
   ),
 }));
 
+const profissional = {
+  id: 7,
+  name: 'Ana Carolina Souza',
+  email: 'ana@unieuro.com.br',
+  crmNumber: '12345',
+  crmState: 'DF',
+};
+
 function createRepository(passwordHash: string | null = 'hash-real') {
   return {
-    findByEmail: jest.fn(async () => (passwordHash ? { passwordHash } : null)),
+    findByEmail: jest.fn(async () => (passwordHash ? { ...profissional, passwordHash } : null)),
   } satisfies CredentialsRepository;
 }
 
 describe('authenticate', () => {
   beforeEach(() => jest.mocked(verifyPassword).mockClear());
 
-  it('aceita e-mail e senha corretos', async () => {
+  it('aceita e-mail e senha corretos e devolve quem entrou, sem o hash da senha', async () => {
     const repository = createRepository();
 
     const result = await authenticate(
@@ -25,7 +33,7 @@ describe('authenticate', () => {
       repository,
     );
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, professional: profissional });
   });
 
   it('normaliza o e-mail antes de consultar o repositório', async () => {
