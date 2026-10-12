@@ -1,6 +1,6 @@
 import { createCpfProtector } from '@/db/cpf-protection';
 
-import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
+import { webCryptoAesGcm } from '../../../test-support/web-crypto-aes-gcm';
 
 const CPF = '11144477735';
 const masterKey = new Uint8Array(32).fill(7);

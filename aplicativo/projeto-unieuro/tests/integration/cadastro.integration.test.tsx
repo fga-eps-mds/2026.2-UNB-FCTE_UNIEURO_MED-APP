@@ -1,7 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 
 import { verifyPassword } from '@/features/auth/password';
-import RegisterScreen from '@/features/auth/register-screen';
+import RegisterScreen from '../../src/features/auth/register-screen';
 
 import {
   ANA,

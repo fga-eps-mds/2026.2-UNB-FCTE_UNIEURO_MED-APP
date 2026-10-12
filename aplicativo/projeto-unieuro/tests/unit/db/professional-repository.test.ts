@@ -4,7 +4,7 @@ import { createCpfProtector, type CpfProtector } from '@/db/cpf-protection';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import type { ProfessionalRepository } from '@/features/auth/registration';
 
-import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
+import { webCryptoAesGcm } from '../../../test-support/web-crypto-aes-gcm';
 
 jest.mock('@/db/database', () => ({
   getDatabase: jest.fn(),
