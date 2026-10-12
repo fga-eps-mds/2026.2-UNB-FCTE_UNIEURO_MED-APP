@@ -13,7 +13,6 @@ export type PatientRecord = {
   name: string;
   /** Só os 11 dígitos. O repositório grava a cifra e o índice, nunca o texto. */
   cpf: string;
-  recordNumber: string;
   /** AAAA-MM-DD. */
   birthDate: string;
   schoolingYears: number;
@@ -29,8 +28,17 @@ export type AttendanceRecord = {
 };
 
 const INSERT_PATIENT = `INSERT INTO paciente
-  (nome, cpf_cifrado, cpf_indice, numero_ficha, data_nascimento, escolaridade_anos, sexo, criacao, last_update)
+  (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+// Maior sequência já usada no ano, lida como número para que a ficha 10000
+// venha depois da 9999.
+const LAST_RECORD_SEQUENCE = `SELECT COALESCE(MAX(CAST(substr(numero_ficha, 6) AS INTEGER)), 0) AS ultima
+  FROM paciente WHERE numero_ficha LIKE ?`;
+
+/** Número da ficha no formato AAAA-NNNN, como 2026-0001. */
+export const formatRecordNumber = (year: number, sequence: number) =>
+  `${year}-${String(sequence).padStart(4, '0')}`;
 
 /** Paciente já cadastrado, pelo `id`, ou os valores do paciente novo a inserir. */
 type PatientToSave = { id: number } | { params: SQLiteBindValue[] };
@@ -47,6 +55,9 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  * repositório do profissional, para que os testes usem banco real e chave fixa.
  * O CPF do paciente segue o padrão da #42: o banco guarda a cifra e o índice de
  * busca, e a busca pelo paciente que volta usa o índice.
+ *
+ * O número da ficha é gerado aqui, na ordem de cadastro dentro do ano do
+ * atendimento (2026-0001, 2026-0002...). O paciente que volta mantém a ficha.
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -64,13 +75,20 @@ export function createAttendanceRepository(
       patient.name,
       cpfCifrado,
       cpfIndice,
-      patient.recordNumber,
       patient.birthDate,
       patient.schoolingYears,
       patient.sex,
       savedAt,
       savedAt,
     ];
+  };
+
+  const nextRecordNumber = async (database: SQLiteDatabase, startedAt: string) => {
+    const year = new Date(startedAt).getFullYear();
+    const row = await database.getFirstAsync<{ ultima: number }>(LAST_RECORD_SEQUENCE, [
+      `${year}-%`,
+    ]);
+    return formatRecordNumber(year, (row?.ultima ?? 0) + 1);
   };
 
   return {
@@ -100,11 +118,18 @@ export function createAttendanceRepository(
 
       // Paciente e atendimento entram juntos: se o atendimento falhar (por
       // exemplo, médico inexistente), o paciente novo também não fica gravado.
+      // A ficha é escolhida dentro da transação, para dois cadastros não pegarem
+      // o mesmo número.
       await database.withTransactionAsync(async () => {
         const patientId =
           'id' in patientToSave
             ? patientToSave.id
-            : (await database.runAsync(INSERT_PATIENT, patientToSave.params)).lastInsertRowId;
+            : (
+                await database.runAsync(INSERT_PATIENT, [
+                  ...patientToSave.params,
+                  await nextRecordNumber(database, startedAt),
+                ])
+              ).lastInsertRowId;
 
         const attendance = await database.runAsync(
           `INSERT INTO avaliacao (id_profissional, id_paciente, data_hora_inicio, last_update)

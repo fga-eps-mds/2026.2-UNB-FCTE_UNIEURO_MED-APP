@@ -244,8 +244,17 @@ describe('HomeScreen', () => {
       expect(useRouter().push).toHaveBeenCalledWith('/settings');
     });
 
+    it('o botão "Novo exame" abre o registro do atendimento', async () => {
+      const user = userEvent.setup();
+      renderTela();
+
+      await user.press(screen.getByRole('button', { name: 'Novo exame' }));
+
+      expect(useRouter().push).toHaveBeenCalledWith('/novo-exame');
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+
     it.each([
-      ['Novo exame', /registro do atendimento/],
       ['Sincronizar tablets', /em estudo/],
       ['Exportar todos (XML)', /exportação em XML/],
     ])('o botão "%s" avisa o que ainda falta', async (botao, mensagem) => {
@@ -275,15 +284,17 @@ describe('HomeScreen', () => {
     it('é uma mensagem de informação, sem o alerta padrão do Android', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(screen.getByLabelText(/^Informação\. O registro do atendimento/)).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText(/^Informação\. A sincronização entre tablets/),
+      ).toBeOnTheScreen();
     });
 
     it('some sozinho depois de 4 segundos', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
       act(() => jest.advanceTimersByTime(NOTICE_DURATION_MS - 1));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
 
@@ -294,11 +305,11 @@ describe('HomeScreen', () => {
     it('troca a mensagem e reinicia a contagem a cada toque', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
       act(() => jest.advanceTimersByTime(3000));
       fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(screen.queryByText(/registro do atendimento/)).toBeNull();
+      expect(screen.queryByText(/exportação em XML/)).toBeNull();
       expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
 
       act(() => jest.advanceTimersByTime(3000));

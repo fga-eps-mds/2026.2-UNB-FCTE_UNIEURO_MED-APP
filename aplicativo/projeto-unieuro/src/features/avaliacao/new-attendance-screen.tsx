@@ -24,7 +24,7 @@ import {
   type PatientForm,
   type Sex,
 } from '@/features/avaliacao/attendance';
-import { formatCpfInput, formatDateInput } from '@/features/avaliacao/masks';
+import { formatDateInput } from '@/features/avaliacao/masks';
 import {
   createNewAttendanceStyles,
   getNewAttendanceLayout,
@@ -37,6 +37,7 @@ import {
   useSession,
   type SessionProfessional,
 } from '@/features/auth/session';
+import { formatCpfInput } from '@/features/shared/cpf';
 import { useTheme } from '@/hooks/use-theme';
 
 type TextField = Exclude<PatientField, 'sex'>;
@@ -55,7 +56,6 @@ type TextFieldConfig = {
 const initialForm: PatientForm = {
   name: '',
   cpf: '',
-  recordNumber: '',
   birthDate: '',
   schooling: '',
   sex: null,
@@ -76,8 +76,10 @@ const identificationFields: TextFieldConfig[] = [
     maxLength: 14,
     mask: formatCpfInput,
   },
-  { name: 'recordNumber', label: 'Número da ficha', placeholder: 'Ex.: 2026-0184' },
 ];
+
+const RECORD_NUMBER_LABEL = 'Número da ficha';
+const RECORD_NUMBER_INFO = 'Gerado ao salvar';
 
 const profileFields: TextFieldConfig[] = [
   {
@@ -249,6 +251,19 @@ export default function NewAttendanceScreen({
 
               <View testID="linha-identificacao" style={rowStyle}>
                 {identificationFields.map(renderTextField)}
+                <FieldBox
+                  name="recordNumber"
+                  label={RECORD_NUMBER_LABEL}
+                  styles={styles}
+                  style={layout.isWide && styles.fieldWide}>
+                  <View
+                    accessible
+                    accessibilityLabel={RECORD_NUMBER_LABEL}
+                    accessibilityValue={{ text: RECORD_NUMBER_INFO }}
+                    style={[styles.select, styles.readOnly]}>
+                    <Text style={styles.readOnlyText}>{RECORD_NUMBER_INFO}</Text>
+                  </View>
+                </FieldBox>
               </View>
 
               <View testID="linha-perfil" style={rowStyle}>
@@ -327,7 +342,7 @@ export default function NewAttendanceScreen({
 }
 
 type FieldBoxProps = {
-  name: PatientField;
+  name: PatientField | 'recordNumber';
   label: string;
   error?: string;
   styles: NewAttendanceStyles;

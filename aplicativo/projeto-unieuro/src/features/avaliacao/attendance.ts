@@ -5,7 +5,6 @@ export type Sex = 'feminino' | 'masculino';
 export type PatientForm = {
   name: string;
   cpf: string;
-  recordNumber: string;
   birthDate: string;
   schooling: string;
   sex: Sex | null;
@@ -14,10 +13,10 @@ export type PatientForm = {
 export type PatientField = keyof PatientForm;
 export type PatientErrors = Partial<Record<PatientField, string>>;
 
+/** O número da ficha não vem do formulário: o banco gera um a cada paciente novo. */
 export type NewPatient = {
   name: string;
   cpf: string;
-  recordNumber: string;
   birthDate: string;
   schoolingYears: number;
   sex: Sex | null;

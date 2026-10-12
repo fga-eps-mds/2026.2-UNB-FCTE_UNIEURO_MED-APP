@@ -25,7 +25,6 @@ const protector = createCpfProtector(async () => new Uint8Array(32).fill(7), web
 const newPatient = (overrides: Partial<PatientRecord> = {}): PatientRecord => ({
   name: 'José Alves Martins',
   cpf: PATIENT_CPF,
-  recordNumber: '2026-0184',
   birthDate: '1948-03-14',
   schoolingYears: 5,
   sex: 'masculino',
@@ -238,12 +237,84 @@ describe('paciente que volta', () => {
 
     await expect(
       repository.createAttendance({
-        patient: newPatient({ name: 'Outro Nome', recordNumber: '2026-0999' }),
+        patient: newPatient({ name: 'Outro Nome' }),
         professionalId,
         startedAt: STARTED_AT,
       }),
     ).rejects.toThrow(/UNIQUE/);
     await expect(countRows('paciente')).resolves.toBe(1);
+  });
+});
+
+describe('número da ficha', () => {
+  const recordNumbers = async () =>
+    (
+      await database.getAllAsync<{ numero_ficha: string }>(
+        'SELECT numero_ficha FROM paciente ORDER BY id',
+      )
+    ).map((row) => row.numero_ficha);
+
+  it('é gerado na ordem de cadastro, dentro do ano do atendimento', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await repository.createAttendance({
+      patient: newPatient({ cpf: '12345678909' }),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(recordNumbers()).resolves.toEqual(['2026-0001', '2026-0002']);
+  });
+
+  it('recomeça a contagem no ano seguinte', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await repository.createAttendance({
+      patient: newPatient({ cpf: '12345678909' }),
+      professionalId,
+      startedAt: '2027-02-01T12:00:00.000Z',
+    });
+
+    await expect(recordNumbers()).resolves.toEqual(['2026-0001', '2027-0001']);
+  });
+
+  it('continua depois da ficha 9999', async () => {
+    await database.runAsync(
+      `INSERT INTO paciente (nome, cpf_cifrado, cpf_indice, numero_ficha, data_nascimento, escolaridade_anos, criacao, last_update)
+       VALUES ('Maria Souza', 'cifra-maria', ?, '2026-9999', '1950-01-01', 4, ?, ?)`,
+      ['0'.repeat(64), STARTED_AT, STARTED_AT],
+    );
+
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(recordNumbers()).resolves.toEqual(['2026-9999', '2026-10000']);
+  });
+
+  it('não muda para o paciente que volta', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    const existing = await repository.findPatientByCpf(PATIENT_CPF);
+
+    await repository.createAttendance({
+      patient: existing!,
+      professionalId,
+      startedAt: '2027-02-01T12:00:00.000Z',
+    });
+
+    await expect(recordNumbers()).resolves.toEqual(['2026-0001']);
   });
 });
 
@@ -274,7 +345,7 @@ describe('Cenário: identificação mínima do paciente', () => {
     await database.closeAsync();
     const cpfVisible = temp.rawContains(PATIENT_CPF);
     // A ficha, gravada em texto, prova que o teste enxerga o conteúdo do arquivo.
-    const recordVisible = temp.rawContains('2026-0184');
+    const recordVisible = temp.rawContains('2026-0001');
     database = temp.open();
 
     expect(cpfVisible).toBe(false);
