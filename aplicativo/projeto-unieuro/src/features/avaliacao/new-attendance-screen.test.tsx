@@ -263,6 +263,23 @@ describe('NewAttendanceScreen', () => {
       );
     });
 
+    it('grava sem o sexo quando o médico desmarca a escolha', async () => {
+      const user = userEvent.setup();
+      const { repository, onRegistered } = renderizarTela();
+
+      await preencherFormulario(user);
+      await user.press(screen.getByRole('button', { name: 'Sexo' }));
+      await user.press(screen.getByRole('radio', { name: 'Feminino' }));
+      await user.press(screen.getByRole('button', { name: 'Sexo' }));
+      await user.press(screen.getByRole('radio', { name: 'Não informar' }));
+      await enviar(user);
+
+      await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
+      expect(repository.createAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({ patient: expect.objectContaining({ sex: null }) }),
+      );
+    });
+
     it('não grava duas vezes num toque duplo', async () => {
       const repository = criarRepositorio({
         findPatientByCpf: jest.fn(() => new Promise<null>(() => undefined)),
@@ -359,6 +376,32 @@ describe('NewAttendanceScreen', () => {
       await user.press(screen.getByRole('button', { name: 'Sexo' }));
 
       expect(screen.getByRole('radio', { name: 'Masculino' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Feminino' })).not.toBeChecked();
+    });
+
+    it('volta para "não informado" ao escolher Não informar', async () => {
+      const user = userEvent.setup();
+      renderizarTela();
+
+      await user.press(screen.getByRole('button', { name: 'Sexo' }));
+      await user.press(screen.getByRole('radio', { name: 'Masculino' }));
+      await user.press(screen.getByRole('button', { name: 'Sexo' }));
+      await user.press(screen.getByRole('radio', { name: 'Não informar' }));
+
+      expect(screen.queryByRole('radio', { name: 'Não informar' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Sexo' })).toHaveAccessibilityValue({
+        text: 'Não informado',
+      });
+      expect(campo('sex').getByText('Selecionar')).toBeOnTheScreen();
+    });
+
+    it('deixa Não informar marcado enquanto nada foi escolhido', async () => {
+      const user = userEvent.setup();
+      renderizarTela();
+
+      await user.press(screen.getByRole('button', { name: 'Sexo' }));
+
+      expect(screen.getByRole('radio', { name: 'Não informar' })).toBeChecked();
       expect(screen.getByRole('radio', { name: 'Feminino' })).not.toBeChecked();
     });
 

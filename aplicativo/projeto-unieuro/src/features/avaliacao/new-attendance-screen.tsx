@@ -102,6 +102,11 @@ const SEX_OPTIONS: { value: Sex; label: string }[] = [
   { value: 'masculino', label: 'Masculino' },
 ];
 
+const SEX_CHOICES: { value: Sex | null; label: string }[] = [
+  ...SEX_OPTIONS,
+  { value: null, label: 'Não informar' },
+];
+
 const SUBMIT_LABEL = 'Ir para o termo de consentimento';
 
 const sexLabel = (sex: Sex | null) => SEX_OPTIONS.find((option) => option.value === sex)?.label;
@@ -258,7 +263,7 @@ export default function NewAttendanceScreen({
                     accessibilityRole="button"
                     accessibilityLabel="Sexo"
                     accessibilityValue={{ text: selectedSex ?? 'Não informado' }}
-                    accessibilityHint="Abre as opções Feminino e Masculino."
+                    accessibilityHint="Abre as opções Feminino, Masculino e Não informar."
                     onPress={() => setPickingSex(true)}
                     style={({ pressed }) => [
                       styles.select,
@@ -348,7 +353,7 @@ type SexPickerProps = {
   selected: Sex | null;
   styles: NewAttendanceStyles;
   onClose: () => void;
-  onSelect: (sex: Sex) => void;
+  onSelect: (sex: Sex | null) => void;
 };
 
 function SexPicker({ visible, selected, styles, onClose, onSelect }: SexPickerProps) {
@@ -359,9 +364,9 @@ function SexPicker({ visible, selected, styles, onClose, onSelect }: SexPickerPr
           <Text accessibilityRole="header" style={styles.modalTitle}>
             Sexo do paciente
           </Text>
-          {SEX_OPTIONS.map((option) => (
+          {SEX_CHOICES.map((option) => (
             <Pressable
-              key={option.value}
+              key={option.label}
               accessibilityRole="radio"
               accessibilityState={{ checked: option.value === selected }}
               onPress={() => onSelect(option.value)}
