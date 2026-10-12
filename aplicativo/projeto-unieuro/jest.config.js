@@ -23,7 +23,6 @@ module.exports = {
 
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    '!src/**/*.test.{ts,tsx}',
     // As rotas apenas reexportam as telas, não há lógica a cobrir.
     '!src/app/**',
     // O produto é distribuído só como APK; as variantes web não são embarcadas.
