@@ -25,6 +25,7 @@ import {
 } from '@/features/auth/registration';
 import { createRegisterStyles, getRegisterLayout } from '@/features/auth/register.styles';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { formatCpfInput } from '@/features/shared/cpf';
 
 type RegisterValues = {
   fullName: string;
@@ -54,6 +55,8 @@ const fieldRows: {
   autoComplete?: 'name' | 'email' | 'off' | 'new-password';
   textContentType?: 'name' | 'emailAddress' | 'newPassword';
   maxLength?: number;
+  // Formata o texto a cada digitação, como a máscara do CPF.
+  mask?: (text: string) => string;
 }[][] = [
   [
     {
@@ -90,6 +93,7 @@ const fieldRows: {
       keyboardType: 'numeric',
       autoComplete: 'off',
       maxLength: 14,
+      mask: formatCpfInput,
     },
   ],
   [
@@ -284,7 +288,9 @@ export default function RegisterScreen({ repository }: RegisterScreenProps) {
                         keyboardType={field.keyboardType ?? 'default'}
                         maxLength={field.maxLength}
                         onBlur={() => setFocusedField(null)}
-                        onChangeText={(value) => updateValue(field.name, value)}
+                        onChangeText={(value) =>
+                          updateValue(field.name, field.mask ? field.mask(value) : value)
+                        }
                         onFocus={() => setFocusedField(field.name)}
                         placeholder={field.placeholder}
                         placeholderTextColor={theme.placeholder}
