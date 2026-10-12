@@ -99,7 +99,8 @@ describe('createNewAttendanceStyles', () => {
     expect(escuro.submitButton.backgroundColor).toBe(Colors.dark.primary);
   });
 
-  it('destaca o campo com erro com uma borda diferente da de foco', () => {
+  it('destaca o campo com erro com a cor de erro', () => {
+    expect(styles.inputInvalid.borderColor).toBe(Colors.light.error);
     expect(styles.inputInvalid.borderColor).not.toBe(styles.inputFocused.borderColor);
   });
 });

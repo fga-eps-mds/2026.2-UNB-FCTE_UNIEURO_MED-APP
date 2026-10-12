@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,6 +30,7 @@ import {
   getNewAttendanceLayout,
   type NewAttendanceStyles,
 } from '@/features/avaliacao/new-attendance.styles';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
 import {
   formatCrm,
   returnToLogin,
@@ -108,6 +108,7 @@ const SEX_CHOICES: { value: Sex | null; label: string }[] = [
 ];
 
 const SUBMIT_LABEL = 'Ir para o termo de consentimento';
+const SAVE_FAILED_MESSAGE = 'Não foi possível salvar o atendimento. Tente novamente.';
 
 const sexLabel = (sex: Sex | null) => SEX_OPTIONS.find((option) => option.value === sex)?.label;
 
@@ -135,6 +136,7 @@ export default function NewAttendanceScreen({
   const [focusedField, setFocusedField] = useState<TextField | null>(null);
   const [pickingSex, setPickingSex] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const submittingRef = useRef(false);
 
   // Sem médico autenticado não há a quem vincular o atendimento.
@@ -153,6 +155,7 @@ export default function NewAttendanceScreen({
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setSaveFailed(false);
     try {
       const result = await registerAttendance(form, {
         repository,
@@ -164,10 +167,7 @@ export default function NewAttendanceScreen({
       }
       onRegistered(result.attendanceId);
     } catch {
-      Alert.alert(
-        'Atendimento não registrado',
-        'Não foi possível salvar o atendimento. Tente novamente.',
-      );
+      setSaveFailed(true);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -289,6 +289,7 @@ export default function NewAttendanceScreen({
                 </Text>
               </View>
             </View>
+            {saveFailed ? <FeedbackMessage kind="error" message={SAVE_FAILED_MESSAGE} /> : null}
 
             <Pressable
               accessibilityLabel={SUBMIT_LABEL}
@@ -339,11 +340,7 @@ function FieldBox({ name, label, error, styles, style, children }: FieldBoxProps
     <View testID={`campo-${name}`} style={[styles.field, style]}>
       <Text style={styles.label}>{label}</Text>
       {children}
-      {error ? (
-        <Text accessibilityLiveRegion="polite" style={styles.errorText}>
-          {error}
-        </Text>
-      ) : null}
+      {error ? <FeedbackMessage kind="error" inline message={error} /> : null}
     </View>
   );
 }

@@ -7,6 +7,7 @@ import {
   within,
 } from '@testing-library/react-native';
 import { Alert, ScrollView, TextInput } from 'react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 
 import type { AttendanceRepository, PatientField } from '@/features/avaliacao/attendance';
@@ -22,6 +23,7 @@ const profissional: SessionProfessional = {
 };
 
 const BOTAO = 'Ir para o termo de consentimento';
+const FALHA_AO_SALVAR = 'Não foi possível salvar o atendimento. Tente novamente.';
 
 function criarRepositorio(sobrescritas: Partial<AttendanceRepository> = {}): AttendanceRepository {
   return {
@@ -135,16 +137,19 @@ describe('NewAttendanceScreen', () => {
       expect(await campo('name').findByText('Preencha o nome completo.')).toBeOnTheScreen();
     });
 
-    it('anuncia a mensagem para o leitor de tela', async () => {
+    it('anuncia a mensagem para o leitor de tela, com o ícone de erro do guia', async () => {
       const user = userEvent.setup();
       renderizarTela();
 
       await enviar(user);
 
-      expect(await campo('cpf').findByText('Preencha o CPF.')).toHaveProp(
+      expect(await campo('cpf').findByLabelText('Erro. Preencha o CPF.')).toHaveProp(
         'accessibilityLiveRegion',
-        'polite',
+        'assertive',
       );
+      expect(
+        within(screen.getByTestId('campo-cpf')).UNSAFE_getByType(MaterialCommunityIcons).props,
+      ).toEqual(expect.objectContaining({ name: 'close-circle' }));
     });
 
     it('apaga a mensagem do campo quando o médico o corrige', async () => {
@@ -295,8 +300,8 @@ describe('NewAttendanceScreen', () => {
       expect(screen.getByRole('button', { name: BOTAO })).toBeDisabled();
     });
 
-    it('avisa quando o banco falha e continua na tela', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    it('avisa na própria tela quando o banco falha e continua na tela', async () => {
+      const alerta = jest.spyOn(Alert, 'alert');
       const repository = criarRepositorio({
         createAttendance: jest.fn(async () => Promise.reject(new Error('falha no banco'))),
       });
@@ -306,15 +311,30 @@ describe('NewAttendanceScreen', () => {
       await preencherFormulario(user);
       await enviar(user);
 
-      await waitFor(() =>
-        expect(alerta).toHaveBeenCalledWith(
-          'Atendimento não registrado',
-          'Não foi possível salvar o atendimento. Tente novamente.',
-        ),
-      );
+      expect(await screen.findByLabelText(`Erro. ${FALHA_AO_SALVAR}`)).toBeOnTheScreen();
+      expect(alerta).not.toHaveBeenCalled();
       expect(onRegistered).not.toHaveBeenCalled();
       expect(screen.getByRole('button', { name: BOTAO })).toBeEnabled();
       expect(screen.getByLabelText('Nome completo')).toHaveDisplayValue('José Alves Martins');
+    });
+
+    it('tira o aviso de falha quando a nova tentativa grava', async () => {
+      const repository = criarRepositorio({
+        createAttendance: jest
+          .fn()
+          .mockRejectedValueOnce(new Error('falha no banco'))
+          .mockResolvedValue({ attendanceId: 42 }),
+      });
+      const user = userEvent.setup();
+      const { onRegistered } = renderizarTela({ repository });
+
+      await preencherFormulario(user);
+      await enviar(user);
+      await screen.findByLabelText(`Erro. ${FALHA_AO_SALVAR}`);
+      await enviar(user);
+
+      await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
+      expect(screen.queryByLabelText(`Erro. ${FALHA_AO_SALVAR}`)).toBeNull();
     });
   });
 

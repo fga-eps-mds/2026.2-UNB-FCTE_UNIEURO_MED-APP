@@ -80,7 +80,7 @@ export function createNewAttendanceStyles(colors: ThemeColors) {
     label,
     input: { ...field, ...body, width: '100%', color: colors.text },
     inputFocused: { borderColor: colors.primary, borderWidth: 2 },
-    inputInvalid: { borderColor: BrandPalette.deepWine, borderWidth: 2 },
+    inputInvalid: { borderColor: colors.error, borderWidth: 2 },
     select: {
       ...field,
       flexDirection: 'row',
@@ -91,12 +91,6 @@ export function createNewAttendanceStyles(colors: ThemeColors) {
     selectText: { ...body, flexShrink: 1, color: colors.text },
     selectPlaceholder: { color: colors.placeholder },
     selectChevron: { ...body, color: colors.textSecondary },
-    errorText: {
-      color: BrandPalette.deepWine,
-      fontFamily: fonts.semibold,
-      fontSize: 16,
-      lineHeight: 22,
-    },
     professional: {
       gap: 8,
       paddingTop: 20,
