@@ -6,7 +6,6 @@ const TODAY = new Date(2026, 9, 9, 10, 30);
 const validForm: PatientForm = {
   name: '  José Alves Martins ',
   cpf: '123.456.789-09',
-  recordNumber: ' 2026-0184 ',
   birthDate: '14/03/1948',
   schooling: ' 5 ',
   sex: 'masculino',
@@ -24,7 +23,6 @@ describe('Cenário: identificação mínima do paciente', () => {
       patient: {
         name: 'José Alves Martins',
         cpf: '12345678909',
-        recordNumber: '2026-0184',
         birthDate: '1948-03-14',
         schoolingYears: 5,
         sex: 'masculino',
@@ -55,7 +53,6 @@ describe('Cenário: campo obrigatório vazio', () => {
   it.each([
     ['nome completo', { name: '   ' }, { name: 'Preencha o nome completo.' }],
     ['CPF', { cpf: '' }, { cpf: 'Preencha o CPF.' }],
-    ['número da ficha', { recordNumber: '  ' }, { recordNumber: 'Preencha o número da ficha.' }],
     ['data de nascimento', { birthDate: '' }, { birthDate: 'Preencha a data de nascimento.' }],
     [
       'escolaridade',
@@ -68,7 +65,7 @@ describe('Cenário: campo obrigatório vazio', () => {
 
   it('indica todos os campos que faltam de uma vez', () => {
     const result = validatePatient(
-      { name: '', cpf: '', recordNumber: '', birthDate: '', schooling: '', sex: null },
+      { name: '', cpf: '', birthDate: '', schooling: '', sex: null },
       TODAY,
     );
 
@@ -77,7 +74,6 @@ describe('Cenário: campo obrigatório vazio', () => {
       errors: {
         name: 'Preencha o nome completo.',
         cpf: 'Preencha o CPF.',
-        recordNumber: 'Preencha o número da ficha.',
         birthDate: 'Preencha a data de nascimento.',
         schooling: 'Preencha a escolaridade, em anos de estudo.',
       },

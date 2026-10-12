@@ -76,7 +76,6 @@ async function registrarPaciente(user: Usuario) {
 
   await user.type(screen.getByLabelText('Nome completo'), 'José Alves Martins');
   await user.type(screen.getByLabelText('CPF'), CPF);
-  await user.type(screen.getByLabelText('Número da ficha'), '2026-0184');
   await user.type(screen.getByLabelText('Data de nascimento'), '14031948');
   await user.type(screen.getByLabelText('Escolaridade (anos)'), '5');
   await user.press(screen.getByRole('button', { name: 'Ir para o termo de consentimento' }));
@@ -109,7 +108,7 @@ describe('Registro do atendimento, de ponta a ponta', () => {
       id_profissional: professional.id,
       estado: 'aguardando_consentimento',
       nome: 'José Alves Martins',
-      numero_ficha: '2026-0184',
+      numero_ficha: `${new Date().getFullYear()}-0001`,
       data_nascimento: '1948-03-14',
       escolaridade_anos: 5,
       sexo: null,

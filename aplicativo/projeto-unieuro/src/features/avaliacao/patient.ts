@@ -51,9 +51,6 @@ export function validatePatient(form: PatientForm, today: Date): PatientValidati
   if (!form.cpf.trim()) errors.cpf = 'Preencha o CPF.';
   else if (!cpf) errors.cpf = 'Informe um CPF válido.';
 
-  const recordNumber = form.recordNumber.trim();
-  if (!recordNumber) errors.recordNumber = 'Preencha o número da ficha.';
-
   const birthDate = parseBirthDate(form.birthDate);
   if (!form.birthDate.trim()) errors.birthDate = 'Preencha a data de nascimento.';
   else if (!birthDate) errors.birthDate = 'Informe uma data que exista, no formato DD/MM/AAAA.';
@@ -78,6 +75,6 @@ export function validatePatient(form: PatientForm, today: Date): PatientValidati
 
   return {
     valid: true,
-    patient: { name, cpf, recordNumber, birthDate, schoolingYears, sex },
+    patient: { name, cpf, birthDate, schoolingYears, sex },
   };
 }

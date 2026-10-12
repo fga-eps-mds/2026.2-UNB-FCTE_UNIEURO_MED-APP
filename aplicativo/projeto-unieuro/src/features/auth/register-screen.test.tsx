@@ -44,6 +44,15 @@ describe('RegisterScreen', () => {
     }
   });
 
+  it('coloca os pontos e o traço no CPF enquanto o médico digita', async () => {
+    const user = userEvent.setup();
+    render(<RegisterScreen />);
+
+    await user.type(screen.getByLabelText('CPF'), '11144477735');
+
+    expect(screen.getByLabelText('CPF')).toHaveDisplayValue('111.444.777-35');
+  });
+
   it('esconde o conteúdo dos dois campos de senha', () => {
     render(<RegisterScreen />);
 

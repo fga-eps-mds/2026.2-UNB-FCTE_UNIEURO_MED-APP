@@ -10,7 +10,6 @@ const PROFESSIONAL_ID = 7;
 const validForm: PatientForm = {
   name: 'José Alves Martins',
   cpf: '123.456.789-09',
-  recordNumber: '2026-0184',
   birthDate: '14/03/1948',
   schooling: '5',
   sex: 'masculino',
@@ -19,7 +18,6 @@ const validForm: PatientForm = {
 const normalizedPatient = {
   name: 'José Alves Martins',
   cpf: '12345678909',
-  recordNumber: '2026-0184',
   birthDate: '1948-03-14',
   schoolingYears: 5,
   sex: 'masculino',

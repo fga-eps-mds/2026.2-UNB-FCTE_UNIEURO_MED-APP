@@ -51,7 +51,6 @@ type Usuario = ReturnType<typeof userEvent.setup>;
 const dadosValidos = {
   'Nome completo': 'José Alves Martins',
   CPF: '12345678909',
-  'Número da ficha': '2026-0184',
   'Data de nascimento': '14031948',
   'Escolaridade (anos)': '5',
 };
@@ -89,7 +88,16 @@ describe('NewAttendanceScreen', () => {
         expect(screen.getByLabelText(rotulo)).toBeOnTheScreen();
       }
       expect(screen.getByRole('button', { name: 'Sexo' })).toBeOnTheScreen();
-      expect(screen.UNSAFE_getAllByType(TextInput)).toHaveLength(5);
+      expect(screen.getByLabelText('Número da ficha')).toBeOnTheScreen();
+      expect(screen.UNSAFE_getAllByType(TextInput)).toHaveLength(4);
+    });
+
+    it('não pede o número da ficha, que é gerado ao salvar', () => {
+      renderizarTela();
+
+      const ficha = screen.getByLabelText('Número da ficha');
+      expect(ficha).toHaveAccessibilityValue({ text: 'Gerado ao salvar' });
+      expect(within(ficha).UNSAFE_queryAllByType(TextInput)).toHaveLength(0);
     });
   });
 
@@ -102,7 +110,6 @@ describe('NewAttendanceScreen', () => {
 
       expect(await campo('name').findByText('Preencha o nome completo.')).toBeOnTheScreen();
       expect(campo('cpf').getByText('Preencha o CPF.')).toBeOnTheScreen();
-      expect(campo('recordNumber').getByText('Preencha o número da ficha.')).toBeOnTheScreen();
       expect(campo('birthDate').getByText('Preencha a data de nascimento.')).toBeOnTheScreen();
       expect(
         campo('schooling').getByText('Preencha a escolaridade, em anos de estudo.'),
@@ -117,11 +124,11 @@ describe('NewAttendanceScreen', () => {
       const user = userEvent.setup();
       const { repository } = renderizarTela();
 
-      await preencherFormulario(user, { 'Número da ficha': '' });
+      await preencherFormulario(user, { 'Escolaridade (anos)': '' });
       await enviar(user);
 
       expect(
-        await campo('recordNumber').findByText('Preencha o número da ficha.'),
+        await campo('schooling').findByText('Preencha a escolaridade, em anos de estudo.'),
       ).toBeOnTheScreen();
       expect(screen.getAllByText(MENSAGEM_DE_ERRO)).toHaveLength(1);
       expect(repository.createAttendance).not.toHaveBeenCalled();
@@ -244,7 +251,6 @@ describe('NewAttendanceScreen', () => {
         patient: {
           name: 'José Alves Martins',
           cpf: '12345678909',
-          recordNumber: '2026-0184',
           birthDate: '1948-03-14',
           schoolingYears: 5,
           sex: 'masculino',

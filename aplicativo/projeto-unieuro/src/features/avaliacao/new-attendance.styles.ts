@@ -90,6 +90,9 @@ export function createNewAttendanceStyles(colors: ThemeColors) {
     },
     selectText: { ...body, flexShrink: 1, color: colors.text },
     selectPlaceholder: { color: colors.placeholder },
+    // Campo só de leitura, como o número da ficha, que o app gera ao salvar.
+    readOnly: { backgroundColor: colors.background },
+    readOnlyText: { ...body, flexShrink: 1, color: colors.textSecondary },
     selectChevron: { ...body, color: colors.textSecondary },
     professional: {
       gap: 8,

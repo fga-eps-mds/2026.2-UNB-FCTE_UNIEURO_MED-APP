@@ -24,3 +24,14 @@ export function parseCpf(fullCpf: string): string | null {
   const digits = fullCpf.replace(/\D/g, '');
   return isValidCpf(digits) ? digits : null;
 }
+
+/** formata o CPF enquanto ele é digitado (000.000.000-00), com no máximo 11 dígitos. */
+export function formatCpfInput(text: string): string {
+  const digits = text.replace(/\D/g, '').slice(0, 11);
+
+  let formatted = digits.slice(0, 3);
+  if (digits.length > 3) formatted += `.${digits.slice(3, 6)}`;
+  if (digits.length > 6) formatted += `.${digits.slice(6, 9)}`;
+  if (digits.length > 9) formatted += `-${digits.slice(9)}`;
+  return formatted;
+}
