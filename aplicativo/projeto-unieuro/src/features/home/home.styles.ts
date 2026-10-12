@@ -29,6 +29,18 @@ export function createHomeStyles(theme: ThemeColors) {
 
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: theme.background },
+    // Aviso rápido no rodapé, no mesmo formato da confirmação do cadastro.
+    noticePosition: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 24,
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      zIndex: 2,
+      elevation: 4,
+    },
+    noticeBody: { width: '100%', maxWidth: 560 },
     topBar: {
       minHeight: 72,
       flexDirection: 'row',

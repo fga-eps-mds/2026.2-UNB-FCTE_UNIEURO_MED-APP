@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import {
   createHomeStyles,
@@ -43,6 +36,9 @@ const PENDING = {
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
 
+/** Tempo que o aviso rápido fica na tela, como pede o guia de identidade visual. */
+export const NOTICE_DURATION_MS = 4000;
+
 /**
  * Tela inicial do profissional (#46): os pacientes que ele atendeu e os
  * atalhos para novo exame, exportação, sincronização e configurações.
@@ -56,12 +52,23 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const isWide = (measuredWidth || windowWidth) >= WIDE_LAYOUT_MIN_WIDTH;
   const [query, setQuery] = useState('');
+  // O id muda a cada toque, para o aviso reiniciar a contagem mesmo quando o
+  // texto se repete.
+  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const showNotice = (message: string) =>
+    setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }));
 
   // Sem profissional autenticado a tela não abre. Isso também cobre o "Sair":
   // ao encerrar a sessão, o aplicativo volta para o login por aqui.
   useEffect(() => {
     if (!professional) returnToLogin(router);
   }, [professional, router]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);
   const visible = useMemo(() => filterPatients(ordered, query), [ordered, query]);
@@ -118,7 +125,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Novo exame"
-            onPress={() => Alert.alert('Novo exame', PENDING.newExam)}
+            onPress={() => showNotice(PENDING.newExam)}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>+ Novo exame</Text>
           </Pressable>
@@ -143,7 +150,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
               accessibilityRole="button"
               accessibilityState={{ disabled: !hasExams }}
               disabled={!hasExams}
-              onPress={() => Alert.alert('Exportar todos (XML)', PENDING.export)}
+              onPress={() => showNotice(PENDING.export)}
               style={({ pressed }) => [
                 styles.outlineButton,
                 !hasExams && styles.disabledButton,
@@ -155,7 +162,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              onPress={() => Alert.alert('Sincronizar tablets', PENDING.sync)}
+              onPress={() => showNotice(PENDING.sync)}
               style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
               <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
             </Pressable>
@@ -182,12 +189,21 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
                   isWide={isWide}
                   showDivider={index > 0}
                   styles={styles}
+                  onOpen={() => showNotice(PENDING.patient)}
                 />
               )}
             />
           )}
         </View>
       </View>
+
+      {notice && (
+        <View pointerEvents="none" style={styles.noticePosition} testID="aviso-rapido">
+          <View style={styles.noticeBody}>
+            <FeedbackMessage key={notice.id} kind="info" message={notice.message} />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -214,9 +230,10 @@ type PatientRowProps = {
   isWide: boolean;
   showDivider: boolean;
   styles: HomeStyles;
+  onOpen: () => void;
 };
 
-function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
+function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
   const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
@@ -236,7 +253,7 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={description}
-          onPress={() => Alert.alert(patient.name, PENDING.patient)}
+          onPress={onOpen}
           style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}>
           <View style={styles.colName}>
             <Text style={styles.patientName}>{patient.name}</Text>
