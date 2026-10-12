@@ -66,6 +66,7 @@ export function createLoginStyles(colors: ThemeColors) {
       marginBottom: 18,
     },
     form: { width: '100%' },
+    feedback: { marginBottom: 18 },
     label: {
       color: colors.textSecondary,
       fontFamily: fonts.semibold,
@@ -88,6 +89,10 @@ export function createLoginStyles(colors: ThemeColors) {
     },
     inputFocused: {
       borderColor: colors.primary,
+      borderWidth: 2,
+    },
+    inputError: {
+      borderColor: colors.error,
       borderWidth: 2,
     },
     loginButton: {

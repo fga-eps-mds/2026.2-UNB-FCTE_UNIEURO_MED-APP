@@ -1,9 +1,8 @@
-import { fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import HomeScreen from '@/features/home/home-screen';
+import HomeScreen, { NOTICE_DURATION_MS } from '@/features/home/home-screen';
 import type { PatientSummary } from '@/features/home/patients';
 
 const profissional: SessionProfessional = {
@@ -101,7 +100,6 @@ describe('HomeScreen', () => {
     });
 
     it('desabilita a exportação de todos enquanto não há exame', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       renderTela([]);
 
@@ -109,7 +107,7 @@ describe('HomeScreen', () => {
       expect(exportar).toBeDisabled();
 
       await user.press(exportar);
-      expect(alerta).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
     it('mostra o paciente sem exame e mantém a exportação desabilitada', () => {
@@ -204,16 +202,14 @@ describe('HomeScreen', () => {
 
   describe('Cenário: sincronizar tablets', () => {
     it('informa que a sincronização ainda não está disponível', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       renderTela();
 
       await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Sincronizar tablets',
-        expect.stringMatching(/ainda não está disponível/),
-      );
+      expect(
+        screen.getByText(/sincronização entre tablets .* ainda não está disponível/),
+      ).toBeOnTheScreen();
     });
   });
 
@@ -249,30 +245,66 @@ describe('HomeScreen', () => {
     });
 
     it.each([
-      ['Novo exame', 'Novo exame', /registro do atendimento/],
-      ['Sincronizar tablets', 'Sincronizar tablets', /em estudo/],
-      ['Exportar todos (XML)', 'Exportar todos (XML)', /exportação em XML/],
-    ])('o botão "%s" avisa o que ainda falta', async (botao, titulo, mensagem) => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+      ['Novo exame', /registro do atendimento/],
+      ['Sincronizar tablets', /em estudo/],
+      ['Exportar todos (XML)', /exportação em XML/],
+    ])('o botão "%s" avisa o que ainda falta', async (botao, mensagem) => {
       const user = userEvent.setup();
       renderTela();
 
       await user.press(screen.getByRole('button', { name: botao }));
 
-      expect(alerta).toHaveBeenCalledWith(titulo, expect.stringMatching(mensagem));
+      expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
+      expect(screen.getByText(mensagem)).toBeOnTheScreen();
     });
 
     it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       renderTela();
 
       await user.press(botoesDePaciente()[0]);
 
-      expect(alerta).toHaveBeenCalledWith(
-        'Antônio Carlos Ferreira',
-        expect.stringMatching(/exames do paciente/),
-      );
+      expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
+    });
+  });
+
+  describe('aviso rápido', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('é uma mensagem de informação, sem o alerta padrão do Android', () => {
+      renderTela();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+
+      expect(screen.getByLabelText(/^Informação\. O registro do atendimento/)).toBeOnTheScreen();
+    });
+
+    it('some sozinho depois de 4 segundos', () => {
+      renderTela();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+      act(() => jest.advanceTimersByTime(NOTICE_DURATION_MS - 1));
+      expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
+
+      act(() => jest.advanceTimersByTime(1));
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+
+    it('troca a mensagem e reinicia a contagem a cada toque', () => {
+      renderTela();
+
+      fireEvent.press(screen.getByRole('button', { name: 'Novo exame' }));
+      act(() => jest.advanceTimersByTime(3000));
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+
+      expect(screen.queryByText(/registro do atendimento/)).toBeNull();
+      expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
+
+      act(() => jest.advanceTimersByTime(3000));
+      expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
+      act(() => jest.advanceTimersByTime(1000));
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
   });
 });
