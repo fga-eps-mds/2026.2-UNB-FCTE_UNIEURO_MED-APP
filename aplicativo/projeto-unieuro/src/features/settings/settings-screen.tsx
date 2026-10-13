@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import type { AccountRepository } from '@/features/auth/account';
-import { formatCrm, useSession } from '@/features/auth/session';
+import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createAccountFormStyles } from '@/features/settings/account-form.styles';
 import { DeactivateAccountDialog } from '@/features/settings/deactivate-account-dialog';
@@ -30,7 +30,7 @@ export default function SettingsScreen({ repository }: SettingsScreenProps) {
 
   // Como na tela inicial: sem sessão, inclusive depois de "Sair", volta ao login.
   useEffect(() => {
-    if (!professional) router.replace('/');
+    if (!professional) returnToLogin(router);
   }, [professional, router]);
 
   if (!professional) return null;

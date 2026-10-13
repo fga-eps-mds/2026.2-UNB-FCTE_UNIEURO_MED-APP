@@ -1,12 +1,29 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
+import { protectStoredCpfs } from '@/db/cpf-migration';
+import type { CpfProtector } from '@/db/cpf-protection';
 import { closeDatabase, getDatabase, migrate } from '@/db/database';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
-import { createMemoryDatabase } from '@/test-utils/sqlite';
 
 jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
 }));
+
+// A conversão do CPF tem teste próprio em `cpf-migration.test.ts`. Aqui só
+// importa que `migrate` a execute no passo certo.
+jest.mock('@/db/cpf-migration', () => ({
+  protectStoredCpfs: jest.fn(async () => undefined),
+}));
+
+// O módulo de runtime usa o cofre seguro e a cifra nativa, que só existem no
+// aplicativo. Nestes testes o protetor é sempre passado de fora.
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
+
+const protector: CpfProtector = {
+  blindIndex: jest.fn(),
+  encrypt: jest.fn(),
+  decrypt: jest.fn(),
+};
 
 const mockOpenDatabaseAsync = jest.mocked(openDatabaseAsync);
 
@@ -30,7 +47,7 @@ describe('migrate', () => {
   it('ativa o WAL e as chaves estrangeiras antes de tudo', async () => {
     const database = createDatabase();
 
-    await migrate(database);
+    await migrate(database, protector);
 
     expect(database.execAsync).toHaveBeenNthCalledWith(
       1,
@@ -44,18 +61,52 @@ describe('migrate', () => {
   ])('cria o esquema em uma transação quando o banco está %s', async (_case, userVersion) => {
     const database = createDatabase(userVersion);
 
-    await migrate(database);
+    await migrate(database, protector);
 
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
-    MIGRATIONS.forEach((step) => expect(database.execAsync).toHaveBeenCalledWith(step));
+    expect(database.execAsync).toHaveBeenCalledWith(MIGRATIONS[0]);
+    expect(protectStoredCpfs).toHaveBeenCalledWith(database, protector);
+    expect(database.execAsync).toHaveBeenLastCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  });
+
+  it('só protege o CPF, sem recriar o esquema, quando o banco está na versão 1', async () => {
+    const database = createDatabase(1);
+
+    await migrate(database, protector);
+
+    expect(database.execAsync).not.toHaveBeenCalledWith(MIGRATIONS[0]);
+    expect(protectStoredCpfs).toHaveBeenCalledWith(database, protector);
+    expect(database.execAsync).toHaveBeenCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  });
+
+  it('refaz o arquivo e esvazia o WAL, fora da transação, depois de reescrever dados antigos', async () => {
+    const database = createDatabase(1);
+
+    await migrate(database, protector);
+
+    const vacuum = 'VACUUM; PRAGMA wal_checkpoint(TRUNCATE);';
+    expect(database.execAsync).toHaveBeenLastCalledWith(vacuum);
+    const vacuumOrder = database.execAsync.mock.invocationCallOrder.at(-1)!;
+    const transactionOrder = database.withTransactionAsync.mock.invocationCallOrder[0];
+    expect(vacuumOrder).toBeGreaterThan(transactionOrder);
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('não refaz o arquivo num banco novo, que não tem dado antigo a apagar', async () => {
+    const database = createDatabase(0);
+
+    await migrate(database, protector);
+
+    expect(database.execAsync).not.toHaveBeenCalledWith('VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
     expect(database.execAsync).toHaveBeenLastCalledWith(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });
 
   it('não executa nada quando o banco já está na versão atual', async () => {
     const database = createDatabase(SCHEMA_VERSION);
 
-    await migrate(database);
+    await migrate(database, protector);
 
+    expect(protectStoredCpfs).not.toHaveBeenCalled();
     expect(database.withTransactionAsync).not.toHaveBeenCalled();
     expect(database.execAsync).toHaveBeenCalledTimes(1);
   });
@@ -70,40 +121,22 @@ describe('esquema', () => {
     expect(schemaV1).toContain('UNIQUE (crm_numero, uf_crm)');
   });
 
-  it('acrescenta a data da desativação na versão 2', () => {
-    expect(MIGRATIONS[1]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
-    expect(SCHEMA_VERSION).toBe(2);
+  it('chega à versão 2 com o passo que protege o CPF', () => {
+    expect(MIGRATIONS[1]).toBe(protectStoredCpfs);
   });
 
-  it('leva um banco da versão 1 para a 2 sem recriar a tabela', async () => {
-    const database = createDatabase(1);
+  it('chega à versão 3 com o paciente e o atendimento da #7', () => {
+    const schemaV3 = MIGRATIONS[2];
 
-    await migrate(database);
-
-    expect(database.execAsync).not.toHaveBeenCalledWith(MIGRATIONS[0]);
-    expect(database.execAsync).toHaveBeenCalledWith(MIGRATIONS[1]);
-    expect(database.execAsync).toHaveBeenLastCalledWith('PRAGMA user_version = 2');
+    expect(schemaV3).toContain('CREATE TABLE IF NOT EXISTS paciente');
+    expect(schemaV3).toContain('cpf_indice TEXT NOT NULL UNIQUE');
+    expect(schemaV3).toContain('CREATE TABLE IF NOT EXISTS avaliacao');
+    expect(schemaV3).toContain('REFERENCES profissional (id)');
   });
-});
 
-describe('migração com SQLite real', () => {
-  it('preserva os profissionais de um banco da versão 1 ao chegar na versão 2', async () => {
-    const database = createMemoryDatabase();
-    await database.execAsync(`${MIGRATIONS[0]} PRAGMA user_version = 1;`);
-    await database.runAsync(
-      `INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf, senha_hash, criacao, last_update)
-       VALUES ('Ana Carolina Souza', 'ana@unieuro.com.br', '12345', 'DF', '11144477735', 'hash', 'c', 'c')`,
-    );
-
-    await migrate(database);
-
-    await expect(database.getFirstAsync('PRAGMA user_version')).resolves.toEqual({
-      user_version: 2,
-    });
-    await expect(
-      database.getFirstAsync('SELECT nome, ativo, desativacao FROM profissional'),
-    ).resolves.toEqual({ nome: 'Ana Carolina Souza', ativo: 1, desativacao: null });
-    await database.closeAsync();
+  it('chega à versão 4 com a data da desativação da conta da #5', () => {
+    expect(SCHEMA_VERSION).toBe(4);
+    expect(MIGRATIONS[3]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
   });
 });
 

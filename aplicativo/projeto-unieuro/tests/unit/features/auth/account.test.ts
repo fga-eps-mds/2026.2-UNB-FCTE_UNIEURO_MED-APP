@@ -11,8 +11,10 @@ import {
   SENHA_DE_TESTE as SENHA,
   abrirTabletComAnaEBruno,
   hashDaSenhaDeTeste,
-  type TabletDeTeste,
-} from '@/test-utils/professionals';
+  type TabletComAnaEBruno,
+} from '../../../test-support/tablet';
+
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 // Testes de integração: a regra grava e lê de um SQLite de verdade, com as
 // mesmas migrations do tablet.
@@ -21,8 +23,9 @@ const AGORA = new Date('2026-10-07T12:00:00.000Z');
 const dadosDaAna = ANA;
 
 let hashDaSenha: string;
-let database: TabletDeTeste['database'];
-let repository: TabletDeTeste['repository'];
+let tablet: TabletComAnaEBruno;
+let database: TabletComAnaEBruno['database'];
+let repository: TabletComAnaEBruno['repository'];
 let anaId: number;
 
 beforeAll(async () => {
@@ -30,11 +33,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  ({ database, repository, anaId } = await abrirTabletComAnaEBruno());
+  tablet = await abrirTabletComAnaEBruno();
+  ({ database, repository, anaId } = tablet);
 });
 
 afterEach(async () => {
-  await database.closeAsync();
+  await tablet.fechar();
 });
 
 const contaDaAna = () => repository.findById(anaId);

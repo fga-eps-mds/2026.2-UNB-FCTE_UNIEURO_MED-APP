@@ -10,19 +10,21 @@ import {
   ANA,
   SENHA_DE_TESTE,
   abrirTabletComAnaEBruno,
-  type TabletDeTeste,
-} from '@/test-utils/professionals';
+  type TabletComAnaEBruno,
+} from '../../../test-support/tablet';
+
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 // A tela grava e lê de um SQLite de verdade: o teste vai da tela ao banco.
 
-let tablet: TabletDeTeste;
+let tablet: TabletComAnaEBruno;
 
 beforeEach(async () => {
   tablet = await abrirTabletComAnaEBruno();
 });
 
 afterEach(async () => {
-  await tablet.database.closeAsync();
+  await tablet.fechar();
 });
 
 function SessaoAtual() {

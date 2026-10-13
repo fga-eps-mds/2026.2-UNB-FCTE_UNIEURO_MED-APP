@@ -8,8 +8,10 @@ import {
   ANA,
   SENHA_DE_TESTE,
   abrirTabletComAnaEBruno,
-  type TabletDeTeste,
-} from '@/test-utils/professionals';
+  type TabletComAnaEBruno,
+} from '../../../test-support/tablet';
+
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 jest.mock('expo-constants', () => ({
   __esModule: true,
@@ -73,6 +75,18 @@ describe('SettingsScreen', () => {
     expect(screen.queryByRole('header', { name: 'Configurações' })).toBeNull();
   });
 
+  it('ao sair, fecha a tela inicial que ficou embaixo antes de voltar ao login', async () => {
+    const router = useRouter();
+    jest.mocked(router.canDismiss).mockReturnValueOnce(true);
+    const user = userEvent.setup();
+    renderTela();
+
+    await user.press(screen.getByRole('button', { name: 'Sair do aplicativo' }));
+
+    expect(router.dismissAll).toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/');
+  });
+
   it('volta para o login quando ninguém entrou', () => {
     renderTela(null);
 
@@ -92,14 +106,14 @@ describe('SettingsScreen', () => {
   );
 
   describe('desativação da conta, com SQLite real', () => {
-    let tablet: TabletDeTeste;
+    let tablet: TabletComAnaEBruno;
 
     beforeEach(async () => {
       tablet = await abrirTabletComAnaEBruno();
     });
 
     afterEach(async () => {
-      await tablet.database.closeAsync();
+      await tablet.fechar();
     });
 
     const renderDaAna = () => renderTela({ id: tablet.anaId, ...ANA }, tablet.repository);

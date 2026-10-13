@@ -1,6 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
-import { Alert } from 'react-native';
 
 import { changePassword, deactivateAccount } from '@/features/auth/account';
 import LoginScreen from '@/features/auth/login-screen';
@@ -9,19 +8,21 @@ import {
   ANA,
   SENHA_DE_TESTE,
   abrirTabletComAnaEBruno,
-  type TabletDeTeste,
-} from '@/test-utils/professionals';
+  type TabletComAnaEBruno,
+} from '../test-support/tablet';
+
+jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 // O login lê do SQLite real, com a senha de verdade, depois das mudanças na conta (#5).
 
-let tablet: TabletDeTeste;
+let tablet: TabletComAnaEBruno;
 
 beforeEach(async () => {
   tablet = await abrirTabletComAnaEBruno();
 });
 
 afterEach(async () => {
-  await tablet.database.closeAsync();
+  await tablet.fechar();
 });
 
 async function entrar(senha: string) {
@@ -34,12 +35,11 @@ async function entrar(senha: string) {
 
 describe('login depois das mudanças na conta', () => {
   it('entrar com conta desativada: não deixa entrar e mostra a mensagem genérica', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     await deactivateAccount(tablet.anaId, SENHA_DE_TESTE, tablet.repository);
 
     await entrar(SENHA_DE_TESTE);
 
-    expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
+    expect(screen.getByText('E-mail ou senha inválidos.')).toBeOnTheScreen();
     expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
@@ -60,7 +60,6 @@ describe('login depois das mudanças na conta', () => {
   });
 
   it('troca de senha: a senha antiga deixa de valer', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     await changePassword(
       tablet.anaId,
       {
@@ -73,7 +72,7 @@ describe('login depois das mudanças na conta', () => {
 
     await entrar(SENHA_DE_TESTE);
 
-    expect(alerta).toHaveBeenCalledWith('Login', 'E-mail ou senha inválidos.');
+    expect(screen.getByText('E-mail ou senha inválidos.')).toBeOnTheScreen();
     expect(useRouter().replace).not.toHaveBeenCalled();
   });
 });

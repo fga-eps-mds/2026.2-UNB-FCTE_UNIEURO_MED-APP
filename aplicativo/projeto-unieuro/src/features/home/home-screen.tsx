@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { formatCrm, useSession } from '@/features/auth/session';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import {
   createHomeStyles,
   WIDE_LAYOUT_MIN_WIDTH,
@@ -19,7 +12,6 @@ import {
 } from '@/features/home/home.styles';
 import {
   EXAM_STATUS_LABEL,
-  ageOn,
   countExams,
   describeTotals,
   filterPatients,
@@ -38,11 +30,13 @@ type HomeScreenProps = {
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
 const PENDING = {
-  newExam: 'O registro do atendimento chega na próxima entrega.',
   export: 'A exportação em XML chega em uma próxima entrega.',
   patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
+
+/** Tempo que o aviso rápido fica na tela, como pede o guia de identidade visual. */
+export const NOTICE_DURATION_MS = 4000;
 
 /**
  * Tela inicial do profissional (#46): os pacientes que ele atendeu e os
@@ -57,16 +51,28 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const isWide = (measuredWidth || windowWidth) >= WIDE_LAYOUT_MIN_WIDTH;
   const [query, setQuery] = useState('');
+  // O id muda a cada toque, para o aviso reiniciar a contagem mesmo quando o
+  // texto se repete.
+  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const showNotice = (message: string) =>
+    setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }));
 
   // Sem profissional autenticado a tela não abre. Isso também cobre o "Sair":
   // ao encerrar a sessão, o aplicativo volta para o login por aqui.
   useEffect(() => {
-    if (!professional) router.replace('/');
+    if (!professional) returnToLogin(router);
   }, [professional, router]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);
   const visible = useMemo(() => filterPatients(ordered, query), [ordered, query]);
   const hasExams = countExams(patients) > 0;
+  const hasPatients = patients.length > 0;
 
   if (!professional) return null;
 
@@ -118,29 +124,32 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Novo exame"
-            onPress={() => Alert.alert('Novo exame', PENDING.newExam)}
+            onPress={() => router.push('/novo-exame')}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>+ Novo exame</Text>
           </Pressable>
         </View>
 
         <View style={styles.toolbar}>
-          <TextInput
-            accessibilityLabel="Buscar paciente"
-            placeholder="Buscar por nome ou número da ficha"
-            placeholderTextColor={theme.placeholder}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-            returnKeyType="search"
-            style={styles.search}
-          />
+          {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+          {hasPatients && (
+            <TextInput
+              accessibilityLabel="Buscar paciente"
+              placeholder="Buscar por nome ou número da ficha"
+              placeholderTextColor={theme.placeholder}
+              value={query}
+              onChangeText={setQuery}
+              autoCorrect={false}
+              returnKeyType="search"
+              style={styles.search}
+            />
+          )}
           <View style={styles.toolbarActions}>
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ disabled: !hasExams }}
               disabled={!hasExams}
-              onPress={() => Alert.alert('Exportar todos (XML)', PENDING.export)}
+              onPress={() => showNotice(PENDING.export)}
               style={({ pressed }) => [
                 styles.outlineButton,
                 !hasExams && styles.disabledButton,
@@ -152,7 +161,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              onPress={() => Alert.alert('Sincronizar tablets', PENDING.sync)}
+              onPress={() => showNotice(PENDING.sync)}
               style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
               <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
             </Pressable>
@@ -160,7 +169,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
         </View>
 
         <View style={styles.listCard}>
-          {patients.length === 0 ? (
+          {!hasPatients ? (
             <EmptyState styles={styles} />
           ) : (
             <FlatList
@@ -179,12 +188,21 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
                   isWide={isWide}
                   showDivider={index > 0}
                   styles={styles}
+                  onOpen={() => showNotice(PENDING.patient)}
                 />
               )}
             />
           )}
         </View>
       </View>
+
+      {notice && (
+        <View pointerEvents="none" style={styles.noticePosition} testID="aviso-rapido">
+          <View style={styles.noticeBody}>
+            <FeedbackMessage key={notice.id} kind="info" message={notice.message} />
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -194,10 +212,8 @@ function ColumnHeader({ styles }: { styles: HomeStyles }) {
     <View style={styles.columnHeader}>
       <Text style={[styles.columnLabel, styles.colName]}>PACIENTE</Text>
       <Text style={[styles.columnLabel, styles.colRecord]}>FICHA</Text>
-      <Text style={[styles.columnLabel, styles.colBirth]}>NASCIMENTO</Text>
       <Text style={[styles.columnLabel, styles.colLastExam]}>ÚLTIMO EXAME</Text>
       <Text style={[styles.columnLabel, styles.colCount]}>EXAMES</Text>
-      <View style={styles.colAction} />
     </View>
   );
 }
@@ -213,13 +229,13 @@ type PatientRowProps = {
   isWide: boolean;
   showDivider: boolean;
   styles: HomeStyles;
+  onOpen: () => void;
 };
 
-function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
+function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
   const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
-  const canExport = patient.examCount > 0;
   const description = [
     patient.name,
     `ficha ${patient.recordNumber}`,
@@ -236,19 +252,13 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={description}
-          onPress={() => Alert.alert(patient.name, PENDING.patient)}
+          onPress={onOpen}
           style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}>
           <View style={styles.colName}>
             <Text style={styles.patientName}>{patient.name}</Text>
             {!isWide && <Text style={styles.cellSecondary}>Ficha {patient.recordNumber}</Text>}
           </View>
           {isWide && <Text style={[styles.record, styles.colRecord]}>{patient.recordNumber}</Text>}
-          {isWide && (
-            <View style={styles.colBirth}>
-              <Text style={styles.cell}>{formatDate(patient.birthDate)}</Text>
-              <Text style={styles.cellSecondary}>{ageOn(patient.birthDate)} anos</Text>
-            </View>
-          )}
           <View style={styles.colLastExam}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
@@ -260,23 +270,6 @@ function PatientRow({ patient, isWide, showDivider, styles }: PatientRowProps) {
             )}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Exportar os exames de ${patient.name}`}
-          accessibilityState={{ disabled: !canExport }}
-          disabled={!canExport}
-          onPress={() => Alert.alert('Exportar XML do paciente', PENDING.export)}
-          style={({ pressed }) => [
-            styles.outlineButton,
-            styles.rowExport,
-            styles.colAction,
-            !canExport && styles.disabledButton,
-            pressed && styles.pressed,
-          ]}>
-          <Text style={[styles.outlineButtonText, !canExport && styles.disabledButtonText]}>
-            Exportar
-          </Text>
         </Pressable>
       </View>
     </View>

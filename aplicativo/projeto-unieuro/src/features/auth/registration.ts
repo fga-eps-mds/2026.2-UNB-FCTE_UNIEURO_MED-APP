@@ -1,4 +1,5 @@
 import { hashPassword } from '@/features/auth/password';
+import { parseCpf } from '@/features/shared/cpf';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -73,13 +74,17 @@ export type ProfessionalRepository = {
   insert(professional: NewProfessional): Promise<void>;
 };
 
-export type RegistrationResult = { success: true } | { success: false; message: string };
+export type RegistrationFieldErrors = Partial<Record<keyof RegistrationInput, string>>;
+export type RegistrationResult =
+  | { success: true }
+  | { success: false; message: string; field?: 'email' | 'crm' | 'cpf' };
 
 type Validation =
   | { valid: true; registration: ValidRegistration }
   | { valid: false; message: string };
 
-const failure = (message: string) => ({ success: false, message }) as const;
+const failure = (message: string, field: 'email' | 'crm' | 'cpf') =>
+  ({ success: false, message, field }) as const;
 const invalid = (message: string) => ({ valid: false, message }) as const;
 
 export function isValidEmail(email: string): boolean {
@@ -98,34 +103,6 @@ export function parseCrm(fullCrm: string): Crm | null {
   if (!isBrazilianState(state)) return null;
 
   return { number: parts[1], state };
-}
-
-function cpfCheckDigit(base: string): number {
-  let sum = 0;
-  let weight = base.length + 1;
-  for (const digit of base) {
-    sum += Number(digit) * weight;
-    weight -= 1;
-  }
-  const remainder = sum % 11;
-  return remainder < 2 ? 0 : 11 - remainder;
-}
-
-/** Valida o CPF pelos dígitos verificadores, não só pela quantidade de dígitos. */
-function isValidCpf(digits: string): boolean {
-  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
-
-  const firstNine = digits.slice(0, 9);
-  const firstCheck = cpfCheckDigit(firstNine);
-  const secondCheck = cpfCheckDigit(firstNine + String(firstCheck));
-
-  return digits === `${firstNine}${firstCheck}${secondCheck}`;
-}
-
-/** Normaliza o CPF (mantendo só os dígitos) e valida os dígitos verificadores. */
-export function parseCpf(fullCpf: string): string | null {
-  const digits = fullCpf.replace(/\D/g, '');
-  return isValidCpf(digits) ? digits : null;
 }
 
 export function validateRegistration(input: RegistrationInput): Validation {
@@ -155,8 +132,8 @@ export function validateRegistration(input: RegistrationInput): Validation {
   };
 }
 
-export function collectRegistrationErrors(input: RegistrationInput): string[] {
-  const errors: string[] = [];
+export function collectRegistrationFieldErrors(input: RegistrationInput): RegistrationFieldErrors {
+  const errors: RegistrationFieldErrors = {};
   const name = input.name.trim();
   const email = input.email.trim();
   const crmRaw = input.crm.trim();
@@ -164,25 +141,26 @@ export function collectRegistrationErrors(input: RegistrationInput): string[] {
   const password = input.password;
   const passwordConfirmation = input.passwordConfirmation;
 
-  if (name.length === 0) errors.push('Preencha o nome.');
-  if (email.length === 0) errors.push('Preencha o e-mail.');
-  if (crmRaw.length === 0) errors.push('Preencha o CRM.');
-  if (cpfRaw.length === 0) errors.push('Preencha o CPF.');
-  if (password.length === 0) errors.push('Preencha a senha.');
-  if (passwordConfirmation.length === 0) errors.push('Preencha a confirmação de senha.');
+  if (name.length === 0) errors.name = 'Preencha o nome.';
+  if (email.length === 0) errors.email = 'Preencha o e-mail.';
+  if (crmRaw.length === 0) errors.crm = 'Preencha o CRM.';
+  if (cpfRaw.length === 0) errors.cpf = 'Preencha o CPF.';
+  if (password.length === 0) errors.password = 'Preencha a senha.';
+  if (passwordConfirmation.length === 0)
+    errors.passwordConfirmation = 'Preencha a confirmação de senha.';
 
-  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.push('Informe um e-mail válido.');
+  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.email = 'Informe um e-mail válido.';
 
   const crm = parseCrm(crmRaw);
-  if (crmRaw.length > 0 && !crm) errors.push('Informe o CRM no formato 12345/DF.');
+  if (crmRaw.length > 0 && !crm) errors.crm = 'Informe o CRM no formato 12345/DF.';
 
-  if (cpfRaw.length > 0 && !parseCpf(cpfRaw)) errors.push('Informe um CPF válido.');
+  if (cpfRaw.length > 0 && !parseCpf(cpfRaw)) errors.cpf = 'Informe um CPF válido.';
 
   if (password.length > 0 && password.length < MIN_PASSWORD_LENGTH)
-    errors.push(`A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+    errors.password = `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`;
 
   if (password.length > 0 && passwordConfirmation.length > 0 && password !== passwordConfirmation)
-    errors.push('Confira a senha e a confirmação.');
+    errors.passwordConfirmation = 'Confira a senha e a confirmação.';
 
   return errors;
 }
@@ -192,13 +170,13 @@ export async function registerProfessional(
   repository: ProfessionalRepository,
 ): Promise<RegistrationResult> {
   if (await repository.emailExists(email)) {
-    return failure('Já existe um profissional cadastrado com este e-mail.');
+    return failure('Já existe um profissional cadastrado com este e-mail.', 'email');
   }
   if (await repository.crmExists(crm.number, crm.state)) {
-    return failure('Já existe um profissional cadastrado com este CRM.');
+    return failure('Já existe um profissional cadastrado com este CRM.', 'crm');
   }
   if (await repository.cpfExists(cpf)) {
-    return failure('Já existe um profissional cadastrado com este CPF.');
+    return failure('Já existe um profissional cadastrado com este CPF.', 'cpf');
   }
 
   await repository.insert({

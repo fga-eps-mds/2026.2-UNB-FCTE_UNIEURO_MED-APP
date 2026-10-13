@@ -1,5 +1,4 @@
 import {
-  parseCpf,
   parseCrm,
   registerProfessional,
   validateRegistration,
@@ -42,25 +41,6 @@ describe('parseCrm', () => {
     ['12345/', null],
   ])('interpreta "%s"', (input, expected) => {
     expect(parseCrm(input)).toEqual(expected);
-  });
-});
-
-describe('parseCpf', () => {
-  it.each([
-    ['111.444.777-35', '11144477735'],
-    ['11144477735', '11144477735'],
-    ['  111.444.777-35  ', '11144477735'],
-  ])('aceita "%s"', (input, expected) => {
-    expect(parseCpf(input)).toBe(expected);
-  });
-
-  it.each([
-    ['111.444.777-30', 'dígito verificador errado'],
-    ['111.444.777', 'quantidade de dígitos errada'],
-    ['000.000.000-00', 'todos os dígitos iguais'],
-    ['', 'vazio'],
-  ])('recusa "%s" (%s)', (input) => {
-    expect(parseCpf(input)).toBeNull();
   });
 });
 
@@ -140,15 +120,27 @@ describe('registerProfessional', () => {
       'e-mail já cadastrado',
       { email: true },
       'Já existe um profissional cadastrado com este e-mail.',
+      'email',
     ],
-    ['CRM já cadastrado', { crm: true }, 'Já existe um profissional cadastrado com este CRM.'],
-    ['CPF já cadastrado', { cpf: true }, 'Já existe um profissional cadastrado com este CPF.'],
-  ])('não insere quando há %s', async (_case, existing, message) => {
+    [
+      'CRM já cadastrado',
+      { crm: true },
+      'Já existe um profissional cadastrado com este CRM.',
+      'crm',
+    ],
+    [
+      'CPF já cadastrado',
+      { cpf: true },
+      'Já existe um profissional cadastrado com este CPF.',
+      'cpf',
+    ],
+  ])('não insere quando há %s', async (_case, existing, message, field) => {
     const repository = createRepository(existing);
 
     await expect(registerProfessional(validRegistration, repository)).resolves.toEqual({
       success: false,
       message,
+      field,
     });
     expect(repository.insert).not.toHaveBeenCalled();
   });
