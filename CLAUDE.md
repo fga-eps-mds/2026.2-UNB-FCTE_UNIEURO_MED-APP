@@ -72,9 +72,13 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
 - Senha: só com `hashPassword` e `verifyPassword`, de
   `src/features/auth/password.ts` (PBKDF2-SHA256, sal aleatório, 100 mil iterações).
   Nunca grave senha em texto nem crie outro esquema de hash.
-- Identificadores como o CPF devem ser gravados cifrados. O CPF ainda está em texto
-  puro (pendência conhecida): não amplie o problema gravando novos identificadores
-  em texto puro.
+- Identificadores como o CPF são gravados cifrados, nunca em texto. O CPF do
+  profissional usa `cpfProtector` (`src/db/cpf-runtime.ts`): AES-GCM mais um índice
+  de busca (HMAC-SHA256), com chave própria do tablet no Android Keystore. O
+  repositório só lê o CPF em texto por `getCpf`, sob demanda. A cifra e o índice
+  valem só no tablet que os gerou: na sincronização, o CPF viaja dentro do canal
+  cifrado e cada tablet o protege de novo com a própria chave. Novos identificadores
+  sensíveis seguem o mesmo padrão.
 - SQL sempre com parâmetros (`?`), nunca concatenando valores.
 - A exportação em XML só acontece por comando explícito do profissional.
 - Proibido (ver `CONTRIBUTING.md`, "Restrições do produto"): permissão de rede, SDK
@@ -90,13 +94,16 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
 
 ## 5. Testes
 
-- Jest com o preset `jest-expo/android` e Testing Library para React Native. O
-  arquivo de teste fica ao lado do testado, com sufixo `.test.ts` ou `.test.tsx`.
+- Jest com o preset `jest-expo/android` e Testing Library para React Native.
+  Os testes ficam na pasta `tests/`, separada do código de `src/`: `tests/unit/`
+  espelha a estrutura de `src/` (o teste de `src/features/auth/password.ts` é
+  `tests/unit/features/auth/password.test.ts`) e `tests/integration/` guarda os
+  testes de integração (`<assunto>.integration.test.tsx`) e de sistema
+  (`<assunto>.sistema.test.tsx`). Sufixo `.test.ts` ou `.test.tsx`.
 - Cada cenário BDD da história vira pelo menos um teste, com o nome do cenário.
 - Teste de integração (tela → regra → banco) usa SQLite real, sem mock do
-  repositório. Ainda não existe adaptador de SQLite real para o Jest: a primeira
-  história que precisar cria esse suporte (por exemplo, um banco em memória com a
-  mesma interface do `expo-sqlite`), e as seguintes reutilizam.
+  repositório. O suporte para testes com banco SQLite real (em memória) já foi criado e 
+  fica em tests/test-support/tablet.ts, devendo ser reutilizado nos próximos testes de integração.
 - O `jest.config.js` define o piso de cobertura (90% de instruções, linhas e
   funções; 80% de ramos). Não baixe o piso: escreva o teste que falta.
 - Prefira consultas por papel e rótulo de acessibilidade. O público tem 60 anos ou

@@ -37,6 +37,7 @@
       ],
       "expo-font",
       "expo-sqlite",
+      "expo-secure-store",
       "./plugins/with-data-extraction-rules"
     ],
     "experiments": {
