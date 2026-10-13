@@ -10,8 +10,8 @@ import { createProfessionalRepository } from '@/db/professional-repository';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import type { AttendanceRepository } from '@/features/avaliacao/attendance';
 
-import { createTempDatabase, type TempDatabase } from '../../../test-support/real-sqlite';
-import { webCryptoAesGcm } from '../../../test-support/web-crypto-aes-gcm';
+import { createTempDatabase, type TempDatabase } from '../test-support/real-sqlite';
+import { webCryptoAesGcm } from '../test-support/web-crypto-aes-gcm';
 
 // Teste de ponta a ponta da #7: a rota "novo-exame", a tela, a regra e o banco
 // SQLite de verdade, em arquivo. Só a navegação é simulada (jest.setup.ts).
