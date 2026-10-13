@@ -3,7 +3,7 @@ import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { ProfessionalRepository } from '@/features/auth/registration';
-import RegisterScreen from '@/features/auth/register-screen';
+import RegisterScreen from '../../../../src/features/auth/register-screen';
 
 jest.mock('@/features/auth/password', () => ({
   hashPassword: jest.fn(async () => 'hash-da-senha'),

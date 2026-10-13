@@ -57,12 +57,23 @@ O runner é o Jest com o preset `jest-expo/android`, já que o produto roda apen
 
 ### Onde escrever
 
-O arquivo de teste fica ao lado do arquivo testado, com o mesmo nome e o sufixo `.test.ts` ou `.test.tsx`:
+Os testes ficam na pasta `tests/`, na raiz do projeto Expo, separados do código-fonte de `src/`:
+
+| Pasta | O que tem | Banco |
+|-------|-----------|-------|
+| `tests/unit/` | Testes unitários: uma função, um componente ou um repositório isolado. Espelha a estrutura de `src/`. | Simulado, quando precisa de um |
+| `tests/integration/` | Testes de integração e de sistema: tela → regras → repositório → SQLite, sem simular nada do caminho | SQLite real |
+
+O arquivo de teste leva o mesmo nome do arquivo testado, com o sufixo `.test.ts` ou `.test.tsx`, na mesma estrutura de pastas dentro de `tests/unit/`:
 
 ```
 src/features/auth/register-screen.tsx
-src/features/auth/register-screen.test.tsx
+tests/unit/features/auth/register-screen.test.tsx
+tests/integration/cadastro.integration.test.tsx
+tests/integration/cadastro-e-login.sistema.test.tsx
 ```
+
+Nomes em `tests/integration/`: `<assunto>.integration.test.tsx` para integração de uma tela ou regra com o banco, e `<assunto>.sistema.test.tsx` para um fluxo que atravessa mais de uma tela. A pasta `test-support/` guarda o apoio aos testes, como o banco SQLite real.
 
 ### O que vale testar
 
@@ -132,3 +143,4 @@ Se uma biblioteca útil exigir rede como efeito colateral, registre isso no PR e
 | 1.1 | Inclusão da seção de testes, com comandos, convenção de arquivos e política de cobertura | [Thales Germano](https://github.com/thalesgvl) | 25/09/2026 | A definir | — |
 | 1.2 | Inclusão do lint e da verificação de formatação na checagem antes do PR | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
 | 1.3 | Regra de `Refs` para histórias de usuário e seção do fluxo com o Claude Code | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
+| 1.4 | Atualização da seção de testes para refletir a nova estrutura de pastas (separação de unitários e integração) | [Eduardo Ferreira](https://github.com/eduardoferre) | 12/10/2026 | | | 

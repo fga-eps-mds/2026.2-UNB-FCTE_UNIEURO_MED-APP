@@ -3,8 +3,8 @@ import { migrate } from '@/db/database';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
-import { createTempDatabase, type TempDatabase } from '../../test-support/real-sqlite';
-import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
+import { createTempDatabase, type TempDatabase } from '../test-support/real-sqlite';
+import { webCryptoAesGcm } from '../test-support/web-crypto-aes-gcm';
 
 // Estes testes usam SQLite de verdade, em arquivo, e olham os bytes do arquivo,
 // que é o que alguém veria ao copiar o banco do tablet.

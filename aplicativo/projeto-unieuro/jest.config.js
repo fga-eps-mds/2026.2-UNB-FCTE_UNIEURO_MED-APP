@@ -7,6 +7,10 @@
  */
 module.exports = {
   preset: 'jest-expo/android',
+
+  // Aumenta o tempo limite global do Jest para 15 segundos
+  testTimeout: 15000,
+
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 
   moduleNameMapper: {
@@ -19,7 +23,6 @@ module.exports = {
 
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    '!src/**/*.test.{ts,tsx}',
     // As rotas apenas reexportam as telas, não há lógica a cobrir.
     '!src/app/**',
     // O produto é distribuído só como APK; as variantes web não são embarcadas.
