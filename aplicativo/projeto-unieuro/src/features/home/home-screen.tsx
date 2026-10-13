@@ -30,7 +30,6 @@ type HomeScreenProps = {
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
 const PENDING = {
-  newExam: 'O registro do atendimento chega na próxima entrega.',
   export: 'A exportação em XML chega em uma próxima entrega.',
   patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
@@ -125,7 +124,7 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Novo exame"
-            onPress={() => showNotice(PENDING.newExam)}
+            onPress={() => router.push('/novo-exame')}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>+ Novo exame</Text>
           </Pressable>
