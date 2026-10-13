@@ -65,6 +65,17 @@ async function contarProfissionais(): Promise<number> {
 
 const MENSAGEM_DE_SUCESSO = 'Conta criada. Entre com o e-mail e a senha cadastrados.';
 
+/**
+ * Cadastra e espera a confirmação na tela. O botão volta antes de o cadastro
+ * terminar (o PBKDF2 é lento de propósito), então quem consulta o banco depois
+ * precisa esperar a mensagem, senão o profissional pode ainda não estar gravado.
+ */
+async function cadastrarComSucesso(dados: Cadastro) {
+  const tela = await cadastrar(dados);
+  expect(await screen.findByText(MENSAGEM_DE_SUCESSO, {}, { timeout: 10000 })).toBeOnTheScreen();
+  return tela;
+}
+
 describe('cadastro com SQLite real', () => {
   beforeEach(async () => {
     tablet = await abrirTablet();
@@ -89,7 +100,7 @@ describe('cadastro com SQLite real', () => {
   });
 
   it('cadastro válido: grava só o hash da senha, nunca a senha em texto', async () => {
-    await cadastrar(DADOS_DA_ANA);
+    await cadastrarComSucesso(DADOS_DA_ANA);
 
     const salvo = await tablet.repository.findByEmail(ANA.email);
     expect(salvo!.passwordHash).toMatch(/^pbkdf2-sha256\$\d+\$[0-9a-f]+\$[0-9a-f]+$/);
@@ -99,7 +110,7 @@ describe('cadastro com SQLite real', () => {
   });
 
   it('cadastro válido: o CPF vai cifrado para o banco e volta igual', async () => {
-    await cadastrar(DADOS_DA_ANA);
+    await cadastrarComSucesso(DADOS_DA_ANA);
 
     const salvo = await tablet.repository.findByEmail(ANA.email);
     await expect(tablet.repository.getCpf(salvo!.id)).resolves.toBe(CPF_DA_ANA);
@@ -109,7 +120,11 @@ describe('cadastro com SQLite real', () => {
   });
 
   it('cadastro válido: normaliza o e-mail para minúsculas e a UF do CRM para maiúsculas', async () => {
-    await cadastrar({ ...DADOS_DA_ANA, email: 'Ana.Souza@UniEuro.com.br', crm: '12345 / df' });
+    await cadastrarComSucesso({
+      ...DADOS_DA_ANA,
+      email: 'Ana.Souza@UniEuro.com.br',
+      crm: '12345 / df',
+    });
 
     const linha = await tablet.database.getFirstAsync<{ email: string; uf_crm: string }>(
       'SELECT email, uf_crm FROM profissional',
@@ -118,7 +133,7 @@ describe('cadastro com SQLite real', () => {
   });
 
   it('dois profissionais com dados diferentes: os dois ficam gravados', async () => {
-    const primeira = await cadastrar(DADOS_DA_ANA);
+    const primeira = await cadastrarComSucesso(DADOS_DA_ANA);
     primeira.unmount();
 
     await cadastrar({
