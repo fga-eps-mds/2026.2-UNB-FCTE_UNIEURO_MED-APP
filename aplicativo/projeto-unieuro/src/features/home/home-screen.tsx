@@ -25,7 +25,12 @@ import { useTheme } from '@/hooks/use-theme';
 type HomeScreenProps = {
   /** Pacientes atendidos pelo profissional autenticado, e só por ele. */
   patients: readonly PatientSummary[];
+  /** A leitura dos pacientes no banco falhou. */
+  loadFailed?: boolean;
 };
+
+export const LOAD_FAILED_MESSAGE =
+  'Não foi possível carregar os seus pacientes. Saia e entre de novo para tentar outra vez.';
 
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
@@ -42,7 +47,7 @@ export const NOTICE_DURATION_MS = 4000;
  * Tela inicial do profissional (#46): os pacientes que ele atendeu e os
  * atalhos para novo exame, exportação, sincronização e configurações.
  */
-export default function HomeScreen({ patients }: HomeScreenProps) {
+export default function HomeScreen({ patients, loadFailed = false }: HomeScreenProps) {
   const router = useRouter();
   const { professional, signOut } = useSession();
   const theme = useTheme();
@@ -167,6 +172,8 @@ export default function HomeScreen({ patients }: HomeScreenProps) {
             </Pressable>
           </View>
         </View>
+
+        {loadFailed && <FeedbackMessage kind="error" message={LOAD_FAILED_MESSAGE} />}
 
         <View style={styles.listCard}>
           {!hasPatients ? (
