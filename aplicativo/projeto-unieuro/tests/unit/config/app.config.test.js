@@ -1,5 +1,5 @@
-const appJson = require('./app.json');
-const { BLOCKED_IN_DELIVERY, createConfig, isDeliveryBuild } = require('./app.config');
+const appJson = require('../../../app.json');
+const { BLOCKED_IN_DELIVERY, createConfig, isDeliveryBuild } = require('../../../app.config');
 
 const context = { config: appJson.expo };
 

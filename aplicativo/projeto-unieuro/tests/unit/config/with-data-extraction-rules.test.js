@@ -1,4 +1,4 @@
-const withDataExtractionRules = require('./with-data-extraction-rules');
+const withDataExtractionRules = require('../../../plugins/with-data-extraction-rules');
 
 const { buildRulesXml, setDataExtractionRules, DOMAINS } = withDataExtractionRules;
 
