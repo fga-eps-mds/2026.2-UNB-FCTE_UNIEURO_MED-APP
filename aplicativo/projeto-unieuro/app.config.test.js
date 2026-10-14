@@ -49,6 +49,13 @@ describe('configuração por perfil de build', () => {
     expect(appJson.expo.plugins).toContain('./plugins/with-data-extraction-rules');
   });
 
+  it('deixa as regras de backup só com o plugin do projeto', () => {
+    expect(appJson.expo.plugins).toContainEqual([
+      'expo-secure-store',
+      { configureAndroidBackup: false },
+    ]);
+  });
+
   it('soma ao bloqueio que já estiver no app.json', () => {
     const config = createConfig(
       {
