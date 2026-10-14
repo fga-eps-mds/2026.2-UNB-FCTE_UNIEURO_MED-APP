@@ -25,6 +25,7 @@ export function useAttendedPatients(repository: PatientListRepository) {
     useCallback(() => {
       if (professionalId === null) {
         setPatients([]);
+        setLoadFailed(false);
         return;
       }
 
