@@ -7,6 +7,10 @@
  */
 module.exports = {
   preset: 'jest-expo/android',
+
+  // Aumenta o tempo limite global do Jest para 15 segundos
+  testTimeout: 15000,
+
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 
   moduleNameMapper: {
@@ -19,7 +23,6 @@ module.exports = {
 
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
-    '!src/**/*.test.{ts,tsx}',
     // As rotas apenas reexportam as telas, não há lógica a cobrir.
     '!src/app/**',
     // O produto é distribuído só como APK; as variantes web não são embarcadas.
@@ -28,6 +31,18 @@ module.exports = {
   coverageDirectory: 'coverage',
   // O `lcov` é o formato consumido pelo SonarCloud.
   coverageReporters: ['text-summary', 'lcov'],
+
+  /**
+   * Além da saída no terminal, grava `coverage/test-report.xml` no formato
+   * genérico de execução de testes do SonarCloud. É desse relatório que o Sonar
+   * calcula tests, test_errors, test_failures e test_execution_time, medidas que
+   * o lcov não traz. Os caminhos saem relativos à pasta do projeto Expo, a mesma
+   * base usada na análise.
+   */
+  reporters: [
+    'default',
+    ['jest-sonar', { outputDirectory: 'coverage', outputName: 'test-report.xml' }],
+  ],
 
   /**
    * Piso de cobertura, com folga sobre o número atual para não quebrar a

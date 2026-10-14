@@ -1,21 +1,25 @@
-﻿import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
-SplashScreen.preventAutoHideAsync();
+import { SessionProvider } from '@/features/auth/session';
+
+void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
     Inter_700Bold,
+    ...MaterialCommunityIcons.font,
   });
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      void SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
 
@@ -23,5 +27,9 @@ export default function RootLayout() {
     return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <SessionProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </SessionProvider>
+  );
 }

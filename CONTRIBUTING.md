@@ -57,12 +57,23 @@ O runner é o Jest com o preset `jest-expo/android`, já que o produto roda apen
 
 ### Onde escrever
 
-O arquivo de teste fica ao lado do arquivo testado, com o mesmo nome e o sufixo `.test.ts` ou `.test.tsx`:
+Os testes ficam na pasta `tests/`, na raiz do projeto Expo, separados do código-fonte de `src/`:
+
+| Pasta | O que tem | Banco |
+|-------|-----------|-------|
+| `tests/unit/` | Testes unitários: uma função, um componente ou um repositório isolado. Espelha a estrutura de `src/`. | Simulado, quando precisa de um |
+| `tests/integration/` | Testes de integração e de sistema: tela → regras → repositório → SQLite, sem simular nada do caminho | SQLite real |
+
+O arquivo de teste leva o mesmo nome do arquivo testado, com o sufixo `.test.ts` ou `.test.tsx`, na mesma estrutura de pastas dentro de `tests/unit/`:
 
 ```
 src/features/auth/register-screen.tsx
-src/features/auth/register-screen.test.tsx
+tests/unit/features/auth/register-screen.test.tsx
+tests/integration/cadastro.integration.test.tsx
+tests/integration/cadastro-e-login.sistema.test.tsx
 ```
+
+Nomes em `tests/integration/`: `<assunto>.integration.test.tsx` para integração de uma tela ou regra com o banco, e `<assunto>.sistema.test.tsx` para um fluxo que atravessa mais de uma tela. A pasta `test-support/` guarda o apoio aos testes, como o banco SQLite real.
 
 ### O que vale testar
 
@@ -76,11 +87,21 @@ O `jest.config.js` define um piso de cobertura, e o comando de cobertura falha a
 
 ## Antes de abrir o Pull Request
 
-Confirme localmente que o projeto compila e que os testes passam.
+Na pasta `aplicativo/projeto-unieuro`, confirme localmente:
+
+```bash
+npm run lint -- --max-warnings 0   # nenhum erro nem aviso do ESLint
+npm run format:check               # código no padrão do Prettier; corrija com npm run format
+npm run test:coverage              # testes passando e cobertura acima do piso
+```
+
+O pipeline de build roda os mesmos comandos e reprova o PR se algum deles falhar.
 
 ## Pull Requests
 
-- Todo PR deve estar vinculado a uma Issue. Use `Closes #numero` na descrição.
+- Todo PR deve estar vinculado a uma Issue:
+  - em PR de **história de usuário**, use `Refs #numero`. A história só é fechada depois do aceite do PO no teste de aceitação, e o `Closes` a fecharia já no merge, porque a `develop` é a branch padrão do repositório;
+  - em PR de tarefa ou de correção, use `Closes #numero`.
 - O PR aponta para `develop`, não para `main`.
 - Solicite revisão de no mínimo 1 colega antes do merge.
 - O quality gate do SonarCloud precisa passar. PR com gate reprovado não é mergeado.
@@ -91,6 +112,16 @@ Confirme localmente que o projeto compila e que os testes passam.
 - Não aprove um Pull Request sem ter lido e compreendido o que está sendo alterado.
 - Mantenha o foco construtivo: aponte o problema concreto e, quando possível, sugira o caminho.
 - Sem contexto para avaliar, peça a revisão de quem tem, em vez de aprovar por omissão.
+
+## Fluxo com o Claude Code
+
+Quem usa o [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) encontra neste repositório:
+
+- o `CLAUDE.md`, com o resumo do produto, as regras da disciplina e as convenções de código;
+- o comando `/nova-historia <número da issue>`, que conduz a história da validação ao PR, parando para você aprovar o plano e antes de qualquer push;
+- os agentes `revisor-testes` e `revisor-lgpd`, para revisar o diff antes do PR.
+
+O uso é opcional, e o checklist vale para todo mundo: história validada pelo PO, testes escritos por quem implementa, lint, formatação e testes passando, e revisão de um colega. Com ou sem IA, quem abre o PR precisa saber explicar cada trecho dele.
 
 ## Restrições do produto
 
@@ -110,3 +141,6 @@ Se uma biblioteca útil exigir rede como efeito colateral, registre isso no PR e
 |---|---|---|---|---|---|
 | 1.0 | Criação do Guia de Contribuição do repositório do aplicativo | [Artur Mendonça Arruda](https://github.com/ArtyMend07) | 19/09/2026 | [Lucas Mendonça Arruda](https://github.com/lucasarruda9), [Gabriel Lopes de Amorim](https://github.com/BrzGab) | 21/09/2026 |
 | 1.1 | Inclusão da seção de testes, com comandos, convenção de arquivos e política de cobertura | [Thales Germano](https://github.com/thalesgvl) | 25/09/2026 | A definir | — |
+| 1.2 | Inclusão do lint e da verificação de formatação na checagem antes do PR | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
+| 1.3 | Regra de `Refs` para histórias de usuário e seção do fluxo com o Claude Code | [Vitor Carvalho Pereira](https://github.com/vcpVitor) | 04/10/2026 | | |
+| 1.4 | Atualização da seção de testes para refletir a nova estrutura de pastas (separação de unitários e integração) | [Eduardo Ferreira](https://github.com/eduardoferre) | 12/10/2026 | | | 
