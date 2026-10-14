@@ -20,9 +20,14 @@ const mockRouter = {
   dismissAll: jest.fn(),
 };
 
+// O `useFocusEffect` roda o efeito como um `useEffect`. Para simular a volta do
+// foco, o teste chama de novo o último efeito recebido pelo mock.
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   router: mockRouter,
+  useFocusEffect: jest.fn((effect: () => void | (() => void)) =>
+    require('react').useEffect(effect, [effect]),
+  ),
   Stack: 'Stack',
   Link: 'Link',
 }));
