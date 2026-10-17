@@ -1,8 +1,8 @@
 /**
  * Pacientes mostrados na tela inicial do profissional.
  *
- * Os dados vêm do registro do atendimento (#7). Este módulo só ordena, filtra
- * e formata, sem saber onde eles estão guardados.
+ * Os dados vêm do registro do atendimento (#7). Este módulo converte, ordena,
+ * filtra e formata, sem saber onde eles estão guardados.
  */
 export type ExamStatus = 'concluido' | 'interrompido' | 'recusado';
 
@@ -22,6 +22,50 @@ export const EXAM_STATUS_LABEL: Record<ExamStatus, string> = {
   interrompido: 'Interrompido',
   recusado: 'Recusou o termo',
 };
+
+/**
+ * Paciente atendido, como o repositório do atendimento entrega. Espelha o
+ * `AttendedPatientRecord` do banco, que esta camada não importa; a
+ * `composition.ts` da feature confere, pelo tipo, que os dois batem.
+ */
+export type AttendedPatient = {
+  id: number;
+  name: string;
+  recordNumber: string;
+  attendanceCount: number;
+  lastStartedAt: string;
+  lastState: string;
+};
+
+export type PatientListRepository = {
+  listAttendedPatients(professionalId: number): Promise<AttendedPatient[]>;
+};
+
+// Estados da avaliação que encerram o exame, conforme o diagrama de estados do
+// documento de arquitetura. Os demais (aguardando consentimento, em andamento,
+// processando resultado e erro na inferência) ainda não terminaram e ficam sem
+// rótulo na lista.
+const FINISHED_STATES: Record<string, ExamStatus> = {
+  concluida: 'concluido',
+  interrompida: 'interrompido',
+  cancelada: 'recusado',
+};
+
+export function toExamStatus(state: string): ExamStatus | null {
+  return FINISHED_STATES[state] ?? null;
+}
+
+/** Cada atendimento registrado conta como um exame do paciente com esse profissional. */
+export function toPatientSummary(patient: AttendedPatient): PatientSummary {
+  return {
+    id: patient.id,
+    name: patient.name,
+    recordNumber: patient.recordNumber,
+    lastExamAt: patient.lastStartedAt,
+    lastExamStatus: toExamStatus(patient.lastState),
+    examCount: patient.attendanceCount,
+  };
+}
 
 const normalize = (text: string) =>
   text
