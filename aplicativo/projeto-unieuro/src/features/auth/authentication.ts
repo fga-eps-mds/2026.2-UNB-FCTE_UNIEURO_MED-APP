@@ -9,6 +9,7 @@ export type Credentials = {
 /** O que o login lê do banco: os dados da sessão e o hash para conferir a senha. */
 export type StoredCredentials = SessionProfessional & {
   passwordHash: string;
+  active: boolean;
 };
 
 export type CredentialsRepository = {
@@ -36,7 +37,9 @@ export async function authenticate(
   const professional = await repository.findByEmail(normalizedEmail);
   const matches = await verifyPassword(password, professional?.passwordHash ?? DUMMY_PASSWORD_HASH);
 
-  if (!professional || !matches) {
+  // Conta desativada recebe a mesma mensagem, depois da mesma verificação de
+  // senha, para o login não revelar quais contas existem.
+  if (!professional || !matches || !professional.active) {
     return { success: false, reason: 'invalid-credentials', message: INVALID_CREDENTIALS_MESSAGE };
   }
 

@@ -4,9 +4,10 @@
  * A versão 1 é o `dados/schema.sql` do repositório MED-IA (branch
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
  * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
- * de busca, e a versão 3 cria o paciente e o atendimento. Nenhuma das duas existe
- * ainda no `schema.sql` do MED-IA: as duas cópias divergem a partir da versão 2
- * até que o repositório MED-IA seja atualizado.
+ * de busca, a versão 3 cria o paciente e o atendimento, e a versão 4 registra a
+ * desativação da conta. Nenhuma delas existe ainda no `schema.sql` do MED-IA: as
+ * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
+ * atualizado.
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
@@ -86,6 +87,14 @@ CREATE INDEX IF NOT EXISTS idx_avaliacao_paciente ON avaliacao (id_paciente);
 `;
 
 /**
+ * Versão 4: data e hora da desativação da conta (#5). A conta desativada não é
+ * apagada, porque os exames aplicados por ela são dados da pesquisa.
+ */
+const SCHEMA_V4 = `
+ALTER TABLE profissional ADD COLUMN desativacao TEXT;
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -96,10 +105,16 @@ export type MigrationStep =
 /**
  * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
- * versão 3 (paciente e atendimento), e assim por diante. Para mudar o esquema,
- * acrescente um passo no fim; não altere os que já existem, porque os tablets com
- * o banco criado não os executam de novo.
+ * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
+ * conta), e assim por diante. Para mudar o esquema, acrescente um passo no fim;
+ * não altere os que já existem, porque os tablets com o banco criado não os
+ * executam de novo.
  */
-export const MIGRATIONS: readonly MigrationStep[] = [SCHEMA_V1, protectStoredCpfs, SCHEMA_V3];
+export const MIGRATIONS: readonly MigrationStep[] = [
+  SCHEMA_V1,
+  protectStoredCpfs,
+  SCHEMA_V3,
+  SCHEMA_V4,
+];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

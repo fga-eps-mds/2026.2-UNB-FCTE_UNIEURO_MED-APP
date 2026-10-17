@@ -25,6 +25,14 @@ export type Professional = {
   createdAt: string;
   updatedAt: string;
   active: boolean;
+  deactivatedAt: string | null;
+};
+
+export type ProfessionalProfile = {
+  name: string;
+  email: string;
+  crmNumber: string;
+  crmState: string;
 };
 
 type ProfessionalRow = {
@@ -37,10 +45,11 @@ type ProfessionalRow = {
   criacao: string;
   last_update: string;
   ativo: number;
+  desativacao: string | null;
 };
 
 const SELECT_PROFESSIONAL =
-  'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo FROM profissional';
+  'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo, desativacao FROM profissional';
 
 const toProfessional = (row: ProfessionalRow): Professional => ({
   id: row.id,
@@ -52,11 +61,13 @@ const toProfessional = (row: ProfessionalRow): Professional => ({
   createdAt: row.criacao,
   updatedAt: row.last_update,
   active: row.ativo === 1,
+  deactivatedAt: row.desativacao,
 });
 
 /**
  * Acesso à tabela `profissional`. Atende ao `ProfessionalRepository` usado no
- * cadastro e oferece as consultas de que o login precisa.
+ * cadastro, às consultas de que o login precisa e ao `AccountRepository` da
+ * manutenção da conta.
  *
  * A conexão e o protetor de CPF são recebidos como parâmetro para que os testes
  * possam trocá-los. O e-mail é comparado sem diferenciar maiúsculas, pela
@@ -142,6 +153,54 @@ export function createProfessionalRepository(
 
     findById(id: number): Promise<Professional | null> {
       return findFirst('id = ?', id);
+    },
+
+    async emailInUseByOther(email: string, id: number): Promise<boolean> {
+      const database = await open();
+      const row = await database.getFirstAsync(
+        'SELECT 1 FROM profissional WHERE email = ? AND id <> ? LIMIT 1',
+        [email.trim(), id],
+      );
+      return row !== null;
+    },
+
+    async crmInUseByOther(crmNumber: string, crmState: string, id: number): Promise<boolean> {
+      const database = await open();
+      const row = await database.getFirstAsync(
+        'SELECT 1 FROM profissional WHERE crm_numero = ? AND uf_crm = ? AND id <> ? LIMIT 1',
+        [crmNumber, crmState, id],
+      );
+      return row !== null;
+    },
+
+    async updateProfile(id: number, profile: ProfessionalProfile, updatedAt: string) {
+      const database = await open();
+      await database.runAsync(
+        `UPDATE profissional SET nome = ?, email = ?, crm_numero = ?, uf_crm = ?, last_update = ?
+         WHERE id = ?`,
+        [profile.name, profile.email, profile.crmNumber, profile.crmState, updatedAt, id],
+      );
+    },
+
+    async updatePasswordHash(id: number, passwordHash: string, updatedAt: string) {
+      const database = await open();
+      await database.runAsync(
+        'UPDATE profissional SET senha_hash = ?, last_update = ? WHERE id = ?',
+        [passwordHash, updatedAt, id],
+      );
+    },
+
+    /**
+     * Desativa a conta sem apagar o registro: os exames aplicados por ela
+     * continuam ligados ao profissional. Uma conta já desativada não muda.
+     */
+    async deactivate(id: number, deactivatedAt: string) {
+      const database = await open();
+      await database.runAsync(
+        `UPDATE profissional SET ativo = 0, desativacao = ?, last_update = ?
+         WHERE id = ? AND ativo = 1`,
+        [deactivatedAt, deactivatedAt, id],
+      );
     },
   };
 }
