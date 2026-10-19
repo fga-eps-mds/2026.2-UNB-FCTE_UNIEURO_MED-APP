@@ -1,11 +1,15 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
-import { Alert, Text } from 'react-native';
+import { Text } from 'react-native';
 
 import type { AccountRepository } from '@/features/auth/account';
 import { verifyPassword } from '@/features/auth/password';
 import { SessionProvider, useSession, type SessionProfessional } from '@/features/auth/session';
-import EditAccountScreen from '@/features/settings/edit-account-screen';
+import EditAccountScreen, {
+  PASSWORD_CHANGED,
+  PROFILE_SAVED,
+  SAVE_FAILED,
+} from '@/features/settings/edit-account-screen';
 import {
   ANA,
   SENHA_DE_TESTE,
@@ -65,8 +69,7 @@ describe('EditAccountScreen', () => {
     expect(screen.queryByText(/111\.?444\.?777/)).toBeNull();
   });
 
-  it('dados atualizados: grava no banco, atualiza a sessão e volta para as configurações', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  it('dados atualizados: grava no banco, atualiza a sessão e confirma na tela', async () => {
     const user = userEvent.setup();
     renderTela();
 
@@ -82,8 +85,8 @@ describe('EditAccountScreen', () => {
       crmState: 'SP',
     });
     expect(screen.getByText('Sessão: Ana Souza')).toBeOnTheScreen();
-    expect(alerta).toHaveBeenCalledWith('Dados atualizados', expect.any(String));
-    expect(useRouter().back).toHaveBeenCalled();
+    expect(screen.getByText(PROFILE_SAVED)).toBeOnTheScreen();
+    expect(screen.getByLabelText('CONFIRME COM A SUA SENHA ATUAL')).toHaveDisplayValue('');
   });
 
   it('dado já usado por outra conta: avisa no campo e não altera o cadastro', async () => {
@@ -128,7 +131,6 @@ describe('EditAccountScreen', () => {
   });
 
   it('troca de senha: passa a valer a nova senha e limpa os campos', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const user = userEvent.setup();
     renderTela();
 
@@ -137,7 +139,7 @@ describe('EditAccountScreen', () => {
     await user.type(screen.getByLabelText('CONFIRMAR NOVA SENHA'), 'nova-senha-123');
     await user.press(screen.getByRole('button', { name: 'Trocar senha' }));
 
-    expect(alerta).toHaveBeenCalledWith('Senha alterada', expect.any(String));
+    expect(screen.getByText(PASSWORD_CHANGED)).toBeOnTheScreen();
     expect(screen.getByLabelText('NOVA SENHA')).toHaveDisplayValue('');
     const conta = await contaDaAna();
     await expect(verifyPassword('nova-senha-123', conta!.passwordHash)).resolves.toBe(true);
@@ -190,19 +192,17 @@ describe('EditAccountScreen', () => {
       }) as unknown as AccountRepository;
 
     it('avisa ao salvar os dados', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       renderTela({ id: tablet.anaId, ...ANA }, quebrado());
 
       await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA ATUAL'), SENHA_DE_TESTE);
       await user.press(screen.getByRole('button', { name: 'Salvar' }));
 
-      expect(alerta).toHaveBeenCalledWith('Não foi possível salvar', expect.any(String));
-      expect(useRouter().back).not.toHaveBeenCalled();
+      expect(screen.getByText(SAVE_FAILED)).toBeOnTheScreen();
+      expect(screen.queryByText(PROFILE_SAVED)).toBeNull();
     });
 
     it('avisa ao trocar a senha', async () => {
-      const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
       const user = userEvent.setup();
       renderTela({ id: tablet.anaId, ...ANA }, quebrado());
 
@@ -211,7 +211,8 @@ describe('EditAccountScreen', () => {
       await user.type(screen.getByLabelText('CONFIRMAR NOVA SENHA'), 'nova-senha-123');
       await user.press(screen.getByRole('button', { name: 'Trocar senha' }));
 
-      expect(alerta).toHaveBeenCalledWith('Não foi possível salvar', expect.any(String));
+      expect(screen.getByText(SAVE_FAILED)).toBeOnTheScreen();
+      expect(screen.queryByText(PASSWORD_CHANGED)).toBeNull();
     });
   });
 });

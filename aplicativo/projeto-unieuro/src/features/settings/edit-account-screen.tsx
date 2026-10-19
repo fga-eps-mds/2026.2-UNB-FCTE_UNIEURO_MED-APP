@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Text,
@@ -20,6 +19,7 @@ import {
   type PasswordErrors,
   type ProfileErrors,
 } from '@/features/auth/account';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { formatCrm, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createAccountFormStyles } from '@/features/settings/account-form.styles';
@@ -33,11 +33,12 @@ const emptyPasswordChange: PasswordChangeInput = {
   confirmation: '',
 };
 
-const showUnexpectedError = () =>
-  Alert.alert(
-    'Não foi possível salvar',
-    'Tente de novo. Se o erro continuar, reinicie o aplicativo.',
-  );
+type Feedback = { kind: 'error' | 'success'; message: string };
+
+export const PROFILE_SAVED = 'Dados atualizados. Eles já valem para os próximos exames.';
+export const PASSWORD_CHANGED = 'Senha alterada. Use a nova senha na próxima vez que entrar.';
+export const SAVE_FAILED =
+  'Não foi possível salvar. Tente de novo. Se o erro continuar, reinicie o aplicativo.';
 
 type EditAccountScreenProps = { repository: AccountRepository };
 
@@ -62,10 +63,12 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
   const [profilePassword, setProfilePassword] = useState('');
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({});
   const [savingProfile, setSavingProfile] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState<Feedback | null>(null);
 
   const [passwordChange, setPasswordChange] = useState(emptyPasswordChange);
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({});
   const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<Feedback | null>(null);
 
   useEffect(() => {
     if (!professional) router.replace('/');
@@ -82,6 +85,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
   async function saveProfile() {
     if (savingProfile || !professional) return;
     setSavingProfile(true);
+    setProfileFeedback(null);
     try {
       const result = await updateProfile(professional.id, profile, profilePassword, repository);
       if (!result.success) {
@@ -89,11 +93,11 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
         return;
       }
       setProfileErrors({});
+      setProfilePassword('');
       signIn(result.profile);
-      Alert.alert('Dados atualizados', 'Os novos dados já valem para os próximos exames.');
-      router.back();
+      setProfileFeedback({ kind: 'success', message: PROFILE_SAVED });
     } catch {
-      showUnexpectedError();
+      setProfileFeedback({ kind: 'error', message: SAVE_FAILED });
     } finally {
       setSavingProfile(false);
     }
@@ -102,6 +106,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
   async function savePassword() {
     if (savingPassword || !professional) return;
     setSavingPassword(true);
+    setPasswordFeedback(null);
     try {
       const result = await changePassword(professional.id, passwordChange, repository);
       if (!result.success) {
@@ -110,9 +115,9 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
       }
       setPasswordErrors({});
       setPasswordChange(emptyPasswordChange);
-      Alert.alert('Senha alterada', 'Use a nova senha na próxima vez que entrar.');
+      setPasswordFeedback({ kind: 'success', message: PASSWORD_CHANGED });
     } catch {
-      showUnexpectedError();
+      setPasswordFeedback({ kind: 'error', message: SAVE_FAILED });
     } finally {
       setSavingPassword(false);
     }
@@ -234,6 +239,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
             <Text style={form.hint}>
               Se o e-mail ou o CRM já forem de outra conta do tablet, nada é alterado.
             </Text>
+            {profileFeedback && <FeedbackMessage {...profileFeedback} />}
           </View>
 
           <View style={styles.card}>
@@ -284,6 +290,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
                 <Text style={form.primaryButtonText}>Trocar senha</Text>
               )}
             </Pressable>
+            {passwordFeedback && <FeedbackMessage {...passwordFeedback} />}
           </View>
         </View>
       </ScrollView>
