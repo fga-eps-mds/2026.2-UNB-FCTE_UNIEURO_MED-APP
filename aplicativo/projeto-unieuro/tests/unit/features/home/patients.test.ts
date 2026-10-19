@@ -4,6 +4,8 @@ import {
   filterPatients,
   formatDate,
   sortByLastExam,
+  toExamStatus,
+  toPatientSummary,
   type PatientSummary,
 } from '@/features/home/patients';
 
@@ -100,5 +102,42 @@ describe('datas', () => {
     const gravado = new Date(2026, 9, 5, 22, 30).toISOString();
 
     expect(formatDate(gravado)).toBe('05/10/2026');
+  });
+});
+
+describe('atendimento convertido para a lista', () => {
+  it.each([
+    ['concluida', 'concluido'],
+    ['interrompida', 'interrompido'],
+    ['cancelada', 'recusado'],
+  ])('o estado %s vira %s', (estado, status) => {
+    expect(toExamStatus(estado)).toBe(status);
+  });
+
+  it.each(['aguardando_consentimento', 'em_andamento', 'processando_resultado', 'erro_inferencia'])(
+    'o exame ainda não terminado (%s) fica sem rótulo',
+    (estado) => {
+      expect(toExamStatus(estado)).toBeNull();
+    },
+  );
+
+  it('usa o atendimento mais recente como último exame e conta todos os atendimentos', () => {
+    expect(
+      toPatientSummary({
+        id: 4,
+        name: 'José Alves Martins',
+        recordNumber: '2026-0001',
+        attendanceCount: 3,
+        lastStartedAt: '2026-10-13T09:10:00.000Z',
+        lastState: 'aguardando_consentimento',
+      }),
+    ).toEqual({
+      id: 4,
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+      lastExamAt: '2026-10-13T09:10:00.000Z',
+      lastExamStatus: null,
+      examCount: 3,
+    });
   });
 });

@@ -18,6 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
+      "allowBackup": false,
       "package": "com.hgaldino05.projetounieuro"
     },
     "web": {
@@ -36,7 +37,13 @@
       ],
       "expo-font",
       "expo-sqlite",
-      "expo-secure-store"
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
+      "./plugins/with-data-extraction-rules"
     ],
     "experiments": {
       "typedRoutes": true,
