@@ -4,15 +4,17 @@
  * A versão 1 é o `dados/schema.sql` do repositório MED-IA (branch
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
  * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
- * de busca, e a versão 3 cria o paciente e o atendimento. Nenhuma das duas existe
- * ainda no `schema.sql` do MED-IA: as duas cópias divergem a partir da versão 2
- * até que o repositório MED-IA seja atualizado.
+ * de busca, a versão 3 cria o paciente e o atendimento, e a versão 4 prepara a
+ * sincronização entre tablets. Nenhuma delas existe ainda no `schema.sql` do
+ * MED-IA: as duas cópias divergem a partir da versão 2 até que o repositório
+ * MED-IA seja atualizado.
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
+import { SCHEMA_V4 } from '@/db/sync-migration';
 
 export const DATABASE_NAME = 'med.db';
 
@@ -96,10 +98,15 @@ export type MigrationStep =
 /**
  * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
- * versão 3 (paciente e atendimento), e assim por diante. Para mudar o esquema,
- * acrescente um passo no fim; não altere os que já existem, porque os tablets com
- * o banco criado não os executam de novo.
+ * versão 3 (paciente e atendimento), a posição 3 à versão 4 (sincronização), e
+ * assim por diante. Para mudar o esquema, acrescente um passo no fim; não altere
+ * os que já existem, porque os tablets com o banco criado não os executam de novo.
  */
-export const MIGRATIONS: readonly MigrationStep[] = [SCHEMA_V1, protectStoredCpfs, SCHEMA_V3];
+export const MIGRATIONS: readonly MigrationStep[] = [
+  SCHEMA_V1,
+  protectStoredCpfs,
+  SCHEMA_V3,
+  SCHEMA_V4,
+];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

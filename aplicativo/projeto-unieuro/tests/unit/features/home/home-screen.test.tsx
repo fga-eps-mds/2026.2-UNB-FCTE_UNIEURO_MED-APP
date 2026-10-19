@@ -201,15 +201,14 @@ describe('HomeScreen', () => {
   });
 
   describe('Cenário: sincronizar tablets', () => {
-    it('informa que a sincronização ainda não está disponível', async () => {
+    it('abre a sincronização entre tablets', async () => {
       const user = userEvent.setup();
       renderTela();
 
       await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(
-        screen.getByText(/sincronização entre tablets .* ainda não está disponível/),
-      ).toBeOnTheScreen();
+      expect(useRouter().push).toHaveBeenCalledWith('/sincronizar');
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
   });
 
@@ -254,18 +253,18 @@ describe('HomeScreen', () => {
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
-    it.each([
-      ['Sincronizar tablets', /em estudo/],
-      ['Exportar todos (XML)', /exportação em XML/],
-    ])('o botão "%s" avisa o que ainda falta', async (botao, mensagem) => {
-      const user = userEvent.setup();
-      renderTela();
+    it.each([['Exportar todos (XML)', /exportação em XML/]])(
+      'o botão "%s" avisa o que ainda falta',
+      async (botao, mensagem) => {
+        const user = userEvent.setup();
+        renderTela();
 
-      await user.press(screen.getByRole('button', { name: botao }));
+        await user.press(screen.getByRole('button', { name: botao }));
 
-      expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
-      expect(screen.getByText(mensagem)).toBeOnTheScreen();
-    });
+        expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
+        expect(screen.getByText(mensagem)).toBeOnTheScreen();
+      },
+    );
 
     it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
       const user = userEvent.setup();
@@ -284,17 +283,15 @@ describe('HomeScreen', () => {
     it('é uma mensagem de informação, sem o alerta padrão do Android', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
 
-      expect(
-        screen.getByLabelText(/^Informação\. A sincronização entre tablets/),
-      ).toBeOnTheScreen();
+      expect(screen.getByLabelText(/^Informação\. A exportação em XML/)).toBeOnTheScreen();
     });
 
     it('some sozinho depois de 4 segundos', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
       act(() => jest.advanceTimersByTime(NOTICE_DURATION_MS - 1));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
 
@@ -307,10 +304,10 @@ describe('HomeScreen', () => {
 
       fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
       act(() => jest.advanceTimersByTime(3000));
-      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+      fireEvent.press(botoesDePaciente()[0]);
 
       expect(screen.queryByText(/exportação em XML/)).toBeNull();
-      expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
+      expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
 
       act(() => jest.advanceTimersByTime(3000));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();

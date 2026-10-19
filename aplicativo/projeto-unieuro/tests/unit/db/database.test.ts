@@ -128,11 +128,18 @@ describe('esquema', () => {
   it('chega à versão 3 com o paciente e o atendimento da #7', () => {
     const schemaV3 = MIGRATIONS[2];
 
-    expect(SCHEMA_VERSION).toBe(3);
     expect(schemaV3).toContain('CREATE TABLE IF NOT EXISTS paciente');
     expect(schemaV3).toContain('cpf_indice TEXT NOT NULL UNIQUE');
     expect(schemaV3).toContain('CREATE TABLE IF NOT EXISTS avaliacao');
     expect(schemaV3).toContain('REFERENCES profissional (id)');
+  });
+
+  it('chega à versão 4 com a sincronização entre tablets', () => {
+    const schemaV4 = MIGRATIONS[3];
+
+    expect(SCHEMA_VERSION).toBe(4);
+    expect(schemaV4).toContain('CREATE TABLE IF NOT EXISTS dispositivo');
+    expect(schemaV4).toContain('ALTER TABLE paciente ADD COLUMN uuid TEXT');
   });
 });
 

@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { createCpfProtector } from '@/db/cpf-protection';
+import { createCpfProtector, type CpfProtector } from '@/db/cpf-protection';
 import { migrate } from '@/db/database';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { hashPassword } from '@/features/auth/password';
@@ -52,22 +52,27 @@ export function hashDaSenhaDeTeste(): Promise<string> {
 export type TabletDeTeste = {
   database: SQLiteDatabase;
   repository: ReturnType<typeof createProfessionalRepository>;
+  protector: CpfProtector;
   temp: TempDatabase;
   reabrir(): Promise<void>;
   encerrar(): Promise<void>;
   fechar(): Promise<void>;
 };
 
-export async function abrirTablet(): Promise<TabletDeTeste> {
+// Cada tablet tem a sua chave de CPF, como nos aparelhos.
+export const protetorComChave = (byte: number) =>
+  createCpfProtector(async () => new Uint8Array(32).fill(byte), webCryptoAesGcm);
+
+export async function abrirTablet(protector: CpfProtector = cpfProtector): Promise<TabletDeTeste> {
   const temp = createTempDatabase();
   let fechado = false;
 
   const abrir = async () => {
     const database = temp.open();
-    await migrate(database, cpfProtector);
+    await migrate(database, protector);
     fechado = false;
     tablet.database = database;
-    tablet.repository = createProfessionalRepository(async () => database, cpfProtector);
+    tablet.repository = createProfessionalRepository(async () => database, protector);
   };
 
   const fecharBanco = async () => {
@@ -78,6 +83,7 @@ export async function abrirTablet(): Promise<TabletDeTeste> {
 
   const tablet = {
     temp,
+    protector,
     async reabrir() {
       await fecharBanco();
       await abrir();
