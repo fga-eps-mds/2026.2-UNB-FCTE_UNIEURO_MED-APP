@@ -18,8 +18,8 @@ export function createAccountFormStyles(theme: ThemeColors) {
     subtitle: {
       color: theme.textSecondary,
       fontFamily: FontFamilies.regular,
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 24,
       marginTop: -12,
     },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
@@ -27,7 +27,7 @@ export function createAccountFormStyles(theme: ThemeColors) {
     label: {
       color: theme.textSecondary,
       fontFamily: FontFamilies.semibold,
-      fontSize: 11,
+      fontSize: 16,
       letterSpacing: 0.9,
     },
     input: {
@@ -52,8 +52,8 @@ export function createAccountFormStyles(theme: ThemeColors) {
       paddingHorizontal: 16,
     },
     lockedText: { color: theme.placeholder, fontFamily: FontFamilies.regular, fontSize: 16 },
-    lockedHint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 13 },
-    hint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 13 },
+    lockedHint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 16 },
+    hint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 16 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 },
     primaryButton: { ...button, backgroundColor: theme.primary },
     primaryButtonText: { color: theme.onPrimary, fontFamily: FontFamilies.semibold, fontSize: 16 },
@@ -65,7 +65,7 @@ export function createAccountFormStyles(theme: ThemeColors) {
     dangerLinkText: {
       color: BrandPalette.deepWine,
       fontFamily: FontFamilies.semibold,
-      fontSize: 15,
+      fontSize: 16,
     },
     backdrop: {
       flex: 1,
@@ -86,8 +86,8 @@ export function createAccountFormStyles(theme: ThemeColors) {
     dialogText: {
       color: theme.textSecondary,
       fontFamily: FontFamilies.regular,
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 24,
     },
     disabled: { opacity: 0.6 },
   });
