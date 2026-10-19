@@ -51,6 +51,11 @@ type AttendedPatientRow = {
 // Só os atendimentos do profissional informado entram na contagem e no mais
 // recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
+//
+// O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
+// certo porque toda data entra no formato de `toISOString()`, em UTC (a regra
+// do atendimento grava assim). Uma data com fuso, como "-03:00", quebraria a
+// ordem: quem gravar atendimento por outro caminho precisa manter o formato.
 const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
