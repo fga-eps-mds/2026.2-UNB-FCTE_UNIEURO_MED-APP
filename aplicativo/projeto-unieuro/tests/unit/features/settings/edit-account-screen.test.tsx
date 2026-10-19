@@ -113,6 +113,7 @@ describe('EditAccountScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Salvar' }));
 
     expect(screen.getByText('Preencha o nome.')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Erro. Preencha o nome.')).toBeOnTheScreen();
     expect(screen.getByText('Informe um e-mail válido.')).toBeOnTheScreen();
     expect(screen.getByText('O CRM tem só números.')).toBeOnTheScreen();
     await expect(contaDaAna()).resolves.toMatchObject(ANA);

@@ -41,7 +41,7 @@ export function createAccountFormStyles(theme: ThemeColors) {
       fontSize: 16,
       paddingHorizontal: 16,
     },
-    inputError: { borderColor: BrandPalette.deepWine, borderWidth: 2 },
+    inputError: { borderColor: theme.error, borderWidth: 2 },
     lockedInput: {
       minHeight: 52,
       flexDirection: 'row',
@@ -53,7 +53,6 @@ export function createAccountFormStyles(theme: ThemeColors) {
     },
     lockedText: { color: theme.placeholder, fontFamily: FontFamilies.regular, fontSize: 16 },
     lockedHint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 13 },
-    error: { color: BrandPalette.deepWine, fontFamily: FontFamilies.semibold, fontSize: 13 },
     hint: { color: theme.textSecondary, fontFamily: FontFamilies.regular, fontSize: 13 },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 },
     primaryButton: { ...button, backgroundColor: theme.primary },
