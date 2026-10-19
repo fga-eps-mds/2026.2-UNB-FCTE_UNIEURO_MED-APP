@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { SessionProvider } from '@/features/auth/session';
 
@@ -27,9 +28,13 @@ export default function RootLayout() {
     return null;
   }
 
+  // O quadro de desenho (#9) e a assinatura do TCLE (#21) usam gestos, que só
+  // funcionam dentro desta raiz.
   return (
-    <SessionProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </SessionProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SessionProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </SessionProvider>
+    </GestureHandlerRootView>
   );
 }

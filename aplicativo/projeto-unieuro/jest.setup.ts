@@ -53,6 +53,30 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+// Gestos, animações e desenho do quadro (#9). O Gesture Handler, o Reanimated e o
+// Worklets dependem de módulos nativos; os substitutos que os próprios pacotes
+// oferecem rodam os worklets na mesma thread do teste, então o descompasso entre
+// as threads do aparelho não aparece aqui.
+require('react-native-gesture-handler/jestSetup');
+jest.mock('react-native-reanimated', () => jest.requireActual('react-native-reanimated/mock'));
+jest.mock('react-native-worklets', () => jest.requireActual('react-native-worklets/src/mock'));
+
+// O Skia desenha em código nativo, que não existe no Jest. O substituto
+// renderiza o quadro sem pixels e só chama a montagem do caminho na
+// renderização, quando ainda não há ponto em andamento: o traço em andamento só
+// é verificado no aparelho. Um teste que precise de mais do Skia, como a geração
+// da imagem do desenho, declara o próprio `jest.mock` no arquivo.
+jest.mock('@shopify/react-native-skia', () => ({
+  Canvas: 'Canvas',
+  Path: 'Path',
+  Skia: { Path: { MakeFromSVGString: jest.fn((svg: string) => ({ svg })) } },
+  usePathValue: (montar: (construtor: unknown) => void) => {
+    const construtor = { moveTo: jest.fn(), lineTo: jest.fn() };
+    montar(construtor);
+    return { value: construtor };
+  },
+}));
+
 afterEach(() => {
   jest.clearAllMocks();
 });
