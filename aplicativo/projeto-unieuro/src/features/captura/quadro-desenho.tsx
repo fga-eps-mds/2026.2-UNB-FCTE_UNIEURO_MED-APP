@@ -36,8 +36,14 @@ export const ESPESSURA_TRACO = 4;
 /** Tamanho do quadro na tela, em pontos. As coordenadas dos traços estão nessa escala. */
 export type Dimensoes = { largura: number; altura: number };
 
-/** O quadro imita o papel: fundo branco e traço escuro, nos dois temas. */
+/**
+ * O quadro imita o papel e segue a área de desenho do guia de identidade visual:
+ * fundo branco, traço azul-noite, borda decorativa, raio 24 e sombra de nível 1.
+ * As cores não mudam com o tema, porque a tela de desenho é sempre clara.
+ */
 const COR_FUNDO = '#FFFFFF';
+const COR_BORDA = '#CBD5E1';
+const RAIO = 24;
 const ESTILO_TRACO = {
   style: 'stroke',
   strokeWidth: ESPESSURA_TRACO,
@@ -177,27 +183,39 @@ export function QuadroDesenho({
     onDimensoes({ largura: nativeEvent.layout.width, altura: nativeEvent.layout.height });
   }
 
+  // A moldura leva a borda e a sombra; o quadro de dentro corta o traço nos
+  // cantos arredondados, e é o tamanho dele que dá a escala das coordenadas.
   return (
-    <GestureDetector gesture={arrasto}>
-      <View
-        accessible
-        accessibilityLabel={rotulo}
-        accessibilityHint={dica}
-        accessibilityState={{ disabled: desabilitado }}
-        onLayout={medir}
-        style={styles.quadro}>
-        <Canvas style={StyleSheet.absoluteFill}>
-          {caminhosConcluidos.map((caminho, indice) => (
-            <Path key={indice} path={caminho} {...ESTILO_TRACO} />
-          ))}
-          <Path path={caminhoAguardando} {...ESTILO_TRACO} />
-          <Path path={caminhoEmAndamento} {...ESTILO_TRACO} />
-        </Canvas>
-      </View>
-    </GestureDetector>
+    <View testID="moldura-quadro-desenho" style={styles.moldura}>
+      <GestureDetector gesture={arrasto}>
+        <View
+          accessible
+          accessibilityLabel={rotulo}
+          accessibilityHint={dica}
+          accessibilityState={{ disabled: desabilitado }}
+          onLayout={medir}
+          style={styles.quadro}>
+          <Canvas style={StyleSheet.absoluteFill}>
+            {caminhosConcluidos.map((caminho, indice) => (
+              <Path key={indice} path={caminho} {...ESTILO_TRACO} />
+            ))}
+            <Path path={caminhoAguardando} {...ESTILO_TRACO} />
+            <Path path={caminhoEmAndamento} {...ESTILO_TRACO} />
+          </Canvas>
+        </View>
+      </GestureDetector>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  quadro: { flex: 1, overflow: 'hidden', borderRadius: 16, backgroundColor: COR_FUNDO },
+  moldura: {
+    flex: 1,
+    borderRadius: RAIO,
+    borderWidth: 1,
+    borderColor: COR_BORDA,
+    backgroundColor: COR_FUNDO,
+    boxShadow: '0px 4px 16px rgba(15, 23, 41, 0.06)',
+  },
+  quadro: { flex: 1, overflow: 'hidden', borderRadius: RAIO - 1 },
 });

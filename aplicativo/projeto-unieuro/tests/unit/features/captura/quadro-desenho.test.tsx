@@ -164,6 +164,17 @@ describe('QuadroDesenho', () => {
     expect(screen.getByHintText('Assine com a caneta')).toBeOnTheScreen();
   });
 
+  it('segue a área de desenho do guia de identidade visual', () => {
+    renderQuadro();
+
+    expect(screen.getByTestId('moldura-quadro-desenho')).toHaveStyle({
+      backgroundColor: '#FFFFFF',
+      borderColor: '#CBD5E1',
+      borderRadius: 24,
+      boxShadow: '0px 4px 16px rgba(15, 23, 41, 0.06)',
+    });
+  });
+
   it.each([
     [PointerType.MOUSE, 'mouse'],
     [PointerType.OTHER, 'desconhecido'],
