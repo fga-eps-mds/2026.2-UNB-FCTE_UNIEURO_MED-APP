@@ -1,3 +1,4 @@
+import { Skia } from '@shopify/react-native-skia';
 import { act, render } from '@testing-library/react-native';
 import { useEffect } from 'react';
 
@@ -54,6 +55,25 @@ describe('useRegistroTracado', () => {
       temTraco: false,
       dimensoes: null,
     });
+  });
+
+  it('traço na hora: o traço continua igual quando a caneta é levantada', async () => {
+    const registro = abrirTarefa();
+
+    await desenharNoQuadro([
+      [10, 10],
+      [20, 20],
+      [30, 30],
+    ]);
+
+    // O traço que fica na tela depois de levantar a caneta é o que foi desenhado,
+    // ponto a ponto, sem suavizar nem cortar o começo ou o fim.
+    expect(registro().tracos[0].map(({ x, y }) => [x, y])).toEqual([
+      [10, 10],
+      [20, 20],
+      [30, 30],
+    ]);
+    expect(Skia.Path.MakeFromSVGString).toHaveBeenLastCalledWith('M10 10 L20 20 L30 30');
   });
 
   it('conta o instante de cada ponto desde o início da tarefa', async () => {
