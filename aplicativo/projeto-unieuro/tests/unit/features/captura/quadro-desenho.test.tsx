@@ -1,5 +1,6 @@
 import { Skia } from '@shopify/react-native-skia';
 import { render, screen } from '@testing-library/react-native';
+import { View } from 'react-native';
 
 import {
   QuadroDesenho,
@@ -162,6 +163,23 @@ describe('QuadroDesenho', () => {
 
     expect(screen.getByLabelText('Área de assinatura')).toBeOnTheScreen();
     expect(screen.getByHintText('Assine com a caneta')).toBeOnTheScreen();
+  });
+
+  it('trilhas: desenha o fundo dentro da área, por baixo dos traços', () => {
+    // No aparelho o fundo são elementos do Skia, como os círculos numerados; aqui
+    // qualquer elemento serve para conferir onde ele entra.
+    renderQuadro({
+      fundo: <View testID="circulos-das-trilhas" />,
+      tracos: [
+        [
+          { x: 1, y: 1, instante: 0 },
+          { x: 2, y: 2, instante: 10 },
+        ],
+      ],
+    });
+
+    const [primeiro] = screen.UNSAFE_getByType('Canvas' as never).props.children;
+    expect(primeiro.props.testID).toBe('circulos-das-trilhas');
   });
 
   it('segue a área de desenho do guia de identidade visual', () => {

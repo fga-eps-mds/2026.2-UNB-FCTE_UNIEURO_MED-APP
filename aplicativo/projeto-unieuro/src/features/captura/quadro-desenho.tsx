@@ -16,7 +16,7 @@ import {
   type SkPath,
   type SkPathBuilder,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
@@ -71,6 +71,12 @@ export type QuadroDesenhoProps = {
   dica?: string;
   /** Mostra os traços, mas não aceita traço novo, por exemplo depois de confirmar o desenho. */
   desabilitado?: boolean;
+  /**
+   * Elementos do Skia desenhados dentro da área, por baixo dos traços, como os
+   * círculos numerados das trilhas (#9). Usam as mesmas coordenadas dos traços:
+   * posicione pelo tamanho do quadro (`dimensoes`).
+   */
+  fundo?: ReactNode;
 };
 
 function tipoDoPonteiro(tipo: PointerType): TipoPonteiro {
@@ -112,6 +118,7 @@ export function QuadroDesenho({
   rotulo = 'Quadro de desenho',
   dica = 'Desenhe com a caneta ou com o dedo',
   desabilitado = false,
+  fundo,
 }: QuadroDesenhoProps) {
   // `emAndamento` é o traço que a caneta está fazendo, e só a thread de UI o
   // zera, ao começar um traço novo. `aguardando` é o traço recém-concluído, que
@@ -196,6 +203,7 @@ export function QuadroDesenho({
           onLayout={medir}
           style={styles.quadro}>
           <Canvas style={StyleSheet.absoluteFill}>
+            {fundo}
             {caminhosConcluidos.map((caminho, indice) => (
               <Path key={indice} path={caminho} {...ESTILO_TRACO} />
             ))}
