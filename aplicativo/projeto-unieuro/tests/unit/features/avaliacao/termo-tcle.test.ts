@@ -17,15 +17,30 @@ describe('termo do TCLE', () => {
     }
   });
 
-  it('fica marcado como provisório até chegar o texto oficial do cliente', () => {
-    expect(TERMO_TCLE.provisorio).toBe(true);
-    expect(descreverVersao(TERMO_TCLE)).toBe('Versão do termo: rascunho (texto provisório)');
+  it('usa o texto do cliente, identificado pela versão de 15/09/2026', () => {
+    expect(TERMO_TCLE.provisorio).toBe(false);
+    expect(descreverVersao(TERMO_TCLE)).toBe('Versão do termo: 15/09/2026 (versão simples)');
   });
 
-  it('mostra só o número da versão quando o texto é o oficial', () => {
-    const oficial: TermoTcle = { ...TERMO_TCLE, versao: '1.0', provisorio: false };
+  it('traz os itens do termo do cliente, de 1 a 12, e a declaração de consentimento', () => {
+    const titulos = TERMO_TCLE.secoes.map((secao) => secao.titulo);
 
-    expect(descreverVersao(oficial)).toBe('Versão do termo: 1.0');
+    for (let item = 1; item <= 12; item++) {
+      expect(titulos.some((titulo) => titulo.startsWith(`${item}) `))).toBe(true);
+    }
+    expect(TERMO_TCLE.declaracao).toMatch(/^Declaro que li este termo/);
+  });
+
+  it('não repete parágrafo, para cada trecho aparecer uma vez na tela', () => {
+    const paragrafos = TERMO_TCLE.secoes.flatMap((secao) => secao.paragrafos);
+
+    expect(new Set(paragrafos).size).toBe(paragrafos.length);
+  });
+
+  it('marca o texto como provisório quando ele ainda não é o do cliente', () => {
+    const rascunho: TermoTcle = { ...TERMO_TCLE, versao: 'rascunho', provisorio: true };
+
+    expect(descreverVersao(rascunho)).toBe('Versão do termo: rascunho (texto provisório)');
   });
 
   it('oferece paciente e responsável legal como quem assina', () => {
