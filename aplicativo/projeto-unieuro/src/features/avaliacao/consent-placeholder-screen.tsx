@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { FontFamilies, type ThemeColors } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
+import { valorDoParametro, type ParametroDeRota } from '@/features/avaliacao/tarefas';
 import { useTheme } from '@/hooks/use-theme';
 
 export const CONSENT_PENDING_MESSAGE =
@@ -14,10 +15,17 @@ export const CONSENT_PENDING_MESSAGE =
 /**
  * Destino provisório do registro do atendimento (#7). A tela do termo de
  * consentimento é a história #21. Até ela existir, esta tela confirma que o
- * atendimento foi gravado e leva de volta ao início.
+ * atendimento foi gravado e leva de volta ao início. Também oferece o botão
+ * provisório "Iniciar as tarefas", que abre a instrução da tarefa 1 (#8) para o
+ * atendimento recebido; a #21 passa a abri-la depois do aceite do termo.
  */
-export default function ConsentPlaceholderScreen() {
+export default function ConsentPlaceholderScreen({
+  atendimento,
+}: {
+  atendimento?: ParametroDeRota;
+}) {
   const router = useRouter();
+  const atendimentoId = valorDoParametro(atendimento);
   const { professional } = useSession();
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -35,6 +43,19 @@ export default function ConsentPlaceholderScreen() {
           Termo de consentimento
         </Text>
         <FeedbackMessage kind="info" message={CONSENT_PENDING_MESSAGE} />
+        {atendimentoId && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.replace({
+                pathname: '/instrucao',
+                params: { atendimento: atendimentoId, tarefa: '1' },
+              })
+            }
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+            <Text style={styles.buttonText}>Iniciar as tarefas</Text>
+          </Pressable>
+        )}
         <Pressable
           accessibilityRole="button"
           onPress={() => router.replace('/menu')}
