@@ -93,7 +93,9 @@ export async function abrirTablet(): Promise<TabletDeTeste> {
   return tablet;
 }
 
-export async function abrirTabletComAnaEBruno(): Promise<TabletDeTeste> {
+export type TabletComAnaEBruno = TabletDeTeste & { anaId: number };
+
+export async function abrirTabletComAnaEBruno(): Promise<TabletComAnaEBruno> {
   const tablet = await abrirTablet();
   const passwordHash = await hashDaSenhaDeTeste();
 
@@ -108,5 +110,7 @@ export async function abrirTabletComAnaEBruno(): Promise<TabletDeTeste> {
       createdAt: '2026-09-26T13:00:00.000Z',
     });
   }
-  return tablet;
+
+  const ana = await tablet.repository.findByEmail(ANA.email);
+  return Object.assign(tablet, { anaId: ana!.id });
 }

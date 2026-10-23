@@ -142,6 +142,7 @@ describe('LoginScreen', () => {
           email: 'teste@unieuro.com.br',
           crm: '12345/DF',
           passwordHash: 'hash_valido',
+          active: true,
         }),
       };
 
@@ -181,6 +182,7 @@ describe('LoginScreen', () => {
           email: 'teste@unieuro.com.br',
           crm: '12345/DF',
           passwordHash: 'hash_valido',
+          active: true,
         }),
       };
 
@@ -202,6 +204,7 @@ describe('LoginScreen', () => {
           email: 'teste@unieuro.com.br',
           crm: '12345/DF',
           passwordHash: 'hash_valido',
+          active: true,
         }),
       };
 
@@ -229,6 +232,7 @@ describe('LoginScreen', () => {
           crmState: 'DF',
           cpf: '12345678901',
           passwordHash: 'hash_valido',
+          active: true,
         }),
       };
 
@@ -246,6 +250,30 @@ describe('LoginScreen', () => {
       await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
 
       expect(screen.getByText('Sessão de Doutor Teste')).toBeOnTheScreen();
+    });
+
+    it('entrar com conta desativada: não deixa entrar e mostra a mensagem genérica', async () => {
+      const mockRepository = {
+        findByEmail: jest.fn().mockResolvedValue({
+          id: 1,
+          name: 'Doutor Teste',
+          email: 'teste@unieuro.com.br',
+          crmNumber: '12345',
+          crmState: 'DF',
+          passwordHash: 'hash_valido',
+          active: false,
+        }),
+      };
+
+      const user = userEvent.setup();
+      render(<LoginScreen repository={mockRepository as any} />);
+
+      await user.type(screen.getByLabelText('E-MAIL'), 'teste@unieuro.com.br');
+      await user.type(screen.getByLabelText('SENHA'), 'senha_correta');
+      await user.press(screen.getByRole('button', { name: 'ENTRAR' }));
+
+      expect(screen.getByText('E-mail ou senha inválidos.')).toBeOnTheScreen();
+      expect(useRouter().replace).not.toHaveBeenCalled();
     });
 
     it('mostra uma faixa se ocorrer um erro inesperado no repositório', async () => {

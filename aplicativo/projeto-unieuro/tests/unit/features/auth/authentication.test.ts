@@ -16,9 +16,11 @@ const profissional = {
   crmState: 'DF',
 };
 
-function createRepository(passwordHash: string | null = 'hash-real') {
+function createRepository(passwordHash: string | null = 'hash-real', active = true) {
   return {
-    findByEmail: jest.fn(async () => (passwordHash ? { ...profissional, passwordHash } : null)),
+    findByEmail: jest.fn(async () =>
+      passwordHash ? { ...profissional, passwordHash, active } : null,
+    ),
   } satisfies CredentialsRepository;
 }
 
@@ -79,6 +81,20 @@ describe('authenticate', () => {
       createRepository(null),
     );
 
+    expect(result).toEqual({
+      success: false,
+      reason: 'invalid-credentials',
+      message: 'E-mail ou senha inválidos.',
+    });
+  });
+
+  it('recusa a conta desativada com a mesma mensagem, depois de verificar a senha', async () => {
+    const result = await authenticate(
+      { email: 'ana@unieuro.com.br', password: 'senhaForte123' },
+      createRepository('hash-real', false),
+    );
+
+    expect(verifyPassword).toHaveBeenCalledWith('senhaForte123', 'hash-real');
     expect(result).toEqual({
       success: false,
       reason: 'invalid-credentials',
