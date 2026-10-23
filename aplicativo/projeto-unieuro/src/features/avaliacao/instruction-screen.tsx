@@ -5,7 +5,10 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { returnToLogin, useSession } from '@/features/auth/session';
-import { createInstructionStyles } from '@/features/avaliacao/instruction.styles';
+import {
+  TAMANHO_ICONE_TAREFA,
+  createInstructionStyles,
+} from '@/features/avaliacao/instruction.styles';
 import {
   obterTarefa,
   TOTAL_TAREFAS,
@@ -80,7 +83,7 @@ export default function InstructionScreen({
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
               name={tarefa.icone}
-              size={56}
+              size={TAMANHO_ICONE_TAREFA}
               color={theme.primary}
             />
           </View>

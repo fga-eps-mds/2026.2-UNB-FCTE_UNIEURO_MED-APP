@@ -5,6 +5,9 @@ import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme'
 /** Altura do botão grande, o tamanho dos botões nas telas do paciente (guia de identidade visual). */
 export const ALTURA_BOTAO_PACIENTE = 84;
 
+/** Tamanho do ícone da tarefa: o guia manda 32 a 48 nos destaques das telas do paciente. */
+export const TAMANHO_ICONE_TAREFA = 48;
+
 /** Estilos da tela de instrução (#8), uma tela do paciente: texto de 20 pontos ou mais. */
 export function createInstructionStyles(colors: ThemeColors) {
   return StyleSheet.create({

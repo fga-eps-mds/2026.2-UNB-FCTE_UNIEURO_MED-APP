@@ -1,6 +1,7 @@
 import { BrandPalette, Colors, FontFamilies } from '@/constants/theme';
 import {
   ALTURA_BOTAO_PACIENTE,
+  TAMANHO_ICONE_TAREFA,
   createInstructionStyles,
 } from '@/features/avaliacao/instruction.styles';
 
@@ -69,5 +70,11 @@ describe('createInstructionStyles', () => {
       fontSize: 24,
       lineHeight: 36,
     });
+  });
+
+  it('mantém o ícone da tarefa dentro dos 32 a 48 pontos que o guia permite ao paciente', () => {
+    expect(TAMANHO_ICONE_TAREFA).toBeGreaterThanOrEqual(32);
+    expect(TAMANHO_ICONE_TAREFA).toBeLessThanOrEqual(48);
+    expect(styles.iconCircle.width).toBeGreaterThan(TAMANHO_ICONE_TAREFA);
   });
 });
