@@ -78,8 +78,8 @@ export function createInstructionStyles(colors: ThemeColors) {
       maxWidth: 760,
       color: colors.textSecondary,
       fontFamily: FontFamilies.regular,
-      fontSize: 26,
-      lineHeight: 38,
+      fontSize: 24,
+      lineHeight: 36,
       textAlign: 'center',
     },
     button: {

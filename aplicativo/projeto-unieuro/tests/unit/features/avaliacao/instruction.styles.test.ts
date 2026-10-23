@@ -62,4 +62,12 @@ describe('createInstructionStyles', () => {
       boxShadow: '0px 10px 32px rgba(15, 23, 41, 0.12)',
     });
   });
+
+  it('escreve a frase de instrução no corpo grande do guia: Inter regular 24/36', () => {
+    expect(styles.instruction).toMatchObject({
+      fontFamily: FontFamilies.regular,
+      fontSize: 24,
+      lineHeight: 36,
+    });
+  });
 });
