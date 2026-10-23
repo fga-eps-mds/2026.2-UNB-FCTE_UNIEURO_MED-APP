@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -27,7 +35,11 @@ type HomeScreenProps = {
   patients: readonly PatientSummary[];
   /** A leitura dos pacientes no banco falhou. */
   loadFailed?: boolean;
+  /** A primeira leitura dos pacientes ainda não terminou. */
+  loading?: boolean;
 };
+
+export const LOADING_MESSAGE = 'Carregando os seus pacientes.';
 
 export const LOAD_FAILED_MESSAGE =
   'Não foi possível carregar os seus pacientes. Saia e entre de novo para tentar outra vez.';
@@ -47,7 +59,11 @@ export const NOTICE_DURATION_MS = 4000;
  * Tela inicial do profissional (#46): os pacientes que ele atendeu e os
  * atalhos para novo exame, exportação, sincronização e configurações.
  */
-export default function HomeScreen({ patients, loadFailed = false }: HomeScreenProps) {
+export default function HomeScreen({
+  patients,
+  loadFailed = false,
+  loading = false,
+}: HomeScreenProps) {
   const router = useRouter();
   const { professional, signOut } = useSession();
   const theme = useTheme();
@@ -124,7 +140,9 @@ export default function HomeScreen({ patients, loadFailed = false }: HomeScreenP
             <Text accessibilityRole="header" style={styles.title}>
               Seus pacientes
             </Text>
-            <Text style={styles.subtitle}>{describeTotals(patients)}</Text>
+            <Text style={styles.subtitle}>
+              {loading ? LOADING_MESSAGE : describeTotals(patients)}
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -176,7 +194,9 @@ export default function HomeScreen({ patients, loadFailed = false }: HomeScreenP
         {loadFailed && <FeedbackMessage kind="error" message={LOAD_FAILED_MESSAGE} />}
 
         <View style={styles.listCard}>
-          {!hasPatients ? (
+          {loading && !hasPatients ? (
+            <Loading styles={styles} color={theme.primary} />
+          ) : !hasPatients ? (
             <EmptyState styles={styles} />
           ) : (
             <FlatList
@@ -279,6 +299,15 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function Loading({ styles, color }: { styles: HomeStyles; color: string }) {
+  return (
+    <View style={styles.empty} accessible accessibilityLabel={LOADING_MESSAGE}>
+      <ActivityIndicator color={color} size="large" />
+      <Text style={styles.emptyText}>{LOADING_MESSAGE}</Text>
     </View>
   );
 }

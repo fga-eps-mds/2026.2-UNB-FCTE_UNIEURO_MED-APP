@@ -20,6 +20,10 @@ export function useAttendedPatients(repository: PatientListRepository) {
   const professionalId = professional?.id ?? null;
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  // Profissional cuja primeira leitura já terminou. Enquanto ela não termina, a
+  // tela mostra que está carregando, e não "Nenhum paciente ainda". As leituras
+  // seguintes, ao voltar o foco, mantêm a lista na tela sem voltar a carregar.
+  const [loadedFor, setLoadedFor] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,9 +42,12 @@ export function useAttendedPatients(repository: PatientListRepository) {
           if (!current) return;
           setPatients(list.map(toPatientSummary));
           setLoadFailed(false);
+          setLoadedFor(professionalId);
         })
         .catch(() => {
-          if (current) setLoadFailed(true);
+          if (!current) return;
+          setLoadFailed(true);
+          setLoadedFor(professionalId);
         });
       return () => {
         current = false;
@@ -48,5 +55,7 @@ export function useAttendedPatients(repository: PatientListRepository) {
     }, [professionalId, repository]),
   );
 
-  return { patients, loadFailed };
+  const loading = professionalId !== null && loadedFor !== professionalId;
+
+  return { patients, loadFailed, loading };
 }

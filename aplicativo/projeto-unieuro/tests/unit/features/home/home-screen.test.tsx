@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen, userEvent } from '@testing-library/reac
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import HomeScreen, { LOAD_FAILED_MESSAGE, NOTICE_DURATION_MS } from '@/features/home/home-screen';
+import HomeScreen, {
+  LOADING_MESSAGE,
+  LOAD_FAILED_MESSAGE,
+  NOTICE_DURATION_MS,
+} from '@/features/home/home-screen';
 import type { PatientSummary } from '@/features/home/patients';
 
 const profissional: SessionProfessional = {
@@ -334,6 +338,30 @@ describe('HomeScreen', () => {
       renderTela();
 
       expect(screen.queryByText(LOAD_FAILED_MESSAGE)).toBeNull();
+    });
+  });
+
+  describe('carregando', () => {
+    const renderCarregando = (patients: readonly PatientSummary[]) =>
+      render(
+        <SessionProvider initialProfessional={profissional}>
+          <HomeScreen patients={patients} loading />
+        </SessionProvider>,
+      );
+
+    it('mostra que está carregando em vez de "Nenhum paciente ainda"', () => {
+      renderCarregando([]);
+
+      expect(screen.getByLabelText(LOADING_MESSAGE)).toBeOnTheScreen();
+      expect(screen.queryByText('Nenhum paciente ainda')).toBeNull();
+      expect(screen.queryByText('Nenhum exame aplicado ainda.')).toBeNull();
+    });
+
+    it('mostra a lista que já tem enquanto lê de novo', () => {
+      renderCarregando(pacientes);
+
+      expect(screen.getByText('José Alves Martins')).toBeOnTheScreen();
+      expect(screen.queryByLabelText(LOADING_MESSAGE)).toBeNull();
     });
   });
 });

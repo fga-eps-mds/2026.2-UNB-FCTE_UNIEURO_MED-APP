@@ -146,4 +146,41 @@ describe('pacientes atendidos na tela inicial', () => {
     expect(result.current.list.patients).toEqual([]);
     expect(result.current.list.loadFailed).toBe(false);
   });
+
+  describe('carregando', () => {
+    it('fica carregando até a primeira leitura terminar', async () => {
+      const repository = repositoryWith([jose]);
+
+      const { result } = renderWithSession(repository, ana);
+
+      expect(result.current.loading).toBe(true);
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.patients).toHaveLength(1);
+    });
+
+    it('não volta a carregar quando a tela recupera o foco', async () => {
+      const repository = repositoryWith([jose], [jose]);
+      const { result } = renderWithSession(repository, ana);
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      await refocus();
+
+      expect(result.current.loading).toBe(false);
+    });
+
+    it('para de carregar quando a primeira leitura falha', async () => {
+      const repository = repositoryWith(new Error('banco indisponível'));
+
+      const { result } = renderWithSession(repository, ana);
+
+      await waitFor(() => expect(result.current.loadFailed).toBe(true));
+      expect(result.current.loading).toBe(false);
+    });
+
+    it('não fica carregando sem profissional na sessão', () => {
+      const { result } = renderWithSession(repositoryWith(), null);
+
+      expect(result.current.loading).toBe(false);
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import HomeRoute from '@/app/menu';
 import { createAttendanceRepository, type PatientRecord } from '@/db/attendance-repository';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { LOADING_MESSAGE } from '@/features/home/home-screen';
 import type { PatientListRepository } from '@/features/home/patients';
 
 import {
@@ -95,6 +96,8 @@ const renderInicio = (professional: SessionProfessional) =>
 describe('tela inicial com os pacientes do banco', () => {
   it('mostra o paciente registrado com nome, ficha, data e número de exames', async () => {
     renderInicio(ana);
+    expect(screen.getByLabelText(LOADING_MESSAGE)).toBeOnTheScreen();
+    expect(screen.queryByText('Nenhum paciente ainda')).toBeNull();
 
     const jose = await screen.findByRole('button', { name: /José Alves Martins, ficha 2026-0001/ });
     expect(within(jose).getByText('13/10/2026')).toBeOnTheScreen();
