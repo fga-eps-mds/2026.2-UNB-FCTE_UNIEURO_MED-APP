@@ -77,4 +77,10 @@ describe('createInstructionStyles', () => {
     expect(TAMANHO_ICONE_TAREFA).toBeLessThanOrEqual(48);
     expect(styles.iconCircle.width).toBeGreaterThan(TAMANHO_ICONE_TAREFA);
   });
+
+  it('pinta de borda decorativa do guia (#CBD5E1) os círculos de progresso vazios', () => {
+    expect(styles.dot.backgroundColor).toBe(Colors.light.borderDecorative);
+    expect(styles.dot.backgroundColor).toBe('#CBD5E1');
+    expect(styles.dot).toMatchObject({ width: 16, height: 16 });
+  });
 });

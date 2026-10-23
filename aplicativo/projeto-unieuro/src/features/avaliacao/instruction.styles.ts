@@ -23,7 +23,7 @@ export function createInstructionStyles(colors: ThemeColors) {
     },
     progress: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     dots: { flexDirection: 'row', gap: 8 },
-    dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.border },
+    dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.borderDecorative },
     dotFilled: { backgroundColor: colors.primary },
     progressText: {
       color: colors.text,
