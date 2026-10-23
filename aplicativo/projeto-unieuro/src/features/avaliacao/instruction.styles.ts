@@ -48,10 +48,10 @@ export function createInstructionStyles(colors: ThemeColors) {
       maxWidth: 880,
       alignItems: 'center',
       gap: 20,
-      paddingHorizontal: 40,
-      paddingVertical: 48,
-      borderRadius: 32,
+      padding: 48,
+      borderRadius: 28,
       backgroundColor: colors.surface,
+      boxShadow: '0px 10px 32px rgba(15, 23, 41, 0.12)',
     },
     iconCircle: {
       width: 120,

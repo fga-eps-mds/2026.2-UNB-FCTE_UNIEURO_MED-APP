@@ -54,4 +54,12 @@ describe('createInstructionStyles', () => {
       lineHeight: 32,
     });
   });
+
+  it('desenha o cartão principal como no guia: canto 28, margem interna 48 e sombra de nível 3', () => {
+    expect(styles.card).toMatchObject({
+      borderRadius: 28,
+      padding: 48,
+      boxShadow: '0px 10px 32px rgba(15, 23, 41, 0.12)',
+    });
+  });
 });
