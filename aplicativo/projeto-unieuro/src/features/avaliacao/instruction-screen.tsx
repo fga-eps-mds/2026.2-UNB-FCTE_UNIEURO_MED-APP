@@ -42,7 +42,7 @@ export default function InstructionScreen({
   tarefa: tarefaParam,
   atendimento,
   onStart,
-}: InstructionScreenProps) {
+}: Readonly<InstructionScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const theme = useTheme();
