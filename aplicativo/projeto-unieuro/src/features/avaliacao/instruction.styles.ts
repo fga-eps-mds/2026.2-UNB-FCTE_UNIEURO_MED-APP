@@ -2,6 +2,9 @@ import { StyleSheet } from 'react-native';
 
 import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 
+/** Altura do botão grande, o tamanho dos botões nas telas do paciente (guia de identidade visual). */
+export const ALTURA_BOTAO_PACIENTE = 84;
+
 /** Estilos da tela de instrução (#8), uma tela do paciente: texto de 20 pontos ou mais. */
 export function createInstructionStyles(colors: ThemeColors) {
   return StyleSheet.create({
@@ -82,7 +85,7 @@ export function createInstructionStyles(colors: ThemeColors) {
     button: {
       width: '100%',
       maxWidth: 520,
-      minHeight: 72,
+      minHeight: ALTURA_BOTAO_PACIENTE,
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: 12,
@@ -92,9 +95,9 @@ export function createInstructionStyles(colors: ThemeColors) {
     },
     buttonText: {
       color: colors.onPrimary,
-      fontFamily: FontFamilies.bold,
+      fontFamily: FontFamilies.semibold,
       fontSize: 26,
-      lineHeight: 34,
+      lineHeight: 32,
     },
     pressed: { opacity: 0.85 },
   });

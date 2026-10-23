@@ -1,5 +1,8 @@
-import { BrandPalette, Colors } from '@/constants/theme';
-import { createInstructionStyles } from '@/features/avaliacao/instruction.styles';
+import { BrandPalette, Colors, FontFamilies } from '@/constants/theme';
+import {
+  ALTURA_BOTAO_PACIENTE,
+  createInstructionStyles,
+} from '@/features/avaliacao/instruction.styles';
 
 const styles = createInstructionStyles(Colors.light);
 
@@ -39,5 +42,16 @@ describe('createInstructionStyles', () => {
   it('pinta o círculo do ícone com o pêssego claro da marca, sem cor escrita à parte', () => {
     expect(styles.iconCircle.backgroundColor).toBe(BrandPalette.lightPeach);
     expect(BrandPalette.lightPeach).toBe('#FFE8D6');
+  });
+
+  it('dá ao botão "Começar" o tamanho grande do guia: 84 de altura e texto 26/32 semibold', () => {
+    expect(ALTURA_BOTAO_PACIENTE).toBe(84);
+    expect(styles.button.minHeight).toBe(84);
+    expect(styles.button.borderRadius).toBe(16);
+    expect(styles.buttonText).toMatchObject({
+      fontFamily: FontFamilies.semibold,
+      fontSize: 26,
+      lineHeight: 32,
+    });
   });
 });
