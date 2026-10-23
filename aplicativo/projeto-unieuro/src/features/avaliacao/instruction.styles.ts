@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { FontFamilies, type ThemeColors } from '@/constants/theme';
+import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 
 /** Estilos da tela de instrução (#8), uma tela do paciente: texto de 20 pontos ou mais. */
 export function createInstructionStyles(colors: ThemeColors) {
@@ -56,7 +56,7 @@ export function createInstructionStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 60,
-      backgroundColor: '#FFE8D6',
+      backgroundColor: BrandPalette.lightPeach,
     },
     cardLabel: {
       color: colors.primary,

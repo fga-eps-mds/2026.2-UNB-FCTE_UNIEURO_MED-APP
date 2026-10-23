@@ -1,4 +1,4 @@
-import { Colors } from '@/constants/theme';
+import { BrandPalette, Colors } from '@/constants/theme';
 import { createInstructionStyles } from '@/features/avaliacao/instruction.styles';
 
 const styles = createInstructionStyles(Colors.light);
@@ -34,5 +34,10 @@ describe('createInstructionStyles', () => {
   it('pinta de laranja o círculo de progresso preenchido e de outra cor o vazio', () => {
     expect(styles.dotFilled.backgroundColor).toBe(Colors.light.primary);
     expect(styles.dot.backgroundColor).not.toBe(Colors.light.primary);
+  });
+
+  it('pinta o círculo do ícone com o pêssego claro da marca, sem cor escrita à parte', () => {
+    expect(styles.iconCircle.backgroundColor).toBe(BrandPalette.lightPeach);
+    expect(BrandPalette.lightPeach).toBe('#FFE8D6');
   });
 });
