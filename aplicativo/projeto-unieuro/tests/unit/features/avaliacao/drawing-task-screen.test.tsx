@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
+import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
@@ -254,6 +255,24 @@ describe('o que a tela mostra ao paciente', () => {
     renderizarTela({ tarefa: '2' });
 
     expect(screen.queryByText(/escore|resultado|pontua|segundo|minuto/i)).toBeNull();
+  });
+});
+
+describe('botão voltar do Android', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('não sai da tarefa nem leva o paciente à área do profissional', async () => {
+    const inscrever = jest.spyOn(BackHandler, 'addEventListener');
+    const { onConfirmar } = renderizarTela({ tarefa: '2' });
+    await desenharNoQuadro([[10, 10]]);
+
+    const [, aoVoltar] = inscrever.mock.calls[inscrever.mock.calls.length - 1];
+    expect(aoVoltar({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
+
+    expect(useRouter().replace).not.toHaveBeenCalled();
+    expect(useRouter().back).not.toHaveBeenCalled();
+    expect(onConfirmar).not.toHaveBeenCalled();
+    expect(screen.getByRole('image', { name: 'Cubo para copiar' })).toBeOnTheScreen();
   });
 });
 

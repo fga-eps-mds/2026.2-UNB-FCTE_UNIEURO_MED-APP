@@ -17,6 +17,7 @@ import {
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
+import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 import { useTheme } from '@/hooks/use-theme';
 
 export { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
@@ -36,7 +37,7 @@ export type InstructionScreenProps = {
  * `onStart` e quem navega decide o destino.
  *
  * Sem médico logado, volta ao login. Sem avaliação em andamento ou com uma tarefa
- * que não existe, volta ao início.
+ * que não existe, volta ao início. O botão voltar do Android não sai da avaliação.
  */
 export default function InstructionScreen({
   tarefa: tarefaParam,
@@ -47,6 +48,7 @@ export default function InstructionScreen({
   const { professional } = useSession();
   const theme = useTheme();
   const styles = useMemo(() => createInstructionStyles(theme), [theme]);
+  useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
   const emAndamento = Boolean(valorDoParametro(atendimento));

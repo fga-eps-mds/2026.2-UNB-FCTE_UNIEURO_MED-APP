@@ -19,6 +19,7 @@ import {
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
+import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 import { QuadroDesenho } from '@/features/captura/quadro-desenho';
 import { useRegistroTracado, type RegistroTracado } from '@/features/captura/use-registro-tracado';
 
@@ -40,7 +41,7 @@ export type DrawingTaskScreenProps = {
  * cópia do cubo, a figura de modelo fica ao lado do quadro durante toda a tarefa.
  *
  * Sem médico logado, volta ao login. Sem avaliação em andamento ou com uma tarefa
- * que não tem esta tela, volta ao início.
+ * que não tem esta tela, volta ao início. O botão voltar do Android não sai da tarefa.
  */
 export default function DrawingTaskScreen({
   tarefa: tarefaParam,
@@ -54,6 +55,7 @@ export default function DrawingTaskScreen({
   // O segundo toque em "Confirmar" antes de a tela sair pularia uma tarefa.
   const confirmou = useRef(false);
   const [confirmado, setConfirmado] = useState(false);
+  useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
   const valida = tarefa !== null && temTelaDeDesenho(tarefa);
