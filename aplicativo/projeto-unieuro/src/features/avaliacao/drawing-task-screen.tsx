@@ -46,7 +46,7 @@ export default function DrawingTaskScreen({
   tarefa: tarefaParam,
   atendimento,
   onConfirmar,
-}: DrawingTaskScreenProps) {
+}: Readonly<DrawingTaskScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const styles = useMemo(() => createDrawingTaskStyles(), []);

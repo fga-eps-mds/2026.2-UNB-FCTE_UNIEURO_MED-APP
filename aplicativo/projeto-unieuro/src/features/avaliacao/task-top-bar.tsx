@@ -18,7 +18,7 @@ export type TaskTopBarProps = {
  * desenho (#9): um círculo por tarefa, o texto "Tarefa N de 3" e a frase de ajuda
  * (guia de identidade visual, "Telas do paciente").
  */
-export function TaskTopBar({ numero, cores }: TaskTopBarProps) {
+export function TaskTopBar({ numero, cores }: Readonly<TaskTopBarProps>) {
   const styles = useMemo(() => createInstructionStyles(cores), [cores]);
 
   return (
