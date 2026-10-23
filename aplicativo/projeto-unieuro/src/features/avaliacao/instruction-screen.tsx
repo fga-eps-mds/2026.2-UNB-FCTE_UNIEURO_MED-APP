@@ -16,9 +16,10 @@ import {
   type ParametroDeRota,
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
+import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
 import { useTheme } from '@/hooks/use-theme';
 
-export const HELP_MESSAGE = 'Se precisar de ajuda, chame o profissional';
+export { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 
 export type InstructionScreenProps = {
   /** Parâmetro `tarefa` da rota: 1, 2 ou 3. */
@@ -61,20 +62,7 @@ export default function InstructionScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.topBar}>
-        <View style={styles.progress}>
-          <View
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={styles.dots}>
-            {Array.from({ length: TOTAL_TAREFAS }, (_, indice) => (
-              <View key={indice} style={[styles.dot, indice < tarefa.numero && styles.dotFilled]} />
-            ))}
-          </View>
-          <Text style={styles.progressText}>{progresso}</Text>
-        </View>
-        <Text style={styles.help}>{HELP_MESSAGE}</Text>
-      </View>
+      <TaskTopBar numero={tarefa.numero} cores={theme} />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
