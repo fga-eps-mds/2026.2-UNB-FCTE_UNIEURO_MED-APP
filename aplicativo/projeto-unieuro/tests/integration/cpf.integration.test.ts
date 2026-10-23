@@ -115,6 +115,20 @@ describe('banco da versão 1, com CPF em texto', () => {
     await database.closeAsync();
   });
 
+  it('mantém os cadastros ativos e sem data de desativação ao chegar na versão atual', async () => {
+    const database = await createLegacyDatabase();
+
+    await migrate(database, protector);
+    const repository = createProfessionalRepository(async () => database, protector);
+
+    await expect(repository.findByEmail('p0@unieuro.com.br')).resolves.toMatchObject({
+      name: 'Profissional 0',
+      active: true,
+      deactivatedAt: null,
+    });
+    await database.closeAsync();
+  });
+
   it('não deixa o CPF antigo legível no arquivo depois da conversão', async () => {
     const database = await createLegacyDatabase();
 
