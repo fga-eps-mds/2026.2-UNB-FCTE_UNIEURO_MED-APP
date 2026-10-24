@@ -8,8 +8,8 @@ import { CubeFigure } from '@/features/avaliacao/cube-figure';
 import {
   DICA_CONFIRMAR,
   LEMBRETES,
+  mostraCirculosDasTrilhas,
   mostraFiguraDoCubo,
-  temTelaDeDesenho,
 } from '@/features/avaliacao/drawing-task';
 import { CORES_DA_TAREFA, createDrawingTaskStyles } from '@/features/avaliacao/drawing-task.styles';
 import {
@@ -19,12 +19,13 @@ import {
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
+import { TrailCircles } from '@/features/avaliacao/trail-circles';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 import { QuadroDesenho } from '@/features/captura/quadro-desenho';
 import { useRegistroTracado, type RegistroTracado } from '@/features/captura/use-registro-tracado';
 
 export type DrawingTaskScreenProps = {
-  /** Parâmetro `tarefa` da rota: 1 (relógio) ou 2 (cubo). */
+  /** Parâmetro `tarefa` da rota: 1 (relógio), 2 (cubo) ou 3 (trilhas). */
   tarefa: ParametroDeRota;
   /** Parâmetro `atendimento` da rota: a avaliação em andamento. */
   atendimento: ParametroDeRota;
@@ -36,12 +37,13 @@ export type DrawingTaskScreenProps = {
 };
 
 /**
- * Tela de desenho do relógio e da cópia do cubo (história #9): o lembrete da tarefa,
- * o quadro de desenho e o "Confirmar", que só habilita depois do primeiro traço. Na
- * cópia do cubo, a figura de modelo fica ao lado do quadro durante toda a tarefa.
+ * Tela de desenho das três tarefas (história #9): o lembrete da tarefa, o quadro de
+ * desenho e o "Confirmar", que só habilita depois do primeiro traço. Na cópia do
+ * cubo, a figura de modelo fica ao lado do quadro durante toda a tarefa; nas
+ * trilhas, os círculos ficam dentro do quadro, por baixo dos traços.
  *
  * Sem médico logado, volta ao login. Sem avaliação em andamento ou com uma tarefa
- * que não tem esta tela, volta ao início. O botão voltar do Android não sai da tarefa.
+ * inexistente, volta ao início. O botão voltar do Android não sai da tarefa.
  */
 export default function DrawingTaskScreen({
   tarefa: tarefaParam,
@@ -58,7 +60,7 @@ export default function DrawingTaskScreen({
   useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
-  const valida = tarefa !== null && temTelaDeDesenho(tarefa);
+  const valida = tarefa !== null;
   const emAndamento = Boolean(valorDoParametro(atendimento));
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function DrawingTaskScreen({
     else if (!valida || !emAndamento) router.replace('/menu');
   }, [professional, valida, emAndamento, router]);
 
-  if (!professional || !tarefa || !valida || !emAndamento) return null;
+  if (!professional || !tarefa || !emAndamento) return null;
 
   const lembrete = LEMBRETES[tarefa.numero];
   const podeConfirmar = registro.temTraco && !confirmado;
@@ -137,6 +139,11 @@ export default function DrawingTaskScreen({
               {...registro.quadro}
               rotulo={`Área de desenho: ${lembrete.titulo.toLowerCase()}`}
               desabilitado={confirmado}
+              fundo={
+                mostraCirculosDasTrilhas(tarefa) ? (
+                  <TrailCircles dimensoes={registro.dimensoes} />
+                ) : undefined
+              }
             />
           </View>
         </View>

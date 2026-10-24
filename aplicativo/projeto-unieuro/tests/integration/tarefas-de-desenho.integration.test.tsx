@@ -4,14 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import DrawingRoute from '@/app/desenho';
 import InstructionRoute from '@/app/instrucao';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import { DRAWING_PENDING_MESSAGE } from '@/features/avaliacao/drawing-placeholder-screen';
 
-import { desenharNoQuadro } from '../test-support/desenho';
+import { desenharNoQuadro, medirQuadro } from '../test-support/desenho';
 
 // Percorre as rotas da #9 como o paciente as vê: a instrução de cada tarefa, o
-// desenho e o "Confirmar", que abre a instrução seguinte. Só a navegação é simulada
-// (jest.setup.ts): cada passo abre a rota com os parâmetros que o anterior entregou
-// ao roteador.
+// desenho e o "Confirmar", que abre a instrução seguinte e, depois das trilhas, a
+// tela final (#11). Só a navegação é simulada (jest.setup.ts): cada passo abre a
+// rota com os parâmetros que o anterior entregou ao roteador.
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -56,7 +55,7 @@ afterEach(() => {
 });
 
 describe('Cenário: ordem das tarefas', () => {
-  it('passa pela instrução e pelo desenho do relógio e do cubo, nessa ordem, até as trilhas', async () => {
+  it('passa pela instrução e pelo desenho do relógio, do cubo e das trilhas, nessa ordem, até a tela final', async () => {
     const user = userEvent.setup();
     abrir({ pathname: '/instrucao', params: { atendimento: '12', tarefa: '1' } });
 
@@ -91,7 +90,7 @@ describe('Cenário: ordem das tarefas', () => {
     ]);
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    // Tarefa 3: trilhas, ainda com a área de desenho provisória.
+    // Tarefa 3: trilhas, com os círculos dentro do quadro.
     expect(seguir()).toEqual({
       pathname: '/instrucao',
       params: { atendimento: '12', tarefa: '3' },
@@ -99,7 +98,20 @@ describe('Cenário: ordem das tarefas', () => {
     expect(screen.getByRole('header', { name: 'Ligue números e letras' })).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Começar' }));
     expect(seguir()).toEqual({ pathname: '/desenho', params: { atendimento: '12', tarefa: '3' } });
-    expect(screen.getByLabelText(`Informação. ${DRAWING_PENDING_MESSAGE}`)).toBeOnTheScreen();
+    expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
+    medirQuadro(1196, 540, 'Área de desenho: ligue números e letras');
+    expect(screen.UNSAFE_root.findAll((no) => (no.type as string) === 'SkiaText', { deep: true })).toHaveLength(
+      10,
+    );
+
+    await desenharNoQuadro([
+      [500, 245],
+      [706, 54],
+    ]);
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    // Depois da última tarefa, a tela final do paciente, sem escore.
+    expect(useRouter().replace).toHaveBeenLastCalledWith('/fim-do-teste');
   });
 });
 
@@ -119,6 +131,18 @@ describe('Cenário: passar para a próxima tarefa', () => {
       pathname: '/instrucao',
       params: { atendimento: '12', tarefa: seguinte },
     });
+  });
+
+  it('o "Confirmar" das trilhas abre a tela final, sem voltar às tarefas', async () => {
+    const user = userEvent.setup();
+    abrir({ pathname: '/desenho', params: { atendimento: '12', tarefa: '3' } });
+
+    await desenharNoQuadro([[10, 10]]);
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(useRouter().replace).toHaveBeenCalledTimes(1);
+    expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
+    expect(useRouter().push).not.toHaveBeenCalled();
   });
 });
 
