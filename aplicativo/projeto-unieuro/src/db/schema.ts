@@ -4,8 +4,9 @@
  * A versão 1 é o `dados/schema.sql` do repositório MED-IA (branch
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
  * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
- * de busca, a versão 3 cria o paciente e o atendimento, e a versão 4 registra a
- * desativação da conta. Nenhuma delas existe ainda no `schema.sql` do MED-IA: as
+ * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
+ * desativação da conta e a versão 5 guarda a decisão do TCLE. Nenhuma delas existe
+ * ainda no `schema.sql` do MED-IA: as
  * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
  * atualizado.
  */
@@ -95,6 +96,25 @@ ALTER TABLE profissional ADD COLUMN desativacao TEXT;
 `;
 
 /**
+ * Versão 5: decisão do TCLE (#21). A chave única garante no banco a regra de um
+ * único consentimento por avaliação. A linha não existe enquanto a pessoa ainda
+ * não decidiu; nesse período, a avaliação permanece em
+ * `aguardando_consentimento`.
+ */
+const SCHEMA_V5 = `
+CREATE TABLE IF NOT EXISTS consentimento (
+    id INTEGER PRIMARY KEY,
+    id_avaliacao INTEGER NOT NULL UNIQUE REFERENCES avaliacao (id),
+    versao_tcle TEXT NOT NULL,
+    aceito INTEGER NOT NULL CHECK (aceito IN (0, 1)),
+    assinado_por TEXT NOT NULL CHECK (assinado_por IN ('paciente', 'responsavel_legal')),
+    data_hora TEXT NOT NULL,
+    CHECK (length(trim(versao_tcle)) > 0),
+    CHECK (length(trim(data_hora)) > 0)
+);
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -106,7 +126,8 @@ export type MigrationStep =
  * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
- * conta), e assim por diante. Para mudar o esquema, acrescente um passo no fim;
+ * conta), a posição 4 à versão 5 (consentimento), e assim por diante. Para
+ * mudar o esquema, acrescente um passo no fim;
  * não altere os que já existem, porque os tablets com o banco criado não os
  * executam de novo.
  */
@@ -115,6 +136,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   protectStoredCpfs,
   SCHEMA_V3,
   SCHEMA_V4,
+  SCHEMA_V5,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

@@ -135,8 +135,14 @@ describe('esquema', () => {
   });
 
   it('chega à versão 4 com a data da desativação da conta da #5', () => {
-    expect(SCHEMA_VERSION).toBe(4);
     expect(MIGRATIONS[3]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
+  });
+
+  it('chega à versão 5 com um único consentimento por avaliação', () => {
+    expect(SCHEMA_VERSION).toBe(5);
+    expect(MIGRATIONS[4]).toContain('CREATE TABLE IF NOT EXISTS consentimento');
+    expect(MIGRATIONS[4]).toContain('id_avaliacao INTEGER NOT NULL UNIQUE');
+    expect(MIGRATIONS[4]).toContain("assinado_por IN ('paciente', 'responsavel_legal')");
   });
 });
 
