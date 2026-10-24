@@ -135,8 +135,18 @@ describe('esquema', () => {
   });
 
   it('chega à versão 4 com a data da desativação da conta da #5', () => {
-    expect(SCHEMA_VERSION).toBe(4);
     expect(MIGRATIONS[3]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
+  });
+
+  it('chega à versão 5 com as tarefas, o desenho e o traçado da #10', () => {
+    const schemaV5 = MIGRATIONS[4];
+
+    expect(SCHEMA_VERSION).toBe(5);
+    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS tarefa');
+    expect(schemaV5).toContain('REFERENCES avaliacao (id)');
+    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS desenho');
+    expect(schemaV5).toContain('imagem_final BLOB NOT NULL');
+    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS evento_tracado');
   });
 });
 
