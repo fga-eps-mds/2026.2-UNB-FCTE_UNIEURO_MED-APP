@@ -5,14 +5,14 @@
 import { Circle, Group, Text, matchFont } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
 
+import { CORES_DA_TAREFA } from '@/features/avaliacao/drawing-task.styles';
 import { RAIO_CIRCULO, posicionarCirculos } from '@/features/avaliacao/trilhas';
 import type { Dimensoes } from '@/features/captura/quadro-desenho';
 
 /** Mesmo azul-noite do traço, sobre o fundo branco do quadro. */
-const COR_CONTORNO = '#0F172A';
-const COR_FUNDO = '#FFFFFF';
+const COR_CONTORNO = CORES_DA_TAREFA.text;
+const COR_FUNDO = CORES_DA_TAREFA.surface;
 const ESPESSURA_CONTORNO = 2;
-
 
 export const TAMANHO_ROTULO = 20;
 
