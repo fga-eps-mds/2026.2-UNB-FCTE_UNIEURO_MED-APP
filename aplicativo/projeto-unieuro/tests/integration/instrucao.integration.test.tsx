@@ -7,6 +7,11 @@ import InstructionRoute from '@/app/instrucao';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { DRAWING_PENDING_MESSAGE } from '@/features/avaliacao/drawing-placeholder-screen';
 import { TAREFAS } from '@/features/avaliacao/tarefas';
+import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
+
+jest.mock('@/features/avaliacao/use-consent-gate', () => ({
+  useConsentGate: jest.fn(() => 'liberado'),
+}));
 
 // Percorre as rotas da #8 como o paciente as vê: do termo provisório à instrução
 // de cada tarefa e dela à área de desenho. Só a navegação é simulada
@@ -30,6 +35,7 @@ function definirParametros(parametros: Record<string, string>) {
 
 afterEach(() => {
   jest.mocked(useLocalSearchParams).mockReturnValue({});
+  jest.mocked(useConsentGate).mockReturnValue('liberado');
 });
 
 describe('do termo provisório à instrução', () => {
@@ -82,6 +88,31 @@ describe('instrução sem avaliação em andamento', () => {
     renderizar(<InstructionRoute />);
 
     expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+  });
+});
+
+describe('consentimento antes das tarefas', () => {
+  it('sem decisão, volta ao TCLE e não mostra a instrução', () => {
+    jest.mocked(useConsentGate).mockReturnValue('aguardando_consentimento');
+    definirParametros({ atendimento: '12', tarefa: '1' });
+
+    renderizar(<InstructionRoute />);
+
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/tcle',
+      params: { atendimento: '12' },
+    });
+    expect(screen.queryByRole('button', { name: 'Começar' })).toBeNull();
+  });
+
+  it('depois da recusa, volta ao menu e não mostra a instrução', () => {
+    jest.mocked(useConsentGate).mockReturnValue('bloqueado');
+    definirParametros({ atendimento: '12', tarefa: '1' });
+
+    renderizar(<InstructionRoute />);
+
+    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(screen.queryByRole('button', { name: 'Começar' })).toBeNull();
   });
 });
 
