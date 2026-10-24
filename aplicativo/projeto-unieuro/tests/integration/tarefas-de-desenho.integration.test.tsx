@@ -100,9 +100,9 @@ describe('Cenário: ordem das tarefas', () => {
     expect(seguir()).toEqual({ pathname: '/desenho', params: { atendimento: '12', tarefa: '3' } });
     expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
     medirQuadro(1196, 540, 'Área de desenho: ligue números e letras');
-    expect(screen.UNSAFE_root.findAll((no) => (no.type as string) === 'SkiaText', { deep: true })).toHaveLength(
-      10,
-    );
+    expect(
+      screen.UNSAFE_root.findAll((no) => (no.type as string) === 'SkiaText', { deep: true }),
+    ).toHaveLength(10);
 
     await desenharNoQuadro([
       [500, 245],
