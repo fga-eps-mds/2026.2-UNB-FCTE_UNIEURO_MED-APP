@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
+import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import InstructionScreen, { HELP_MESSAGE } from '@/features/avaliacao/instruction-screen';
@@ -118,6 +119,23 @@ describe('Cenário: progresso', () => {
     // O cartão repete o texto do topo só para o olho; o leitor de tela lê uma vez.
     expect(screen.getAllByText('Tarefa 3 de 3', { includeHiddenElements: true })).toHaveLength(2);
     expect(screen.getAllByText('Tarefa 3 de 3')).toHaveLength(1);
+  });
+});
+
+describe('botão voltar do Android', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('não sai da instrução nem leva o paciente à área do profissional', () => {
+    const inscrever = jest.spyOn(BackHandler, 'addEventListener');
+    const { onStart } = renderizarTela({ tarefa: '2' });
+
+    const [, aoVoltar] = inscrever.mock.calls[inscrever.mock.calls.length - 1];
+    expect(aoVoltar({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
+
+    expect(useRouter().replace).not.toHaveBeenCalled();
+    expect(useRouter().back).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Começar' })).toBeOnTheScreen();
   });
 });
 
