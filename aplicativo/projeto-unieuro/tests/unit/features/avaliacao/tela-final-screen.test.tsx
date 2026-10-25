@@ -1,5 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
+import { BackHandler } from 'react-native';
 
 import type { CredentialsRepository } from '@/features/auth/authentication';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
@@ -7,6 +8,7 @@ import { SENHA_INCORRETA } from '@/features/avaliacao/confirmacao-profissional';
 import TelaFinalScreen, {
   AGRADECIMENTO,
   BOTAO_PROFISSIONAL,
+  FALHA_NA_CONFERENCIA,
   ORIENTACAO,
 } from '@/features/avaliacao/tela-final-screen';
 
@@ -58,6 +60,7 @@ describe('TelaFinalScreen', () => {
 
     expect(screen.getByLabelText('Senha do profissional')).toBeOnTheScreen();
     expect(useRouter().replace).not.toHaveBeenCalled();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
   });
 
   it('resultado protegido: com a senha certa, volta à área do profissional', async () => {
@@ -66,7 +69,9 @@ describe('TelaFinalScreen', () => {
     await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    // Volta à tela inicial que já está na pilha, em vez de abrir outra por cima.
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
   it('resultado protegido: com a senha errada, avisa e continua na tela final', async () => {
@@ -89,6 +94,31 @@ describe('TelaFinalScreen', () => {
     expect(screen.queryByLabelText('Senha do profissional')).toBeNull();
     await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
     expect(screen.getByLabelText('Senha do profissional')).toHaveDisplayValue('');
+  });
+
+  it('resultado protegido: o voltar do Android não sai da tela final', () => {
+    const inscrever = jest.spyOn(BackHandler, 'addEventListener');
+    renderizarTela();
+
+    const [, aoVoltar] = inscrever.mock.calls[inscrever.mock.calls.length - 1];
+    expect(aoVoltar({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true);
+
+    expect(useRouter().back).not.toHaveBeenCalled();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
+    expect(screen.getByRole('header', { name: AGRADECIMENTO })).toBeOnTheScreen();
+    inscrever.mockRestore();
+  });
+
+  it('resultado protegido: com erro no banco, avisa e libera o botão sem sair da tela', async () => {
+    const user = await pedirConfirmacao();
+    repositorio.findByEmail.mockRejectedValueOnce(new Error('banco indisponível'));
+
+    await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByLabelText(`Erro. ${FALHA_NA_CONFERENCIA}`)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeEnabled();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
   });
 
   it('volta ao login quando não há médico logado', () => {

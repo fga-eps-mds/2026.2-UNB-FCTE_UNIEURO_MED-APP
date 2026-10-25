@@ -18,6 +18,7 @@ const mockRouter = {
   navigate: jest.fn(),
   canDismiss: jest.fn(() => false),
   dismissAll: jest.fn(),
+  dismissTo: jest.fn(),
 };
 
 // O `useFocusEffect` roda o efeito como um `useEffect`. Para simular a volta do
