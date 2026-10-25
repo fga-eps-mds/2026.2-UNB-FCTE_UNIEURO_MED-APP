@@ -21,6 +21,29 @@ jobs:
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
+      # No push da main e da develop, a análise do SonarCloud leva a versão que a
+      # release vai ter (#45). O cálculo é o mesmo do release.yml e roda no começo,
+      # antes de a release ser publicada, para as duas chegarem à mesma tag.
+      - name: Identificar o PR do merge
+        id: pr
+        continue-on-error: true  # sem a versão, a análise segue normalmente
+        if: github.event_name == 'push'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 metrics/sonar_metrics.py pr-do-commit "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Definir a versão da análise
+        id: versao
+        continue-on-error: true  # sem a versão, a análise segue normalmente
+        if: github.event_name == 'push' && steps.pr.outputs.gerar == 'true'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAJOR: ${{ steps.pr.outputs.major }}
+          MINOR: ${{ steps.pr.outputs.minor }}
+        run: python3 metrics/sonar_metrics.py versao >> "$GITHUB_OUTPUT"
+
       - name: Configurar o Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -50,5 +73,6 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
         with:
           projectBaseDir: aplicativo/projeto-unieuro
+          args: ${{ steps.versao.outputs.tag && format('-Dsonar.projectVersion={0}', steps.versao.outputs.tag) || '' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
