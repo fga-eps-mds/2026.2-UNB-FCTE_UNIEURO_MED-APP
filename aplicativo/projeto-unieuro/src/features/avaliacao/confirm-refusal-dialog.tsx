@@ -18,9 +18,15 @@ export function ConfirmarRecusa({
   onConfirmar,
   aviso,
   styles,
-}: ConfirmarRecusaProps) {
+}: Readonly<ConfirmarRecusaProps>) {
+  // O voltar do Android não fecha a confirmação enquanto a recusa é gravada, como o
+  // botão "Voltar", que fica desabilitado.
+  const pedirParaFechar = () => {
+    if (!ocupado) onVoltar();
+  };
+
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onVoltar}>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={pedirParaFechar}>
       <View style={styles.fundoDialogo}>
         <View style={styles.dialogo} accessibilityViewIsModal>
           <Text accessibilityRole="header" style={styles.dialogoTitulo}>

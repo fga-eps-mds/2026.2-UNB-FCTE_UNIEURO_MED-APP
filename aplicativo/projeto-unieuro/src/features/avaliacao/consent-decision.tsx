@@ -1,4 +1,12 @@
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { ConfirmarRecusa } from '@/features/avaliacao/confirm-refusal-dialog';
@@ -60,7 +68,7 @@ export function DecisaoTermoProvider({
   onAssinar,
   onRecusar,
   children,
-}: DecisaoTermoProviderProps) {
+}: Readonly<DecisaoTermoProviderProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createDecisaoStyles(theme), [theme]);
   const registro = useRegistroTracado();
@@ -69,9 +77,10 @@ export function DecisaoTermoProvider({
   const [ocupado, setOcupado] = useState(false);
   const emCurso = useRef(false);
 
-  const podeAssinar = registro.temTraco && registro.dimensoes !== null && !ocupado;
+  const { dimensoes, tracos, temTraco, quadro } = registro;
+  const podeAssinar = temTraco && dimensoes !== null && !ocupado;
 
-  async function executar(acao: () => void | Promise<void>) {
+  const executar = useCallback(async (acao: () => void | Promise<void>) => {
     if (emCurso.current) return;
     emCurso.current = true;
     setOcupado(true);
@@ -81,25 +90,34 @@ export function DecisaoTermoProvider({
       emCurso.current = false;
       setOcupado(false);
     }
-  }
+  }, []);
 
-  function assinar(contexto?: ContextoDecisao) {
-    if (!registro.dimensoes) return;
-    const assinatura = { tracos: registro.tracos, dimensoes: registro.dimensoes };
-    void executar(() => (contexto ? onAssinar(assinatura, contexto) : onAssinar(assinatura)));
-  }
+  const assinar = useCallback(
+    (contexto?: ContextoDecisao) => {
+      if (!dimensoes) return;
+      const assinatura = { tracos, dimensoes };
+      void executar(() => (contexto ? onAssinar(assinatura, contexto) : onAssinar(assinatura)));
+    },
+    [dimensoes, tracos, executar, onAssinar],
+  );
 
-  const valor: DecisaoContexto = {
-    styles,
-    temTraco: registro.temTraco,
-    quadro: registro.quadro,
-    ocupado,
-    aviso,
-    confirmandoRecusa: recusa !== null,
-    podeAssinar,
-    assinar,
-    pedirRecusa: (contexto) => setRecusa({ contexto }),
-  };
+  const pedirRecusa = useCallback((contexto?: ContextoDecisao) => setRecusa({ contexto }), []);
+
+  // O valor do contexto só muda quando muda o que a área e os botões usam (Sonar S6481).
+  const valor = useMemo<DecisaoContexto>(
+    () => ({
+      styles,
+      temTraco,
+      quadro,
+      ocupado,
+      aviso,
+      confirmandoRecusa: recusa !== null,
+      podeAssinar,
+      assinar,
+      pedirRecusa,
+    }),
+    [styles, temTraco, quadro, ocupado, aviso, recusa, podeAssinar, assinar, pedirRecusa],
+  );
 
   return (
     <DecisaoReact.Provider value={valor}>
@@ -200,7 +218,7 @@ type DecisaoTermoProps = {
 };
 
 /** Área de assinatura e botões juntos, um sobre o outro, quando não há cartão para dividir. */
-export function DecisaoTermo({ onAssinar, onRecusar }: DecisaoTermoProps) {
+export function DecisaoTermo({ onAssinar, onRecusar }: Readonly<DecisaoTermoProps>) {
   return (
     <DecisaoTermoProvider onAssinar={onAssinar} onRecusar={onRecusar}>
       <PilhaDecisao />

@@ -29,6 +29,12 @@ const acoesDoTermo = (contexto: ContextoDecisao) => (
   </>
 );
 
+/** Os botões da tela do termo sempre entregam quem assina e a versão; sem isso, não há o que gravar. */
+function exigirContexto(contexto: ContextoDecisao | undefined) {
+  if (!contexto) throw new Error('A decisão do termo precisa de quem assina e da versão.');
+  return contexto;
+}
+
 /**
  * Termo de consentimento do atendimento (#21). O termo só aparece enquanto a
  * avaliação aguarda o consentimento, com o nome e a ficha do paciente no
@@ -88,15 +94,10 @@ export default function ConsentFlowScreen({
       if (resultado.sucesso) return aoRegistrar();
       if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
       throw new Error('Atendimento inválido ao registrar a decisão do termo.');
-    } catch (erro) {
+    } catch (error_) {
       setAviso(MENSAGEM_FALHA_DECISAO);
-      throw erro;
+      throw error_;
     }
-  }
-
-  function exigirContexto(contexto: ContextoDecisao | undefined) {
-    if (!contexto) throw new Error('A decisão do termo precisa de quem assina e da versão.');
-    return contexto;
   }
 
   return (
