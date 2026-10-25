@@ -35,9 +35,7 @@ import {
   type TipoPonteiro,
   type Traco,
 } from '@/features/captura/eventos-tracado';
-
-/** Espessura do traço no quadro, em pontos de tela. */
-export const ESPESSURA_TRACO = 4;
+import { COR_FUNDO, COR_TRACO, ESPESSURA_TRACO } from '@/features/captura/estilo-traco';
 
 /** Tamanho do quadro na tela, em pontos. As coordenadas dos traços estão nessa escala. */
 export type Dimensoes = { largura: number; altura: number };
@@ -47,7 +45,6 @@ export type Dimensoes = { largura: number; altura: number };
  * fundo branco, traço azul-noite, borda decorativa, raio 24 e sombra de nível 1.
  * As cores não mudam com o tema, porque a tela de desenho é sempre clara.
  */
-const COR_FUNDO = '#FFFFFF';
 const COR_BORDA = '#CBD5E1';
 const RAIO = 24;
 const ESTILO_TRACO = {
@@ -55,7 +52,7 @@ const ESTILO_TRACO = {
   strokeWidth: ESPESSURA_TRACO,
   strokeCap: 'round',
   strokeJoin: 'round',
-  color: '#0F172A',
+  color: COR_TRACO,
 } as const;
 
 type DadosDaCaneta = { pressure: number; tiltX: number; tiltY: number };
