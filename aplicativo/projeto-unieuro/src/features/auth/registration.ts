@@ -3,7 +3,9 @@ import { parseCpf } from '@/features/shared/cpf';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Os trechos do domínio não aceitam ponto, senão a regex volta atrás a cada ponto e
+// fica lenta com texto longo (apontamento S8786 do SonarCloud).
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 const CRM_PATTERN = /^(\d+)\s*\/\s*([A-Za-z]{2})$/;
 const BRAZILIAN_STATES = [
   'AC',
@@ -141,25 +143,23 @@ export function collectRegistrationFieldErrors(input: RegistrationInput): Regist
   const password = input.password;
   const passwordConfirmation = input.passwordConfirmation;
 
-  if (name.length === 0) errors.name = 'Preencha o nome.';
-  if (email.length === 0) errors.email = 'Preencha o e-mail.';
-  if (crmRaw.length === 0) errors.crm = 'Preencha o CRM.';
-  if (cpfRaw.length === 0) errors.cpf = 'Preencha o CPF.';
-  if (password.length === 0) errors.password = 'Preencha a senha.';
-  if (passwordConfirmation.length === 0)
-    errors.passwordConfirmation = 'Preencha a confirmação de senha.';
+  if (!name) errors.name = 'Preencha o nome.';
 
-  if (email.length > 0 && !EMAIL_PATTERN.test(email)) errors.email = 'Informe um e-mail válido.';
+  if (!email) errors.email = 'Preencha o e-mail.';
+  else if (!EMAIL_PATTERN.test(email)) errors.email = 'Informe um e-mail válido.';
 
-  const crm = parseCrm(crmRaw);
-  if (crmRaw.length > 0 && !crm) errors.crm = 'Informe o CRM no formato 12345/DF.';
+  if (!crmRaw) errors.crm = 'Preencha o CRM.';
+  else if (!parseCrm(crmRaw)) errors.crm = 'Informe o CRM no formato 12345/DF.';
 
-  if (cpfRaw.length > 0 && !parseCpf(cpfRaw)) errors.cpf = 'Informe um CPF válido.';
+  if (!cpfRaw) errors.cpf = 'Preencha o CPF.';
+  else if (!parseCpf(cpfRaw)) errors.cpf = 'Informe um CPF válido.';
 
-  if (password.length > 0 && password.length < MIN_PASSWORD_LENGTH)
+  if (!password) errors.password = 'Preencha a senha.';
+  else if (password.length < MIN_PASSWORD_LENGTH)
     errors.password = `A senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`;
 
-  if (password.length > 0 && passwordConfirmation.length > 0 && password !== passwordConfirmation)
+  if (!passwordConfirmation) errors.passwordConfirmation = 'Preencha a confirmação de senha.';
+  else if (password && password !== passwordConfirmation)
     errors.passwordConfirmation = 'Confira a senha e a confirmação.';
 
   return errors;
