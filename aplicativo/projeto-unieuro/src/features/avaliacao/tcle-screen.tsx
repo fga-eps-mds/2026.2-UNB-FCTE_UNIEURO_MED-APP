@@ -13,13 +13,17 @@ import {
   type RegistrarDecisao,
 } from '@/features/avaliacao/decisao-do-termo';
 import { TAREFAS, valorDoParametro, type ParametroDeRota } from '@/features/avaliacao/tarefas';
-import TermoConsentimentoScreen from '@/features/avaliacao/termo-consentimento-screen';
+import TermoConsentimentoScreen, {
+  type ContextoDecisao,
+} from '@/features/avaliacao/termo-consentimento-screen';
 import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
 
 type TcleScreenProps = {
   atendimento: ParametroDeRota;
   registrar: RegistrarDecisao;
 };
+
+const botoesDoTermo = (contexto: ContextoDecisao) => <BotoesDecisao contexto={contexto} />;
 
 /**
  * Termo de consentimento do atendimento (#21). Só aparece enquanto a avaliação
@@ -64,10 +68,7 @@ export default function TcleScreen({ atendimento, registrar }: Readonly<TcleScre
       onRecusar={async (contexto) =>
         seguir(await recusarTermo(atendimentoId, contexto, registrar))
       }>
-      <TermoConsentimentoScreen
-        assinatura={<AreaAssinatura />}
-        acoes={(contexto) => <BotoesDecisao contexto={contexto} />}
-      />
+      <TermoConsentimentoScreen assinatura={<AreaAssinatura />} acoes={botoesDoTermo} />
     </DecisaoTermoProvider>
   );
 }
