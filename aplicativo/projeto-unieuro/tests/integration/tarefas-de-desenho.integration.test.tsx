@@ -4,8 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import DrawingRoute from '@/app/desenho';
 import InstructionRoute from '@/app/instrucao';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
 
 import { desenharNoQuadro, medirQuadro } from '../test-support/desenho';
+
+jest.mock('@/features/avaliacao/use-consent-gate', () => ({
+  useConsentGate: jest.fn(() => 'liberado'),
+}));
 
 // Percorre as rotas da #9 como o paciente as vê: a instrução de cada tarefa, o
 // desenho e o "Confirmar", que abre a instrução seguinte e, depois das trilhas, a
@@ -44,7 +49,7 @@ function abrir({ pathname, params }: Destino) {
 /** Abre a rota para onde a tela atual mandou o paciente. */
 function seguir() {
   const chamadas = jest.mocked(useRouter().replace).mock.calls;
-  const destino = chamadas[chamadas.length - 1][0] as Destino;
+  const destino = chamadas[chamadas.length - 1][0] as unknown as Destino;
   abrir(destino);
   return destino;
 }
@@ -52,6 +57,7 @@ function seguir() {
 afterEach(() => {
   montada = false;
   jest.mocked(useLocalSearchParams).mockReturnValue({});
+  jest.mocked(useConsentGate).mockReturnValue('liberado');
 });
 
 describe('Cenário: ordem das tarefas', () => {
