@@ -28,6 +28,9 @@ jest.mock('expo-router', () => ({
   useFocusEffect: jest.fn((effect: () => void | (() => void)) =>
     require('react').useEffect(effect, [effect]),
   ),
+  // Nenhum parâmetro por padrão. O teste de uma rota define os dele com
+  // `jest.mocked(useLocalSearchParams).mockReturnValue(...)`.
+  useLocalSearchParams: jest.fn(() => ({})),
   Stack: 'Stack',
   Link: 'Link',
 }));

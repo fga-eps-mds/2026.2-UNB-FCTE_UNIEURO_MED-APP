@@ -14,10 +14,13 @@ const profissional: SessionProfessional = {
   crmState: 'DF',
 };
 
-function renderizarTela(professional: SessionProfessional | null = profissional) {
+function renderizarTela(
+  professional: SessionProfessional | null = profissional,
+  atendimento?: string | readonly string[],
+) {
   render(
     <SessionProvider initialProfessional={professional}>
-      <ConsentPlaceholderScreen />
+      <ConsentPlaceholderScreen atendimento={atendimento} />
     </SessionProvider>,
   );
 }
@@ -37,6 +40,25 @@ describe('ConsentPlaceholderScreen', () => {
     await user.press(screen.getByRole('button', { name: 'Voltar ao início' }));
 
     expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+  });
+
+  it('abre a instrução da tarefa 1 do atendimento, sem deixar esta tela na pilha', async () => {
+    const user = userEvent.setup();
+    renderizarTela(profissional, '12');
+
+    await user.press(screen.getByRole('button', { name: 'Iniciar as tarefas' }));
+
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/instrucao',
+      params: { atendimento: '12', tarefa: '1' },
+    });
+  });
+
+  it('não oferece o início das tarefas sem um atendimento', () => {
+    renderizarTela();
+
+    expect(screen.queryByRole('button', { name: 'Iniciar as tarefas' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Voltar ao início' })).toBeOnTheScreen();
   });
 
   it('volta ao login quando não há médico logado', () => {
