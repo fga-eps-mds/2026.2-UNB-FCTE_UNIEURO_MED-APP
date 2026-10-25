@@ -17,7 +17,13 @@ import {
   type SkPathBuilder,
 } from '@shopify/react-native-skia';
 import { useEffect, useMemo, type ReactNode } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -77,6 +83,8 @@ export type QuadroDesenhoProps = {
    * posicione pelo tamanho do quadro (`dimensoes`).
    */
   fundo?: ReactNode;
+  /** Ajusta a moldura (borda, raio, sombra), por exemplo o pontilhado da assinatura do termo. */
+  estiloMoldura?: StyleProp<ViewStyle>;
 };
 
 function tipoDoPonteiro(tipo: PointerType): TipoPonteiro {
@@ -119,6 +127,7 @@ export function QuadroDesenho({
   dica = 'Desenhe com a caneta ou com o dedo',
   desabilitado = false,
   fundo,
+  estiloMoldura,
 }: QuadroDesenhoProps) {
   // `emAndamento` é o traço que a caneta está fazendo, e só a thread de UI o
   // zera, ao começar um traço novo. `aguardando` é o traço recém-concluído, que
@@ -193,7 +202,7 @@ export function QuadroDesenho({
   // A moldura leva a borda e a sombra; o quadro de dentro corta o traço nos
   // cantos arredondados, e é o tamanho dele que dá a escala das coordenadas.
   return (
-    <View testID="moldura-quadro-desenho" style={styles.moldura}>
+    <View testID="moldura-quadro-desenho" style={[styles.moldura, estiloMoldura]}>
       <GestureDetector gesture={arrasto}>
         <View
           accessible

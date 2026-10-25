@@ -2,7 +2,12 @@ import { act, fireEvent, render, screen, userEvent } from '@testing-library/reac
 import { Text } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import { DecisaoTermo } from '@/features/avaliacao/consent-decision';
+import {
+  AreaAssinatura,
+  BotoesDecisao,
+  DecisaoTermo,
+  DecisaoTermoProvider,
+} from '@/features/avaliacao/consent-decision';
 import TermoConsentimentoScreen from '@/features/avaliacao/termo-consentimento-screen';
 import { TERMO_TCLE } from '@/features/avaliacao/termo-tcle';
 
@@ -325,5 +330,75 @@ describe('Encaixe na tela do termo', () => {
       quemAssina: 'paciente',
       versaoTermo: TERMO_TCLE.versao,
     });
+  });
+});
+
+describe('Área de assinatura dentro do cartão da declaração', () => {
+  const profissional: SessionProfessional = {
+    id: 7,
+    name: 'Ana Carolina Souza',
+    email: 'ana.souza@unieuro.com.br',
+    crmNumber: '12345',
+    crmState: 'DF',
+  };
+
+  function renderizarTela() {
+    const aoAssinar = jest.fn();
+    const aoRecusar = jest.fn();
+    render(
+      <SessionProvider initialProfessional={profissional}>
+        <DecisaoTermoProvider onAssinar={aoAssinar} onRecusar={aoRecusar}>
+          <TermoConsentimentoScreen
+            assinatura={<AreaAssinatura />}
+            acoes={(contexto) => <BotoesDecisao contexto={contexto} />}
+          />
+        </DecisaoTermoProvider>
+      </SessionProvider>,
+    );
+    return { aoAssinar, aoRecusar };
+  }
+
+  it('mostra a área de assinatura na tela do termo, com os botões', () => {
+    renderizarTela();
+
+    expect(screen.getByLabelText(ROTULO_QUADRO)).toBeOnTheScreen();
+    expect(screen.getByText('Assine aqui com a caneta')).toBeOnTheScreen();
+    expect(botaoRecusar()).toBeOnTheScreen();
+    expect(botaoAssinar()).toBeDisabled();
+  });
+
+  it('entrega a assinatura com quem assina e a versão do termo', async () => {
+    const user = userEvent.setup();
+    const { aoAssinar } = renderizarTela();
+
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    await assinar();
+    await user.press(botaoAssinar());
+
+    expect(aoAssinar).toHaveBeenCalledTimes(1);
+    const [assinatura, contexto] = aoAssinar.mock.calls[0];
+    expect(assinatura.tracos).toHaveLength(1);
+    expect(contexto).toEqual({ quemAssina: 'responsavel_legal', versaoTermo: TERMO_TCLE.versao });
+  });
+
+  it('entrega a recusa com quem assina e a versão do termo', async () => {
+    const user = userEvent.setup();
+    const { aoRecusar } = renderizarTela();
+
+    await user.press(botaoRecusar());
+    await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+
+    expect(aoRecusar).toHaveBeenCalledWith({
+      quemAssina: 'paciente',
+      versaoTermo: TERMO_TCLE.versao,
+    });
+  });
+
+  it('exige o DecisaoTermoProvider em volta da área de assinatura', () => {
+    const erro = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(() => render(<AreaAssinatura />)).toThrow('DecisaoTermoProvider');
+
+    erro.mockRestore();
   });
 });

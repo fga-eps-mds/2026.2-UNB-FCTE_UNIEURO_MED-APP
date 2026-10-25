@@ -23,8 +23,13 @@ type TermoConsentimentoScreenProps = {
   paciente?: { nome: string; ficha: string };
   termo?: TermoTcle;
   /**
-   * Área de assinatura e botões de aceitar e recusar (#21, parte do Eduardo). Fica
-   * fora da rolagem do termo, para o gesto da assinatura não disputar com ela.
+   * Área de assinatura, dentro do cartão da declaração, logo abaixo de "Quem assina"
+   * (#21, parte do Eduardo). Fica fora da rolagem do termo.
+   */
+  assinatura?: ReactNode;
+  /**
+   * Botões de aceitar e recusar (#21, parte do Eduardo), abaixo do cartão. Ficam fora
+   * da rolagem do termo, para o gesto da assinatura não disputar com ela.
    */
   acoes: (contexto: ContextoDecisao) => ReactNode;
 };
@@ -37,6 +42,7 @@ type TermoConsentimentoScreenProps = {
 export default function TermoConsentimentoScreen({
   paciente,
   termo = TERMO_TCLE,
+  assinatura,
   acoes,
 }: TermoConsentimentoScreenProps) {
   const router = useRouter();
@@ -74,6 +80,7 @@ export default function TermoConsentimentoScreen({
             </Text>
             <Text style={styles.declaracao}>{termo.declaracao}</Text>
             <QuemAssinaEscolha onChange={setQuemAssina} styles={styles} valor={quemAssina} />
+            {assinatura}
           </View>
           {acoes({ quemAssina, versaoTermo: termo.versao })}
         </View>

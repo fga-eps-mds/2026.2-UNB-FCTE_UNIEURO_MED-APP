@@ -19,6 +19,14 @@ export function createDecisaoStyles(colors: ThemeColors) {
   return StyleSheet.create({
     raiz: { gap: 16 },
     areaAssinatura: { height: ALTURA_AREA_ASSINATURA },
+    // Moldura pontilhada do protótipo, no lugar da borda contínua do quadro.
+    molduraAssinatura: {
+      borderWidth: 2,
+      borderStyle: 'dashed',
+      borderColor: COR_CONVITE,
+      borderRadius: 16,
+      boxShadow: 'none',
+    },
     convite: {
       position: 'absolute',
       top: 0,
