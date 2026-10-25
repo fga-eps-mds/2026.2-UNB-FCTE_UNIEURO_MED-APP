@@ -3,7 +3,9 @@ import { parseCpf } from '@/features/shared/cpf';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Os trechos do domínio não aceitam ponto, senão a regex volta atrás a cada ponto e
+// fica lenta com texto longo (apontamento S8786 do SonarCloud).
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
 const CRM_PATTERN = /^(\d+)\s*\/\s*([A-Za-z]{2})$/;
 const BRAZILIAN_STATES = [
   'AC',

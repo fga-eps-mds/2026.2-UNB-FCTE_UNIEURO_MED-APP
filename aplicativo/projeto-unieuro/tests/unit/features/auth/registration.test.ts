@@ -1,5 +1,6 @@
 import {
   collectRegistrationFieldErrors,
+  isValidEmail,
   parseCrm,
   registerProfessional,
   validateRegistration,
@@ -42,6 +43,28 @@ describe('parseCrm', () => {
     ['12345/', null],
   ])('interpreta "%s"', (input, expected) => {
     expect(parseCrm(input)).toEqual(expected);
+  });
+});
+
+describe('isValidEmail', () => {
+  it.each(['ana.souza@unieuro.com.br', 'a@b.co', 'ana+med@saude.df.gov.br'])(
+    'aceita "%s"',
+    (email) => {
+      expect(isValidEmail(email)).toBe(true);
+    },
+  );
+
+  it.each([
+    'ana.souza',
+    'ana@unieuro',
+    '@unieuro.com',
+    'ana souza@unieuro.com',
+    'ana@@unieuro.com',
+    'ana@unieuro.com.',
+    'ana@.unieuro.com',
+    'ana@unieuro..com',
+  ])('recusa "%s"', (email) => {
+    expect(isValidEmail(email)).toBe(false);
   });
 });
 
