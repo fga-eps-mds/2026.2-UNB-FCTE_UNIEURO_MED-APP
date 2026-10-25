@@ -20,8 +20,8 @@ export const LARANJA_ESCURO = '#7C2D12';
 /** Botão desabilitado (guia de identidade visual). */
 export const DESABILITADO = { fundo: '#E2E8F0', texto: '#475569' } as const;
 
-/** Fundo acolhedor das telas do paciente, atrás da figura de modelo. */
-const FUNDO_ACOLHEDOR = '#FFF7ED';
+/** Fundo acolhedor das telas do paciente, atrás da figura de modelo e na tela final. */
+export const FUNDO_ACOLHEDOR = '#FFF7ED';
 
 /** Estilos da tela de desenho de cada tarefa (#9), uma tela do paciente: texto de 20 pontos ou mais. */
 export function createDrawingTaskStyles() {
