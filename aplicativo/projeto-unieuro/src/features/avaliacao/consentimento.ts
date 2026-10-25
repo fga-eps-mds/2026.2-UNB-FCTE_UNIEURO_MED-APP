@@ -9,11 +9,26 @@ export type EstadoAvaliacao =
   | 'cancelada'
   | 'interrompida';
 
-export type DecisaoConsentimento = {
+type DadosDaDecisao = {
   atendimentoId: number;
-  aceito: boolean;
   versaoTermo: string;
   quemAssina: QuemAssina;
+};
+
+type EscolhaConsentimento =
+  | {
+      aceito: true;
+      /** Imagem final da assinatura codificada em PNG. */
+      assinaturaPng: Uint8Array;
+    }
+  | {
+      aceito: false;
+      assinaturaPng?: null;
+    };
+
+export type RegistrarDecisaoInput = DadosDaDecisao & EscolhaConsentimento;
+
+export type DecisaoConsentimento = RegistrarDecisaoInput & {
   /** Data e hora em ISO 8601, pelo relógio do tablet. */
   decididoEm: string;
 };
@@ -26,8 +41,6 @@ export type ConsentimentoRepository = {
   salvarDecisao(decisao: DecisaoConsentimento): Promise<boolean>;
   buscarEstado(atendimentoId: number): Promise<EstadoAvaliacao | null>;
 };
-
-export type RegistrarDecisaoInput = Omit<DecisaoConsentimento, 'decididoEm'>;
 
 export type ResultadoDecisao =
   | { sucesso: true; estado: 'em_andamento' | 'cancelada'; decididoEm: string }

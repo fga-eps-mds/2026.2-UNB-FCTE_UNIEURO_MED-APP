@@ -108,9 +108,14 @@ CREATE TABLE IF NOT EXISTS consentimento (
     versao_tcle TEXT NOT NULL,
     aceito INTEGER NOT NULL CHECK (aceito IN (0, 1)),
     assinado_por TEXT NOT NULL CHECK (assinado_por IN ('paciente', 'responsavel_legal')),
+    assinatura_png BLOB,
     data_hora TEXT NOT NULL,
     CHECK (length(trim(versao_tcle)) > 0),
-    CHECK (length(trim(data_hora)) > 0)
+    CHECK (length(trim(data_hora)) > 0),
+    CHECK (
+      (aceito = 1 AND assinatura_png IS NOT NULL AND length(assinatura_png) > 0)
+      OR (aceito = 0 AND assinatura_png IS NULL)
+    )
 );
 `;
 

@@ -143,6 +143,7 @@ describe('esquema', () => {
     expect(MIGRATIONS[4]).toContain('CREATE TABLE IF NOT EXISTS consentimento');
     expect(MIGRATIONS[4]).toContain('id_avaliacao INTEGER NOT NULL UNIQUE');
     expect(MIGRATIONS[4]).toContain("assinado_por IN ('paciente', 'responsavel_legal')");
+    expect(MIGRATIONS[4]).toContain('assinatura_png BLOB');
   });
 });
 

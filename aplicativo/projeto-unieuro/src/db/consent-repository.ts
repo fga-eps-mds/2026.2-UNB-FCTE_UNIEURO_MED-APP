@@ -38,13 +38,14 @@ export function createConsentRepository(
 
         await database.runAsync(
           `INSERT INTO consentimento
-             (id_avaliacao, versao_tcle, aceito, assinado_por, data_hora)
-           VALUES (?, ?, ?, ?, ?)`,
+             (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora)
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             decisao.atendimentoId,
             decisao.versaoTermo,
             decisao.aceito ? 1 : 0,
             decisao.quemAssina,
+            decisao.aceito ? decisao.assinaturaPng : null,
             decisao.decididoEm,
           ],
         );

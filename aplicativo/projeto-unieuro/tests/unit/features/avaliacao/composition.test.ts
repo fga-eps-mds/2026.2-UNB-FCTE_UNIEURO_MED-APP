@@ -23,7 +23,8 @@ describe('composição da feature de avaliação', () => {
   it('liga a decisão do consentimento ao repositório do banco', () => {
     const input = {
       atendimentoId: 12,
-      aceito: true,
+      aceito: true as const,
+      assinaturaPng: new Uint8Array([137, 80, 78, 71]),
       versaoTermo: '2026-09-15',
       quemAssina: 'paciente' as const,
     };

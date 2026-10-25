@@ -15,6 +15,7 @@ jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 const INICIO = '2026-10-24T12:00:00.000Z';
 const DECISAO = '2026-10-24T12:04:35.000Z';
+const ASSINATURA_PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const protector = createCpfProtector(async () => new Uint8Array(32).fill(7), webCryptoAesGcm);
 
 let temp: TempDatabase;
@@ -63,13 +64,17 @@ afterEach(async () => {
   temp.cleanup();
 });
 
-const decisao = (aceito: boolean, quemAssina: 'paciente' | 'responsavel_legal' = 'paciente') => ({
-  atendimentoId,
-  aceito,
-  versaoTermo: '2026-09-15',
-  quemAssina,
-  decididoEm: DECISAO,
-});
+const decisao = (aceito: boolean, quemAssina: 'paciente' | 'responsavel_legal' = 'paciente') => {
+  const dados = {
+    atendimentoId,
+    versaoTermo: '2026-09-15',
+    quemAssina,
+    decididoEm: DECISAO,
+  };
+  return aceito
+    ? ({ ...dados, aceito: true, assinaturaPng: ASSINATURA_PNG } as const)
+    : ({ ...dados, aceito: false, assinaturaPng: null } as const);
+};
 
 describe('contrato', () => {
   it('atende ao repositório da regra de consentimento', () => {
@@ -90,6 +95,7 @@ describe('migration da versão 5', () => {
       'versao_tcle',
       'aceito',
       'assinado_por',
+      'assinatura_png',
       'data_hora',
     ]);
     await expect(
@@ -135,7 +141,7 @@ describe('decisão e estado da avaliação', () => {
     await expect(repository.buscarEstado(atendimentoId)).resolves.toBe('em_andamento');
     await expect(
       database.getFirstAsync(
-        `SELECT id_avaliacao, versao_tcle, aceito, assinado_por, data_hora
+        `SELECT id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora
          FROM consentimento WHERE id_avaliacao = ?`,
         [atendimentoId],
       ),
@@ -144,6 +150,7 @@ describe('decisão e estado da avaliação', () => {
       versao_tcle: '2026-09-15',
       aceito: 1,
       assinado_por: 'paciente',
+      assinatura_png: ASSINATURA_PNG,
       data_hora: DECISAO,
     });
   });
@@ -163,10 +170,22 @@ describe('decisão e estado da avaliação', () => {
 
     await expect(repository.buscarEstado(atendimentoId)).resolves.toBe('cancelada');
     await expect(
-      database.getFirstAsync('SELECT aceito FROM consentimento WHERE id_avaliacao = ?', [
-        atendimentoId,
-      ]),
-    ).resolves.toEqual({ aceito: 0 });
+      database.getFirstAsync(
+        'SELECT aceito, assinatura_png FROM consentimento WHERE id_avaliacao = ?',
+        [atendimentoId],
+      ),
+    ).resolves.toEqual({ aceito: 0, assinatura_png: null });
+  });
+
+  it('não aceita consentimento sem a imagem da assinatura', async () => {
+    const aceite = decisao(true);
+    if (!aceite.aceito) throw new Error('O cenário precisa de um aceite.');
+
+    await expect(
+      repository.salvarDecisao({ ...aceite, assinaturaPng: new Uint8Array() }),
+    ).rejects.toThrow(/CHECK/);
+
+    await expect(repository.buscarEstado(atendimentoId)).resolves.toBe('aguardando_consentimento');
   });
 
   it('não substitui a primeira decisão nem cria uma segunda', async () => {

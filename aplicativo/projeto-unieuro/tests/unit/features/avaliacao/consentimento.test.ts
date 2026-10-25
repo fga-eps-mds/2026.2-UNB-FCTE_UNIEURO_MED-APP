@@ -6,6 +6,7 @@ import {
 } from '@/features/avaliacao/consentimento';
 
 const AGORA = new Date('2026-10-24T15:04:35.000Z');
+const ASSINATURA_PNG = new Uint8Array([137, 80, 78, 71]);
 
 function criarRepository(estado: EstadoAvaliacao | null = 'aguardando_consentimento') {
   const repository: ConsentimentoRepository = {
@@ -24,6 +25,7 @@ describe('registrarDecisaoConsentimento', () => {
         {
           atendimentoId: 12,
           aceito: true,
+          assinaturaPng: ASSINATURA_PNG,
           versaoTermo: '2026-09-15',
           quemAssina: 'responsavel_legal',
         },
@@ -38,6 +40,7 @@ describe('registrarDecisaoConsentimento', () => {
     expect(repository.salvarDecisao).toHaveBeenCalledWith({
       atendimentoId: 12,
       aceito: true,
+      assinaturaPng: ASSINATURA_PNG,
       versaoTermo: '2026-09-15',
       quemAssina: 'responsavel_legal',
       decididoEm: '2026-10-24T15:04:35.000Z',
@@ -69,6 +72,7 @@ describe('registrarDecisaoConsentimento', () => {
         {
           atendimentoId: 0,
           aceito: true,
+          assinaturaPng: ASSINATURA_PNG,
           versaoTermo: '2026-09-15',
           quemAssina: 'paciente',
         },
