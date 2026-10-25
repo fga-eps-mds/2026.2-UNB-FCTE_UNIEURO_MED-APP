@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { Modal, Text } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import {
@@ -244,6 +244,29 @@ describe('Cenário: recusar o termo', () => {
 
     expect(screen.getByRole('button', { name: 'Confirmar recusa' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Voltar' })).toBeDisabled();
+    concluir();
+  });
+
+  it('o voltar do Android fecha a confirmação sem registrar nada', async () => {
+    const { user, onRecusar } = renderizar();
+    await user.press(botaoRecusar());
+
+    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+
+    expect(screen.queryByRole('button', { name: 'Confirmar recusa' })).toBeNull();
+    expect(onRecusar).not.toHaveBeenCalled();
+  });
+
+  it('enquanto a recusa é registrada, o voltar do Android não fecha a confirmação', async () => {
+    let concluir = () => {};
+    const onRecusar = jest.fn(() => new Promise<void>((resolver) => (concluir = resolver)));
+    const { user } = renderizar({ onRecusar });
+    await user.press(botaoRecusar());
+    await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+
+    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+
+    expect(screen.getByRole('button', { name: 'Confirmar recusa' })).toBeOnTheScreen();
     concluir();
   });
 

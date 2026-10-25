@@ -1,11 +1,9 @@
 import { StyleSheet } from 'react-native';
 
-import { Colors, FontFamilies, type ThemeColors } from '@/constants/theme';
+import { FontFamilies, type ThemeColors } from '@/constants/theme';
 import { DESABILITADO, LARANJA_ESCURO } from '@/features/avaliacao/drawing-task.styles';
 
 export const ALTURA_AREA_ASSINATURA = 160;
-
-const COR_CONVITE = Colors.light.textSecondary;
 
 export function createDecisaoStyles(colors: ThemeColors) {
   const botao = {
@@ -23,7 +21,7 @@ export function createDecisaoStyles(colors: ThemeColors) {
     molduraAssinatura: {
       borderWidth: 2,
       borderStyle: 'dashed',
-      borderColor: COR_CONVITE,
+      borderColor: colors.textSecondary,
       borderRadius: 16,
       boxShadow: 'none',
     },
@@ -37,12 +35,21 @@ export function createDecisaoStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     conviteTexto: {
-      color: COR_CONVITE,
+      color: colors.textSecondary,
       fontFamily: FontFamilies.semibold,
       fontSize: 18,
       lineHeight: 26,
     },
     botoes: { flexDirection: 'row', gap: 16 },
+    aviso: {
+      padding: 14,
+      borderRadius: 12,
+      color: colors.error,
+      backgroundColor: colors.errorBg,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 18,
+      lineHeight: 26,
+    },
     botaoRecusar: {
       ...botao,
       paddingHorizontal: 32,

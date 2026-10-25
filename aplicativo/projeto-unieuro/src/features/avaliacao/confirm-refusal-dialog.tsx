@@ -7,6 +7,7 @@ type ConfirmarRecusaProps = {
   ocupado: boolean;
   onVoltar: () => void;
   onConfirmar: () => void;
+  aviso?: string | null;
   styles: DecisaoStyles;
 };
 
@@ -15,10 +16,17 @@ export function ConfirmarRecusa({
   ocupado,
   onVoltar,
   onConfirmar,
+  aviso,
   styles,
-}: ConfirmarRecusaProps) {
+}: Readonly<ConfirmarRecusaProps>) {
+  // O voltar do Android não fecha a confirmação enquanto a recusa é gravada, como o
+  // botão "Voltar", que fica desabilitado.
+  const pedirParaFechar = () => {
+    if (!ocupado) onVoltar();
+  };
+
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onVoltar}>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={pedirParaFechar}>
       <View style={styles.fundoDialogo}>
         <View style={styles.dialogo} accessibilityViewIsModal>
           <Text accessibilityRole="header" style={styles.dialogoTitulo}>
@@ -34,6 +42,11 @@ export function ConfirmarRecusa({
               A recusa fica registrada com data e horário.
             </Text>
           </View>
+          {aviso && (
+            <Text accessibilityRole="alert" style={styles.aviso}>
+              {aviso}
+            </Text>
+          )}
           <View style={styles.dialogoBotoes}>
             <Pressable
               accessibilityRole="button"

@@ -144,6 +144,20 @@ export function createAttendanceRepository(
       return row ? { id: row.id } : null;
     },
 
+    /** Nome e ficha do paciente do atendimento, para identificá-lo no termo (#21). Não lê o CPF. */
+    async findPatientOfAttendance(
+      attendanceId: number,
+    ): Promise<{ name: string; recordNumber: string } | null> {
+      const database = await open();
+      const row = await database.getFirstAsync<{ nome: string; numero_ficha: string }>(
+        `SELECT p.nome, p.numero_ficha FROM avaliacao a
+         JOIN paciente p ON p.id = a.id_paciente
+         WHERE a.id = ? LIMIT 1`,
+        [attendanceId],
+      );
+      return row ? { name: row.nome, recordNumber: row.numero_ficha } : null;
+    },
+
     async listAttendedPatients(professionalId: number): Promise<AttendedPatientRecord[]> {
       const database = await open();
       const rows = await database.getAllAsync<AttendedPatientRow>(LIST_ATTENDED_PATIENTS, [

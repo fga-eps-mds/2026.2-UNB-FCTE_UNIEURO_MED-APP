@@ -1,6 +1,7 @@
 import { attendanceRepository } from '@/db/attendance-repository';
 import { consentRepository } from '@/db/consent-repository';
 import {
+  getAttendancePatient,
   getTaskAccess,
   registerAttendanceRepository,
   registerConsentDecision,
@@ -38,5 +39,15 @@ describe('composição da feature de avaliação', () => {
     getTaskAccess(12);
 
     expect(verificarAcessoTarefas).toHaveBeenCalledWith(12, consentRepository);
+  });
+
+  it('liga o cabeçalho do termo ao paciente do atendimento no banco', () => {
+    const buscar = jest
+      .spyOn(attendanceRepository, 'findPatientOfAttendance')
+      .mockResolvedValue({ name: 'José Alves Martins', recordNumber: '2026-0184' });
+
+    void getAttendancePatient(12);
+
+    expect(buscar).toHaveBeenCalledWith(12);
   });
 });

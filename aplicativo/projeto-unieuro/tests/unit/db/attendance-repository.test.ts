@@ -464,3 +464,22 @@ describe('pacientes atendidos pelo profissional', () => {
     expect(patient.lastState).toBe('cancelada');
   });
 });
+
+describe('paciente do atendimento', () => {
+  it('devolve o nome e a ficha do paciente, sem ler o CPF', async () => {
+    const { attendanceId } = await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(repository.findPatientOfAttendance(attendanceId)).resolves.toEqual({
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+    });
+  });
+
+  it('devolve nulo para um atendimento que não existe', async () => {
+    await expect(repository.findPatientOfAttendance(999)).resolves.toBeNull();
+  });
+});

@@ -19,3 +19,7 @@ export const registerConsentDecision = (input: RegistrarDecisaoInput) =>
 
 export const getTaskAccess = (attendanceId: number) =>
   verificarAcessoTarefas(attendanceId, consentRepository);
+
+/** Nome e ficha do paciente do atendimento, para o cabeçalho do TCLE. */
+export const getAttendancePatient = (attendanceId: number) =>
+  attendanceRepository.findPatientOfAttendance(attendanceId);
