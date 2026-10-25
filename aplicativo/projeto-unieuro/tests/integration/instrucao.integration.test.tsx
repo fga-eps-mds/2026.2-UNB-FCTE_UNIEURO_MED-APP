@@ -98,7 +98,7 @@ describe('do termo de consentimento à instrução', () => {
     expect(registerConsentDecision).toHaveBeenCalledWith(
       expect.objectContaining({ atendimentoId: 12, aceito: false }),
     );
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
     expect(useRouter().replace).not.toHaveBeenCalledWith(
       expect.objectContaining({ pathname: '/instrucao' }),
     );

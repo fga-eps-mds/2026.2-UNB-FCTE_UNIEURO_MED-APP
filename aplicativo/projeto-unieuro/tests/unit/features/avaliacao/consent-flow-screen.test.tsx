@@ -101,7 +101,8 @@ describe('portão do termo', () => {
     await renderizar();
 
     expect(screen.queryByText(TERMO_TCLE.titulo)).toBeNull();
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
   it('mostra o termo enquanto a avaliação aguarda o consentimento, sem abrir tarefa', async () => {
@@ -231,7 +232,8 @@ describe('Cenário: recusa', () => {
       aceito: false,
     });
     expect(gerarImagemDesenho).not.toHaveBeenCalled();
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
   it('desistir da recusa não grava nada e mantém o termo', async () => {

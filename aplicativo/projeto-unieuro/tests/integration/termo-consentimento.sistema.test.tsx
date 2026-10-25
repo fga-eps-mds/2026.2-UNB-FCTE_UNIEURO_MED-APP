@@ -140,7 +140,7 @@ describe('Cenário: recusa do termo', () => {
     });
     expect(Math.abs(Date.parse(consentimento!.data_hora) - Date.now())).toBeLessThan(60_000);
     expect(await estadoDe(atendimentoId)).toBe('cancelada');
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
   });
 
   it('desistir da recusa não grava nada e mantém a avaliação aguardando', async () => {
@@ -160,12 +160,12 @@ describe('Cenário: recusa do termo', () => {
     await user.press(screen.getByRole('button', { name: 'Recusar' }));
     await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
     screen.unmount();
-    jest.mocked(useRouter().replace).mockClear();
+    jest.mocked(useRouter().dismissTo).mockClear();
 
     await abrirTermo(atendimentoId);
 
     expect(screen.queryByRole('button', { name: 'Assinar e iniciar' })).toBeNull();
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
   });
 });
 

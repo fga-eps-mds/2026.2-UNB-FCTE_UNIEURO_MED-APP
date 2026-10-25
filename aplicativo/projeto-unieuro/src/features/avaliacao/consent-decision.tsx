@@ -18,7 +18,9 @@ export type AssinaturaTermo = {
 };
 
 type DecisaoTermoProviderProps = {
+  /** Falha da última decisão, mostrada perto dos botões e dentro da confirmação da recusa. */
   aviso?: string | null;
+  /** Recebe o contexto (quem assina e a versão) quando os botões vêm da tela do termo. */
   onAssinar: (assinatura: AssinaturaTermo, contexto?: ContextoDecisao) => void | Promise<void>;
   onRecusar: (contexto?: ContextoDecisao) => void | Promise<void>;
   children: ReactNode;
@@ -48,6 +50,11 @@ function useDecisao() {
   return contexto;
 }
 
+/**
+ * Guarda o estado da decisão (traços, confirmação da recusa, "ocupado") para que a área
+ * de assinatura, dentro do cartão da declaração, e os botões, abaixo dele, andem juntos
+ * mesmo ficando em lugares diferentes da tela.
+ */
 export function DecisaoTermoProvider({
   aviso = null,
   onAssinar,
@@ -112,6 +119,7 @@ export function DecisaoTermoProvider({
   );
 }
 
+/** A área de assinatura. Na tela do termo, fica dentro do cartão da declaração. */
 export function AreaAssinatura() {
   const { styles, quadro, temTraco, ocupado } = useDecisao();
 
@@ -133,6 +141,7 @@ export function AreaAssinatura() {
   );
 }
 
+/** Aviso de falha da decisão. Com a confirmação da recusa aberta, ele aparece dentro dela. */
 export function AvisoDecisao() {
   const { styles, aviso, confirmandoRecusa } = useDecisao();
   if (!aviso || confirmandoRecusa) return null;

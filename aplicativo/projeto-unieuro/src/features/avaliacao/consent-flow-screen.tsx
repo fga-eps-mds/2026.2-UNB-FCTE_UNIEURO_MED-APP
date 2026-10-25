@@ -21,6 +21,21 @@ export const MENSAGEM_FALHA_DECISAO =
 
 type PacienteDoTermo = { nome: string; ficha: string };
 
+/** O aviso de falha fica logo acima dos botões, fora da rolagem do termo. */
+const acoesDoTermo = (contexto: ContextoDecisao) => (
+  <>
+    <AvisoDecisao />
+    <BotoesDecisao contexto={contexto} />
+  </>
+);
+
+/**
+ * Termo de consentimento do atendimento (#21). O termo só aparece enquanto a
+ * avaliação aguarda o consentimento, com o nome e a ficha do paciente no
+ * cabeçalho. O aceite grava a assinatura em PNG e abre a instrução da primeira
+ * tarefa; a recusa grava sem assinatura e volta ao início. Uma falha ao gravar
+ * avisa e libera a tela para outra tentativa, sem mudar de tela.
+ */
 export default function ConsentFlowScreen({
   atendimento,
 }: Readonly<{ atendimento: ParametroDeRota }>) {
@@ -43,7 +58,8 @@ export default function ConsentFlowScreen({
         params: { atendimento: String(atendimentoId), tarefa: '1' },
       });
     } else if (acesso === 'bloqueado') {
-      router.replace('/menu');
+      // Volta à tela inicial que já está na pilha, sem abrir outra por cima.
+      router.dismissTo('/menu');
     }
   }, [acesso, atendimentoId, router]);
 
@@ -104,18 +120,13 @@ export default function ConsentFlowScreen({
         const { quemAssina, versaoTermo } = exigirContexto(contexto);
         return decidir(
           () => registerConsentDecision({ atendimentoId, versaoTermo, quemAssina, aceito: false }),
-          () => router.replace('/menu'),
+          () => router.dismissTo('/menu'),
         );
       }}>
       <TermoConsentimentoScreen
         paciente={paciente}
         assinatura={<AreaAssinatura />}
-        acoes={(contexto) => (
-          <>
-            <AvisoDecisao />
-            <BotoesDecisao contexto={contexto} />
-          </>
-        )}
+        acoes={acoesDoTermo}
       />
     </DecisaoTermoProvider>
   );
