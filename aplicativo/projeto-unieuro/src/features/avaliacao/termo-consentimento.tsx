@@ -27,7 +27,7 @@ type TermoConsentimentoProps = {
  * passou pela tela. Ler até o fim não é exigido para a decisão: o termo pode ser
  * lido em voz alta para o paciente.
  */
-export function TermoConsentimento({ termo, styles }: TermoConsentimentoProps) {
+export function TermoConsentimento({ termo, styles }: Readonly<TermoConsentimentoProps>) {
   const [alturaVisivel, setAlturaVisivel] = useState(0);
   const [alturaConteudo, setAlturaConteudo] = useState(0);
   const [chegouAoFim, setChegouAoFim] = useState(false);

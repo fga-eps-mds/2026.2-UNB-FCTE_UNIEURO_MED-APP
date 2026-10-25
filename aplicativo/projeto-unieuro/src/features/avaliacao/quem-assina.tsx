@@ -13,7 +13,7 @@ type QuemAssinaProps = {
  * Quem assina o termo: o paciente ou, quando ele não pode assinar, o responsável
  * legal (#21, cenários de aceite). O valor vai junto com a decisão gravada.
  */
-export function QuemAssinaEscolha({ valor, onChange, styles }: QuemAssinaProps) {
+export function QuemAssinaEscolha({ valor, onChange, styles }: Readonly<QuemAssinaProps>) {
   return (
     // Sem papel de grupo acessível: no Android, um grupo acessível esconde as
     // opções do leitor de tela. Cada opção é um rádio com o próprio rótulo.

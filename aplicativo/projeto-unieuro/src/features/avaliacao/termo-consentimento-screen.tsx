@@ -44,7 +44,7 @@ export default function TermoConsentimentoScreen({
   termo = TERMO_TCLE,
   assinatura,
   acoes,
-}: TermoConsentimentoScreenProps) {
+}: Readonly<TermoConsentimentoScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const theme = useTheme();

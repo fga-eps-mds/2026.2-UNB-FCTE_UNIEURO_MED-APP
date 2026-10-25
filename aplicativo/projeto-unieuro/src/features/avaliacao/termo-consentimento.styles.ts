@@ -7,12 +7,15 @@ const fonts = FontFamilies;
 /** Largura a partir da qual o termo e o painel da decisão ficam lado a lado, como no protótipo. */
 export const DUAS_COLUNAS_MIN_LARGURA = 900;
 
+/** Margem lateral: maior no tablet, e menor só em telas muito estreitas. */
+function margemDaTela(largura: number, duasColunas: boolean) {
+  if (duasColunas) return 40;
+  return largura < 360 ? 16 : 20;
+}
+
 export function getTermoLayout(largura: number) {
   const duasColunas = largura >= DUAS_COLUNAS_MIN_LARGURA;
-  return {
-    duasColunas,
-    margem: duasColunas ? 40 : largura < 360 ? 16 : 20,
-  };
+  return { duasColunas, margem: margemDaTela(largura, duasColunas) };
 }
 
 // O público tem 60 anos ou mais: o corpo do termo tem 20, e nada fica abaixo de 16.
