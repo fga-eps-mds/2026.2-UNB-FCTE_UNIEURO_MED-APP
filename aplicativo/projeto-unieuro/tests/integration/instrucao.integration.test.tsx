@@ -5,7 +5,7 @@ import ConsentRoute from '@/app/tcle';
 import DrawingRoute from '@/app/desenho';
 import InstructionRoute from '@/app/instrucao';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import { DRAWING_PENDING_MESSAGE } from '@/features/avaliacao/drawing-placeholder-screen';
+import { LEMBRETES } from '@/features/avaliacao/drawing-task';
 import { TAREFAS } from '@/features/avaliacao/tarefas';
 
 // Percorre as rotas da #8 como o paciente as vê: do termo provisório à instrução
@@ -85,11 +85,12 @@ describe('instrução sem avaliação em andamento', () => {
   });
 });
 
-describe('destino do "Começar"', () => {
-  it('é a área de desenho provisória', () => {
+describe.each(TAREFAS)('destino do "Começar" da tarefa $numero', ({ numero }) => {
+  it('é a área de desenho da própria tarefa', () => {
+    definirParametros({ atendimento: '12', tarefa: String(numero) });
     renderizar(<DrawingRoute />);
 
-    expect(screen.getByRole('header', { name: 'Área de desenho' })).toBeOnTheScreen();
-    expect(screen.getByLabelText(`Informação. ${DRAWING_PENDING_MESSAGE}`)).toBeOnTheScreen();
+    const { titulo } = LEMBRETES[numero];
+    expect(screen.getByLabelText(`Área de desenho: ${titulo.toLowerCase()}`)).toBeOnTheScreen();
   });
 });
