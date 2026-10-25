@@ -8,7 +8,9 @@ import { SessionProvider, type SessionProfessional } from '@/features/auth/sessi
 import { DRAWING_PENDING_MESSAGE } from '@/features/avaliacao/drawing-placeholder-screen';
 import { TAREFAS } from '@/features/avaliacao/tarefas';
 
-import { desenharNoQuadro, medirQuadro } from '../test-support/desenho';
+// Percorre as rotas da #8 como o paciente as vê: do termo provisório à instrução
+// de cada tarefa e dela à área de desenho. Só a navegação é simulada
+// (jest.setup.ts); cada passo lê os parâmetros que o anterior entregou ao roteador.
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -30,45 +32,18 @@ afterEach(() => {
   jest.mocked(useLocalSearchParams).mockReturnValue({});
 });
 
-describe('do termo de consentimento à instrução', () => {
-  it('abre a tarefa 1 do atendimento que o registro entregou, depois da assinatura', async () => {
+describe('do termo provisório à instrução', () => {
+  it('abre a tarefa 1 do atendimento que o registro entregou', async () => {
     const user = userEvent.setup();
     definirParametros({ atendimento: '12' });
     renderizar(<ConsentRoute />);
 
-    medirQuadro(500, 160, 'Área de assinatura');
-    await desenharNoQuadro([
-      [10, 10],
-      [90, 60],
-    ]);
-    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await user.press(screen.getByRole('button', { name: 'Iniciar as tarefas' }));
 
     expect(useRouter().replace).toHaveBeenCalledWith({
       pathname: '/instrucao',
       params: { atendimento: '12', tarefa: '1' },
     });
-  });
-
-  it('não abre nenhuma tarefa antes da assinatura', async () => {
-    const user = userEvent.setup();
-    definirParametros({ atendimento: '12' });
-    renderizar(<ConsentRoute />);
-
-    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
-
-    expect(useRouter().replace).not.toHaveBeenCalled();
-  });
-
-  it('volta ao menu quando a recusa é confirmada, sem abrir tarefa', async () => {
-    const user = userEvent.setup();
-    definirParametros({ atendimento: '12' });
-    renderizar(<ConsentRoute />);
-
-    await user.press(screen.getByRole('button', { name: 'Recusar' }));
-    await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
-
-    expect(useRouter().replace).toHaveBeenCalledTimes(1);
-    expect(useRouter().replace).toHaveBeenCalledWith('/menu');
   });
 });
 
