@@ -1,4 +1,5 @@
 import {
+  collectRegistrationFieldErrors,
   parseCrm,
   registerProfessional,
   validateRegistration,
@@ -41,6 +42,59 @@ describe('parseCrm', () => {
     ['12345/', null],
   ])('interpreta "%s"', (input, expected) => {
     expect(parseCrm(input)).toEqual(expected);
+  });
+});
+
+describe('collectRegistrationFieldErrors', () => {
+  it('não aponta erro num cadastro válido', () => {
+    expect(collectRegistrationFieldErrors(validInput)).toStrictEqual({});
+  });
+
+  it('pede cada campo vazio', () => {
+    const emptyInput: RegistrationInput = {
+      name: ' ',
+      email: ' ',
+      crm: ' ',
+      cpf: ' ',
+      password: '',
+      passwordConfirmation: '',
+    };
+
+    expect(collectRegistrationFieldErrors(emptyInput)).toStrictEqual({
+      name: 'Preencha o nome.',
+      email: 'Preencha o e-mail.',
+      crm: 'Preencha o CRM.',
+      cpf: 'Preencha o CPF.',
+      password: 'Preencha a senha.',
+      passwordConfirmation: 'Preencha a confirmação de senha.',
+    });
+  });
+
+  it.each([
+    ['e-mail sem domínio', { email: 'ana.souza' }, { email: 'Informe um e-mail válido.' }],
+    ['CRM sem UF', { crm: '12345' }, { crm: 'Informe o CRM no formato 12345/DF.' }],
+    [
+      'CPF com dígito verificador errado',
+      { cpf: '111.444.777-30' },
+      { cpf: 'Informe um CPF válido.' },
+    ],
+    [
+      'senha curta',
+      { password: 'curta', passwordConfirmation: 'curta' },
+      { password: 'A senha precisa ter pelo menos 8 caracteres.' },
+    ],
+    [
+      'confirmação diferente',
+      { passwordConfirmation: 'outraSenha1' },
+      { passwordConfirmation: 'Confira a senha e a confirmação.' },
+    ],
+    [
+      'senha vazia com a confirmação preenchida',
+      { password: '' },
+      { password: 'Preencha a senha.' },
+    ],
+  ])('aponta só o campo com %s', (_case, change, errors) => {
+    expect(collectRegistrationFieldErrors({ ...validInput, ...change })).toStrictEqual(errors);
   });
 });
 
