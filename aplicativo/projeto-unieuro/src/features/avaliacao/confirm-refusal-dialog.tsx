@@ -7,6 +7,7 @@ type ConfirmarRecusaProps = {
   ocupado: boolean;
   onVoltar: () => void;
   onConfirmar: () => void;
+  aviso?: string | null;
   styles: DecisaoStyles;
 };
 
@@ -15,6 +16,7 @@ export function ConfirmarRecusa({
   ocupado,
   onVoltar,
   onConfirmar,
+  aviso,
   styles,
 }: ConfirmarRecusaProps) {
   return (
@@ -34,6 +36,11 @@ export function ConfirmarRecusa({
               A recusa fica registrada com data e horário.
             </Text>
           </View>
+          {aviso && (
+            <Text accessibilityRole="alert" style={styles.aviso}>
+              {aviso}
+            </Text>
+          )}
           <View style={styles.dialogoBotoes}>
             <Pressable
               accessibilityRole="button"

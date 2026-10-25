@@ -43,6 +43,15 @@ export function createDecisaoStyles(colors: ThemeColors) {
       lineHeight: 26,
     },
     botoes: { flexDirection: 'row', gap: 16 },
+    aviso: {
+      padding: 14,
+      borderRadius: 12,
+      color: colors.error,
+      backgroundColor: colors.errorBg,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 18,
+      lineHeight: 26,
+    },
     botaoRecusar: {
       ...botao,
       paddingHorizontal: 32,

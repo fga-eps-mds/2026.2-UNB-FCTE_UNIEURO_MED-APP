@@ -18,7 +18,7 @@ export type AssinaturaTermo = {
 };
 
 type DecisaoTermoProviderProps = {
-  /** Recebe o contexto (quem assina e a versão) quando os botões vêm da tela do termo. */
+  aviso?: string | null;
   onAssinar: (assinatura: AssinaturaTermo, contexto?: ContextoDecisao) => void | Promise<void>;
   onRecusar: (contexto?: ContextoDecisao) => void | Promise<void>;
   children: ReactNode;
@@ -29,6 +29,8 @@ type DecisaoContexto = {
   temTraco: boolean;
   quadro: ReturnType<typeof useRegistroTracado>['quadro'];
   ocupado: boolean;
+  aviso: string | null;
+  confirmandoRecusa: boolean;
   podeAssinar: boolean;
   assinar: (contexto?: ContextoDecisao) => void;
   pedirRecusa: (contexto?: ContextoDecisao) => void;
@@ -46,12 +48,8 @@ function useDecisao() {
   return contexto;
 }
 
-/**
- * Guarda o estado da decisão (traços, confirmação da recusa, "ocupado") para que a área
- * de assinatura, dentro do cartão da declaração, e os botões, abaixo dele, andem juntos
- * mesmo ficando em lugares diferentes da tela.
- */
 export function DecisaoTermoProvider({
+  aviso = null,
   onAssinar,
   onRecusar,
   children,
@@ -89,6 +87,8 @@ export function DecisaoTermoProvider({
     temTraco: registro.temTraco,
     quadro: registro.quadro,
     ocupado,
+    aviso,
+    confirmandoRecusa: recusa !== null,
     podeAssinar,
     assinar,
     pedirRecusa: (contexto) => setRecusa({ contexto }),
@@ -105,13 +105,13 @@ export function DecisaoTermoProvider({
           const contexto = recusa?.contexto;
           void executar(() => (contexto ? onRecusar(contexto) : onRecusar()));
         }}
+        aviso={aviso}
         styles={styles}
       />
     </DecisaoReact.Provider>
   );
 }
 
-/** A área de assinatura. Na tela do termo, fica dentro do cartão da declaração. */
 export function AreaAssinatura() {
   const { styles, quadro, temTraco, ocupado } = useDecisao();
 
@@ -130,6 +130,17 @@ export function AreaAssinatura() {
         </View>
       )}
     </View>
+  );
+}
+
+export function AvisoDecisao() {
+  const { styles, aviso, confirmandoRecusa } = useDecisao();
+  if (!aviso || confirmandoRecusa) return null;
+
+  return (
+    <Text accessibilityRole="alert" style={styles.aviso}>
+      {aviso}
+    </Text>
   );
 }
 
