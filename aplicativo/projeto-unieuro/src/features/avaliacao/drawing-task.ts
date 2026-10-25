@@ -1,6 +1,7 @@
 /**
  * O que a tela de desenho de cada tarefa mostra além do quadro (história #9): o
- * lembrete curto da tarefa e, na cópia do cubo, a figura de modelo.
+ * lembrete curto da tarefa, a figura de modelo na cópia do cubo e os círculos nas
+ * trilhas.
  *
  * O lembrete repete a instrução (#8) em poucas palavras, porque o paciente já leu a
  * instrução completa antes de começar.
@@ -15,19 +16,14 @@ export const LEMBRETES: Readonly<Record<number, Lembrete>> = {
   3: { titulo: 'Ligue números e letras', frase: 'Alterne em ordem: 1, A, 2, B… até o E.' },
 };
 
-/**
- * Tarefas que já têm a tela de desenho: o relógio e o cubo. As trilhas ainda usam a
- * área de desenho provisória da instrução (#8).
- */
-export const TAREFAS_COM_DESENHO: readonly number[] = [1, 2];
-
-export function temTelaDeDesenho(tarefa: Tarefa): boolean {
-  return TAREFAS_COM_DESENHO.includes(tarefa.numero);
-}
-
 /** Só a cópia do cubo mostra uma figura de modelo ao lado do quadro. */
 export function mostraFiguraDoCubo(tarefa: Tarefa): boolean {
   return tarefa.numero === 2;
+}
+
+/** Só as trilhas têm círculos dentro do quadro. */
+export function mostraCirculosDasTrilhas(tarefa: Tarefa): boolean {
+  return tarefa.numero === 3;
 }
 
 export const DICA_CONFIRMAR = 'Desenhe pelo menos um traço para confirmar.';

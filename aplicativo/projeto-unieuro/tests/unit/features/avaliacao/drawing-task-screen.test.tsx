@@ -8,7 +8,12 @@ import DrawingTaskScreen from '@/features/avaliacao/drawing-task-screen';
 import { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 import type { ParametroDeRota } from '@/features/avaliacao/tarefas';
 
-import { DADOS_DA_CANETA, PointerType, desenharNoQuadro } from '../../../test-support/desenho';
+import {
+  DADOS_DA_CANETA,
+  PointerType,
+  desenharNoQuadro,
+  medirQuadro,
+} from '../../../test-support/desenho';
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -46,7 +51,7 @@ function renderizarTela(opcoes: Opcoes = {}) {
 const botaoConfirmar = () => screen.getByRole('button', { name: 'Confirmar' });
 
 describe('Cenário: confirmar sem desenho', () => {
-  it.each(['1', '2'])(
+  it.each(['1', '2', '3'])(
     'deixa o "Confirmar" desabilitado na tarefa %s sem nenhum traço',
     (tarefa) => {
       renderizarTela({ tarefa });
@@ -233,6 +238,62 @@ describe('Cenário: figura de modelo do cubo', () => {
   });
 });
 
+describe('Cenário: trilhas', () => {
+  const ROTULO_TRILHAS = 'Área de desenho: ligue números e letras';
+  const rotulosDosCirculos = () =>
+    screen.UNSAFE_root.findAll((no) => (no.type as string) === 'SkiaText', { deep: true }).map(
+      ({ props }) => props.text,
+    );
+
+  it('mostra os círculos de 1 a 5 e de A a E dentro do quadro, depois de medi-lo', () => {
+    renderizarTela({ tarefa: '3' });
+    expect(rotulosDosCirculos()).toEqual([]);
+
+    medirQuadro(1196, 540, ROTULO_TRILHAS);
+
+    expect(rotulosDosCirculos()).toEqual(['1', 'A', '2', 'B', '3', 'C', '4', 'D', '5', 'E']);
+  });
+
+  it('mantém os círculos por baixo dos traços do paciente', async () => {
+    renderizarTela({ tarefa: '3' });
+    medirQuadro(1196, 540, ROTULO_TRILHAS);
+
+    await desenharNoQuadro([
+      [500, 245],
+      [706, 54],
+    ]);
+
+    expect(rotulosDosCirculos()).toHaveLength(10);
+    expect(botaoConfirmar()).toBeEnabled();
+  });
+
+  it('entrega o traçado das trilhas a quem navega no "Confirmar"', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela({ tarefa: '3' });
+    medirQuadro(1196, 540, ROTULO_TRILHAS);
+    await desenharNoQuadro([
+      [500, 245],
+      [706, 54],
+    ]);
+
+    await user.press(botaoConfirmar());
+
+    const [tarefa, registro] = onConfirmar.mock.calls[0];
+    expect(tarefa.numero).toBe(3);
+    expect(registro.dimensoes).toEqual({ largura: 1196, altura: 540 });
+  });
+
+  it.each([
+    ['1', 'desenhe um relógio'],
+    ['2', 'copie o cubo'],
+  ])('não mostra círculos na tarefa %s', (tarefa, nome) => {
+    renderizarTela({ tarefa });
+    medirQuadro(1196, 540, `Área de desenho: ${nome}`);
+
+    expect(rotulosDosCirculos()).toEqual([]);
+  });
+});
+
 describe('o que a tela mostra ao paciente', () => {
   it('mostra o progresso, a frase de ajuda e o lembrete do relógio', () => {
     renderizarTela({ tarefa: '1' });
@@ -249,6 +310,15 @@ describe('o que a tela mostra ao paciente', () => {
     expect(screen.getByText('Tarefa 2 de 3')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Copie o cubo' })).toBeOnTheScreen();
     expect(screen.getByText('Desenhe do jeito que você consegue.')).toBeOnTheScreen();
+  });
+
+  it('mostra o progresso e o lembrete das trilhas, sem figura de modelo', () => {
+    renderizarTela({ tarefa: '3' });
+
+    expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Ligue números e letras' })).toBeOnTheScreen();
+    expect(screen.getByText('Alterne em ordem: 1, A, 2, B… até o E.')).toBeOnTheScreen();
+    expect(screen.queryByRole('image', { name: 'Cubo para copiar' })).toBeNull();
   });
 
   it('não mostra escore, resultado nem tempo', () => {
@@ -291,8 +361,8 @@ describe('tela sem avaliação em andamento', () => {
     expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
   });
 
-  it.each([['3'], ['7'], [undefined]])(
-    'volta ao início com a tarefa %s, que não tem esta tela',
+  it.each([['4'], ['7'], [undefined]])(
+    'volta ao início com a tarefa %s, que não existe',
     (tarefa) => {
       renderizarTela({ tarefa });
 
