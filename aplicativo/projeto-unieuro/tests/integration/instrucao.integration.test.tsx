@@ -1,7 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import ConsentRoute from '@/app/tcle';
 import DrawingRoute from '@/app/desenho';
 import InstructionRoute from '@/app/instrucao';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
@@ -13,9 +12,10 @@ jest.mock('@/features/avaliacao/use-consent-gate', () => ({
   useConsentGate: jest.fn(() => 'liberado'),
 }));
 
-// Percorre as rotas da #8 como o paciente as vê: do termo provisório à instrução
-// de cada tarefa e dela à área de desenho. Só a navegação é simulada
-// (jest.setup.ts); cada passo lê os parâmetros que o anterior entregou ao roteador.
+// Percorre as rotas da #8 como o paciente as vê: a instrução de cada tarefa e dela
+// a área de desenho. Só a navegação é simulada (jest.setup.ts); cada passo lê os
+// parâmetros que o anterior entregou ao roteador. O caminho do termo até a
+// instrução está em tcle.integration.test.tsx, com o banco de verdade.
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -36,21 +36,6 @@ function definirParametros(parametros: Record<string, string>) {
 afterEach(() => {
   jest.mocked(useLocalSearchParams).mockReturnValue({});
   jest.mocked(useConsentGate).mockReturnValue('liberado');
-});
-
-describe('do termo provisório à instrução', () => {
-  it('abre a tarefa 1 do atendimento que o registro entregou', async () => {
-    const user = userEvent.setup();
-    definirParametros({ atendimento: '12' });
-    renderizar(<ConsentRoute />);
-
-    await user.press(screen.getByRole('button', { name: 'Iniciar as tarefas' }));
-
-    expect(useRouter().replace).toHaveBeenCalledWith({
-      pathname: '/instrucao',
-      params: { atendimento: '12', tarefa: '1' },
-    });
-  });
 });
 
 describe.each(TAREFAS)('instrução da tarefa $numero', ({ numero, titulo, instrucao }) => {
