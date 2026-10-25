@@ -1,12 +1,11 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { registerConsentDecision } from '@/features/avaliacao/composition';
-import TcleScreen from '@/features/avaliacao/tcle-screen';
+import ConsentPlaceholderScreen from '@/features/avaliacao/consent-placeholder-screen';
 
-// Termo de consentimento (#21), aberto depois do registro do atendimento. A
-// decisão fica gravada no tablet antes de qualquer tarefa de desenho.
+// Termo de consentimento, aberto depois do registro do atendimento. A tela
+// definitiva é a história #21; até lá, esta rota mostra o destino provisório.
 export default function ConsentRoute() {
   const { atendimento } = useLocalSearchParams<{ atendimento?: string }>();
 
-  return <TcleScreen atendimento={atendimento} registrar={registerConsentDecision} />;
+  return <ConsentPlaceholderScreen atendimento={atendimento} />;
 }
