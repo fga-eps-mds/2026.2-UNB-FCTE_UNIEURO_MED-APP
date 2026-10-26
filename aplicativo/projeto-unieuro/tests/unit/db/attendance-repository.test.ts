@@ -352,3 +352,134 @@ describe('Cenário: identificação mínima do paciente', () => {
     expect(recordVisible).toBe(true);
   });
 });
+
+describe('pacientes atendidos pelo profissional', () => {
+  const setState = (attendanceId: number, estado: string) =>
+    database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [estado, attendanceId]);
+
+  async function insertOtherProfessional() {
+    const professionals = createProfessionalRepository(async () => database, protector);
+    await professionals.insert({
+      name: 'Bruno Lima',
+      email: 'bruno.lima@unieuro.com.br',
+      crmNumber: '54321',
+      crmState: 'GO',
+      cpf: '39053344705',
+      passwordHash: 'hash-da-senha',
+      createdAt: '2026-09-26T13:00:00.000Z',
+    });
+    return (await professionals.findByEmail('bruno.lima@unieuro.com.br'))!.id;
+  }
+
+  it('não lista ninguém para quem ainda não atendeu', async () => {
+    await expect(repository.listAttendedPatients(professionalId)).resolves.toEqual([]);
+  });
+
+  it('lista o paciente com a ficha, o número de atendimentos e o mais recente', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: '2026-10-09T14:32:00.000Z',
+    });
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    const { attendanceId: latest } = await repository.createAttendance({
+      patient: { id: patientId },
+      professionalId,
+      startedAt: '2026-10-13T09:10:00.000Z',
+    });
+    await setState(latest, 'concluida');
+
+    await expect(repository.listAttendedPatients(professionalId)).resolves.toEqual([
+      {
+        id: patientId,
+        name: 'José Alves Martins',
+        recordNumber: '2026-0001',
+        attendanceCount: 2,
+        lastStartedAt: '2026-10-13T09:10:00.000Z',
+        lastState: 'concluida',
+      },
+    ]);
+  });
+
+  it('não mostra a um profissional os pacientes atendidos só por outro', async () => {
+    const otherId = await insertOtherProfessional();
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await repository.createAttendance({
+      patient: newPatient({ name: 'Maria das Dores', cpf: OTHER_CPF }),
+      professionalId: otherId,
+      startedAt: STARTED_AT,
+    });
+
+    const daAna = await repository.listAttendedPatients(professionalId);
+    const doBruno = await repository.listAttendedPatients(otherId);
+
+    expect(daAna.map((patient) => patient.name)).toEqual(['José Alves Martins']);
+    expect(doBruno.map((patient) => patient.name)).toEqual(['Maria das Dores']);
+  });
+
+  it('conta e resume só os atendimentos do próprio profissional com o paciente', async () => {
+    const otherId = await insertOtherProfessional();
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: '2026-10-09T14:32:00.000Z',
+    });
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    const { attendanceId: doBruno } = await repository.createAttendance({
+      patient: { id: patientId },
+      professionalId: otherId,
+      startedAt: '2026-10-12T08:00:00.000Z',
+    });
+    await setState(doBruno, 'interrompida');
+
+    const [patient] = await repository.listAttendedPatients(professionalId);
+
+    expect(patient).toMatchObject({
+      attendanceCount: 1,
+      lastStartedAt: '2026-10-09T14:32:00.000Z',
+      lastState: 'aguardando_consentimento',
+    });
+  });
+
+  it('desempata pelo atendimento gravado por último quando o horário é o mesmo', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    const { attendanceId: second } = await repository.createAttendance({
+      patient: { id: patientId },
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await setState(second, 'cancelada');
+
+    const [patient] = await repository.listAttendedPatients(professionalId);
+
+    expect(patient.lastState).toBe('cancelada');
+  });
+});
+
+describe('paciente do atendimento', () => {
+  it('devolve o nome e a ficha do paciente, sem ler o CPF', async () => {
+    const { attendanceId } = await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(repository.findPatientOfAttendance(attendanceId)).resolves.toEqual({
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+    });
+  });
+
+  it('devolve nulo para um atendimento que não existe', async () => {
+    await expect(repository.findPatientOfAttendance(999)).resolves.toBeNull();
+  });
+});

@@ -84,6 +84,11 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
 - Proibido (ver `CONTRIBUTING.md`, "Restrições do produto"): permissão de rede, SDK
   de telemetria ou analytics, envio de dado para fora do aparelho, log de
   identificação de paciente, traçado, imagem ou escore, e escore na tela do paciente.
+- O APK de entrega não declara a permissão de internet: o `app.config.js` bloqueia as
+  permissões sem uso nos perfis `preview` e `production`. O backup automático do
+  Android e a transferência entre aparelhos ficam desligados em todos os builds
+  (`android.allowBackup` e `plugins/with-data-extraction-rules.js`). Permissão nova
+  precisa de justificativa no PR.
 - A sincronização entre tablets está em estudo. Qualquer canal de sincronização é um
   ponto de exposição de dados e precisa ser discutido com o PO antes de implementado.
 
@@ -118,10 +123,13 @@ npm run format                     # formata com o Prettier
 npm run format:check               # confere a formatação
 ```
 
-O workflow `build.yml` roda lint, formatação, testes e SonarCloud em todo PR. O
-`release.yml` gera uma release a cada merge na `develop` ou na `main`, com o `.json`
-das métricas anexado; o rótulo do PR define a versão (`MAJOR RELEASE`,
-`MINOR RELEASE`, sem rótulo para correção, `NOT RELEASE` para não gerar).
+O workflow `build.yml` roda lint, formatação, testes e SonarCloud em todo PR e, no
+push da `main` e da `develop`, passa ao SonarCloud a versão da release. O
+`release.yml` gera uma pré-release a cada PR mesclado na `develop` e uma release
+estável a cada push na `main`, com o `.json` das métricas anexado; nas da `main`,
+o job `apk` compila o APK no perfil `preview` e o anexa. O rótulo do PR define a
+versão (`MAJOR RELEASE`, `MINOR RELEASE`, sem rótulo para correção, `NOT RELEASE`
+para não gerar).
 
 ## 7. Branches, commits e PRs
 

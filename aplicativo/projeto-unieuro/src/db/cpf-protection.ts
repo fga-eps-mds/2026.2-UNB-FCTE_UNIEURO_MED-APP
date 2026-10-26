@@ -80,7 +80,7 @@ export function createCpfProtector(
       const { encryption } = await getKeys();
       const plaintext = await cipher.open(encryption, hexToBytes(sealedHex));
       // O CPF tem só dígitos (ASCII), então cada byte é um caractere.
-      return Array.from(plaintext, (byte) => String.fromCharCode(byte)).join('');
+      return Array.from(plaintext, (byte) => String.fromCodePoint(byte)).join('');
     },
   };
 }

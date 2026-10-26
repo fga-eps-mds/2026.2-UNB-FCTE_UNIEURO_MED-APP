@@ -18,11 +18,20 @@ const mockRouter = {
   navigate: jest.fn(),
   canDismiss: jest.fn(() => false),
   dismissAll: jest.fn(),
+  dismissTo: jest.fn(),
 };
 
+// O `useFocusEffect` roda o efeito como um `useEffect`. Para simular a volta do
+// foco, o teste chama de novo o último efeito recebido pelo mock.
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   router: mockRouter,
+  useFocusEffect: jest.fn((effect: () => void | (() => void)) =>
+    require('react').useEffect(effect, [effect]),
+  ),
+  // Nenhum parâmetro por padrão. O teste de uma rota define os dele com
+  // `jest.mocked(useLocalSearchParams).mockReturnValue(...)`.
+  useLocalSearchParams: jest.fn(() => ({})),
   Stack: 'Stack',
   Link: 'Link',
 }));
@@ -47,6 +56,36 @@ jest.mock(
   'react-native-safe-area-context',
   () => require('react-native-safe-area-context/jest/mock').default,
 );
+
+// Gestos, animações e desenho do quadro (#9). O Gesture Handler, o Reanimated e o
+// Worklets dependem de módulos nativos; os substitutos que os próprios pacotes
+// oferecem rodam os worklets na mesma thread do teste, então o descompasso entre
+// as threads do aparelho não aparece aqui.
+require('react-native-gesture-handler/jestSetup');
+jest.mock('react-native-reanimated', () => jest.requireActual('react-native-reanimated/mock'));
+jest.mock('react-native-worklets', () => jest.requireActual('react-native-worklets/src/mock'));
+
+// O Skia desenha em código nativo, que não existe no Jest. O substituto
+// renderiza o quadro sem pixels e só chama a montagem do caminho na
+// renderização, quando ainda não há ponto em andamento: o traço em andamento só
+// é verificado no aparelho. Um teste que precise de mais do Skia, como a geração
+// da imagem do desenho, declara o próprio `jest.mock` no arquivo.
+jest.mock('@shopify/react-native-skia', () => ({
+  Canvas: 'Canvas',
+  Circle: 'Circle',
+  Group: 'Group',
+  Path: 'Path',
+  Text: 'SkiaText',
+  matchFont: jest.fn(() => ({
+    measureText: jest.fn(() => ({ x: 0, y: -14, width: 12, height: 14 })),
+  })),
+  Skia: { Path: { MakeFromSVGString: jest.fn((svg: string) => ({ svg })) } },
+  usePathValue: (montar: (construtor: unknown) => void) => {
+    const construtor = { moveTo: jest.fn(), lineTo: jest.fn() };
+    montar(construtor);
+    return { value: construtor };
+  },
+}));
 
 afterEach(() => {
   jest.clearAllMocks();

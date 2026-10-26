@@ -1,8 +1,8 @@
+import { patientListRepository } from '@/features/home/composition';
 import HomeScreen from '@/features/home/home-screen';
+import { useAttendedPatients } from '@/features/home/use-attended-patients';
 
-// A lista começa vazia: os pacientes passam a existir com o registro do
-// atendimento (#7), que cria a tabela e a consulta dos pacientes de cada
-// profissional. Até lá, a tela mostra o estado de primeiro acesso.
 export default function HomeRoute() {
-  return <HomeScreen patients={[]} />;
+  const { patients, loadFailed, loading } = useAttendedPatients(patientListRepository);
+  return <HomeScreen patients={patients} loadFailed={loadFailed} loading={loading} />;
 }

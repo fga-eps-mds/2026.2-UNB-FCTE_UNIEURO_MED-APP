@@ -70,6 +70,12 @@ npm run web
 
 ## Gerando o APK
 
+**Nas releases da `main`, o APK sai sozinho.** Todo push na `main` (em geral, o merge do PR da `develop`) gera a release estável, e o job `apk` do `release.yml` compila o APK com o perfil `preview` e o anexa à release como `MED-vX.Y.Z.apk`. Antes de anexar, o job confere que o APK não declara a permissão de internet. O APK é assinado com a chave de debug do projeto Android gerado pelo Expo, a mesma dos APKs anteriores, então instala por cima sem perder os dados.
+
+Para anexar o APK a uma release já publicada, ou testar o job, rode o workflow **Export de métricas** à mão, em *Actions → Export de métricas → Run workflow*, informando a tag da release (por exemplo, `v1.2.6`).
+
+Para gerar um APK fora do pipeline, use o EAS Build ou o mesmo caminho do pipeline (veja abaixo).
+
 O APK é gerado com o EAS Build, usando o perfil `preview` do `eas.json`, que produz um `.apk` para instalar direto no tablet, sem loja de aplicativos.
 
 ``` bash
@@ -87,6 +93,29 @@ Perfis disponíveis:
 | `development` | Build de desenvolvimento com development client      |
 | `preview`     | APK de distribuição interna, usado nas entregas      |
 | `production`  | Build de produção, com incremento automático de versão |
+
+### Permissões e backup do APK
+
+O APK de entrega não acessa a internet. Nos perfis `preview` e `production`, o `app.config.js` bloqueia a permissão `INTERNET` e as permissões que o modelo do Expo acrescenta sem uso. O build de desenvolvimento continua com a internet, porque precisa dela para falar com o Metro.
+
+Em todos os perfis, o backup automático do Android fica desligado (`android.allowBackup: false`), e o plugin `plugins/with-data-extraction-rules.js` impede a transferência dos dados para outro aparelho no Android 12 ou mais novo. Assim, os dados do aplicativo não saem do tablet.
+
+Para gerar o APK de entrega localmente, como o pipeline faz (precisa do Android SDK e do Java 17):
+
+``` bash
+EAS_BUILD_PROFILE=preview npx expo prebuild --platform android --no-install
+cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+```
+
+O APK fica em `android/app/build/outputs/apk/release/app-release.apk`.
+
+Para conferir o manifesto do APK de entrega sem passar pelo EAS:
+
+``` bash
+EAS_BUILD_PROFILE=preview npx expo prebuild --platform android --clean
+```
+
+O manifesto gerado fica em `android/app/src/main/AndroidManifest.xml`. A pasta `android/` não é versionada. O prebuild também troca os scripts `android` e `ios` do `package.json`; desfaça essa mudança antes de commitar.
 
 ## Verificação
 

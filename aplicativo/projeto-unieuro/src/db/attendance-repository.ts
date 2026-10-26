@@ -27,6 +27,46 @@ export type AttendanceRecord = {
   startedAt: string;
 };
 
+/** Paciente atendido pelo profissional, com o resumo dos atendimentos dele com esse profissional. */
+export type AttendedPatientRecord = {
+  id: number;
+  name: string;
+  recordNumber: string;
+  attendanceCount: number;
+  /** Início do atendimento mais recente, em ISO 8601. */
+  lastStartedAt: string;
+  /** Estado do atendimento mais recente, como está na coluna `avaliacao.estado`. */
+  lastState: string;
+};
+
+type AttendedPatientRow = {
+  id: number;
+  nome: string;
+  numero_ficha: string;
+  total: number;
+  ultimo_inicio: string;
+  ultimo_estado: string;
+};
+
+// Só os atendimentos do profissional informado entram na contagem e no mais
+// recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
+// pelo id cobre dois atendimentos com o mesmo horário de início.
+//
+// O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
+// certo porque toda data entra no formato de `toISOString()`, em UTC (a regra
+// do atendimento grava assim). Uma data com fuso, como "-03:00", quebraria a
+// ordem: quem gravar atendimento por outro caminho precisa manter o formato.
+const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
+    COUNT(a.id) AS total,
+    MAX(a.data_hora_inicio) AS ultimo_inicio,
+    (SELECT r.estado FROM avaliacao r
+      WHERE r.id_paciente = p.id AND r.id_profissional = ?
+      ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE a.id_profissional = ?
+  GROUP BY p.id`;
+
 const INSERT_PATIENT = `INSERT INTO paciente
   (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -58,6 +98,9 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  *
  * O número da ficha é gerado aqui, na ordem de cadastro dentro do ano do
  * atendimento (2026-0001, 2026-0002...). O paciente que volta mantém a ficha.
+ *
+ * Também lista os pacientes que um profissional atendeu, para a tela inicial
+ * (#77). A consulta não lê o CPF.
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -99,6 +142,36 @@ export function createAttendanceRepository(
         [await protector.blindIndex(cpf)],
       );
       return row ? { id: row.id } : null;
+    },
+
+    /** Nome e ficha do paciente do atendimento, para identificá-lo no termo (#21). Não lê o CPF. */
+    async findPatientOfAttendance(
+      attendanceId: number,
+    ): Promise<{ name: string; recordNumber: string } | null> {
+      const database = await open();
+      const row = await database.getFirstAsync<{ nome: string; numero_ficha: string }>(
+        `SELECT p.nome, p.numero_ficha FROM avaliacao a
+         JOIN paciente p ON p.id = a.id_paciente
+         WHERE a.id = ? LIMIT 1`,
+        [attendanceId],
+      );
+      return row ? { name: row.nome, recordNumber: row.numero_ficha } : null;
+    },
+
+    async listAttendedPatients(professionalId: number): Promise<AttendedPatientRecord[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<AttendedPatientRow>(LIST_ATTENDED_PATIENTS, [
+        professionalId,
+        professionalId,
+      ]);
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.nome,
+        recordNumber: row.numero_ficha,
+        attendanceCount: row.total,
+        lastStartedAt: row.ultimo_inicio,
+        lastState: row.ultimo_estado,
+      }));
     },
 
     async createAttendance({

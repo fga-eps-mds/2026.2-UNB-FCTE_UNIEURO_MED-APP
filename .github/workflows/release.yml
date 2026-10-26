@@ -6,6 +6,12 @@ name: Export de métricas
 # documentação copia esse arquivo para analytics-raw-data/, sem exigir secret
 # de escrita entre repositórios. Segue o exemplo indicado por ele (2024.2-SENTINELA).
 #
+# Gatilhos (#45, avaliação da R1): na `main`, a release estável sai do push, então
+# todo commit que chega à `main` gera release, com o APK anexado. Na `develop`, a
+# pré-release continua saindo do PR fechado com merge. Como o PR para a `main` não
+# dispara mais pelo fechamento, só pelo push que o merge faz, não há release
+# duplicada.
+#
 # Rótulos do PR que controlam a versão:
 #   MAJOR RELEASE  vX.0.0 — release principal (R1, R2, R3); anexa também o código-fonte
 #   MINOR RELEASE  vX.Y.0
@@ -13,9 +19,18 @@ name: Export de métricas
 #   NOT RELEASE    não gera release
 
 on:
+  push:
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
     types: [closed]
+  # Gera só o APK de uma release já publicada: serve para testar o job `apk` e
+  # para anexar o APK a releases antigas.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de uma release já publicada que vai receber o APK (ex.: v1.2.0)"
+        required: true
 
 permissions:
   contents: write
@@ -26,42 +41,77 @@ concurrency:
 
 jobs:
   release:
-    if: >-
-      github.event.pull_request.merged == true &&
-      !contains(github.event.pull_request.labels.*.name, 'NOT RELEASE')
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.versao.outputs.tag }}
+      gerar: ${{ steps.pr.outputs.gerar }}
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      SHA: ${{ github.event.pull_request.merge_commit_sha }}
-      MERGED_AT: ${{ github.event.pull_request.merged_at }}
-      BASE: ${{ github.event.pull_request.base.ref }}
-      MAJOR: ${{ contains(github.event.pull_request.labels.*.name, 'MAJOR RELEASE') }}
-      MINOR: ${{ contains(github.event.pull_request.labels.*.name, 'MINOR RELEASE') }}
+      SHA: ${{ github.event_name == 'push' && github.sha || github.event.pull_request.merge_commit_sha }}
+      MERGED_AT: ${{ github.event_name == 'push' && github.event.head_commit.timestamp || github.event.pull_request.merged_at }}
+      BASE: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.base.ref }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ env.SHA }}
           fetch-depth: 0
+
+      # No push o evento não traz o PR: o script procura o PR do commit de merge
+      # para ler os rótulos de versão. No fechamento do PR, eles vêm do evento.
+      - name: Identificar o PR do merge
+        id: pr
+        env:
+          EVENTO: ${{ github.event_name }}
+          NUMERO_PR: ${{ github.event.pull_request.number }}
+          TITULO_PR: ${{ github.event.pull_request.title }}
+          MAJOR_PR: ${{ contains(github.event.pull_request.labels.*.name, 'MAJOR RELEASE') }}
+          MINOR_PR: ${{ contains(github.event.pull_request.labels.*.name, 'MINOR RELEASE') }}
+          SEM_RELEASE: ${{ contains(github.event.pull_request.labels.*.name, 'NOT RELEASE') }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENTO" = "push" ]; then
+            python3 metrics/sonar_metrics.py pr-do-commit "$SHA" >> "$GITHUB_OUTPUT"
+          else
+            gerar=true
+            [ "$SEM_RELEASE" = "true" ] && gerar=false
+            {
+              echo "numero=$NUMERO_PR"
+              echo "titulo=$TITULO_PR"
+              echo "major=$MAJOR_PR"
+              echo "minor=$MINOR_PR"
+              echo "gerar=$gerar"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Definir versão
         id: versao
+        if: steps.pr.outputs.gerar == 'true'
+        env:
+          MAJOR: ${{ steps.pr.outputs.major }}
+          MINOR: ${{ steps.pr.outputs.minor }}
         run: python3 metrics/sonar_metrics.py versao >> "$GITHUB_OUTPUT"
 
       - name: Aguardar a análise do SonarCloud
+        if: steps.pr.outputs.gerar == 'true'
         run: python3 metrics/sonar_metrics.py aguardar "$MERGED_AT"
 
       - name: Coletar métricas do SonarCloud
         id: metricas
+        if: steps.pr.outputs.gerar == 'true'
         run: python3 metrics/sonar_metrics.py coletar "${{ steps.versao.outputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Publicar release
+        if: steps.pr.outputs.gerar == 'true'
         env:
           TAG: ${{ steps.versao.outputs.tag }}
           ARQUIVO: ${{ steps.metricas.outputs.arquivo }}
-          TITULO: ${{ github.event.pull_request.title }}
-          NUMERO: ${{ github.event.pull_request.number }}
+          TITULO: ${{ steps.pr.outputs.titulo }}
+          NUMERO: ${{ steps.pr.outputs.numero }}
+          MAJOR: ${{ steps.pr.outputs.major }}
         run: |
           set -euo pipefail
           assets=("$ARQUIVO")
@@ -77,5 +127,82 @@ jobs:
           previa=()
           [ "$BASE" = "develop" ] && previa=(--prerelease)
 
+          if [ -n "$NUMERO" ]; then
+            notas="Gerada pelo merge do PR #${NUMERO} (${TITULO}) na ${BASE}."
+          else
+            notas="Gerada pelo push do commit ${SHA:0:7} na ${BASE}."
+          fi
           gh release create "$TAG" "${assets[@]}" --target "$SHA" --title "$TAG" \
-            --notes "Gerada pelo merge do PR #${NUMERO} (${TITULO}) na ${BASE}." "${previa[@]}"
+            --notes "$notas" "${previa[@]}"
+
+  # APK da release estável (#45): gerado aqui, com o perfil de entrega, para o PO
+  # baixar direto da release, sem depender da conta do Expo. O perfil `preview`
+  # aplica o app.config.js, que tira a internet e as permissões sem uso (#63).
+  # O APK é assinado com a chave de debug do projeto Android gerado pelo Expo, a
+  # mesma dos APKs anteriores, então instala por cima sem perder dados.
+  apk:
+    name: APK da release
+    needs: release
+    # No disparo manual o job `release` não roda, por isso o `!cancelled()`.
+    if: >-
+      !cancelled() && (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && needs.release.outputs.gerar == 'true'))
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release.outputs.tag }}
+
+    defaults:
+      run:
+        working-directory: aplicativo/projeto-unieuro
+
+    steps:
+      # O APK sai do mesmo código da release: no disparo manual, o da tag informada.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Configurar o Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: aplicativo/projeto-unieuro/package-lock.json
+
+      - name: Configurar o Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar o projeto Android no perfil de entrega
+        env:
+          EAS_BUILD_PROFILE: preview
+          CI: 1
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compilar o APK
+        working-directory: aplicativo/projeto-unieuro/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      # Garante a regra do CLAUDE.md: o APK de entrega não pode pedir internet.
+      - name: Conferir as permissões do APK
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          aapt2="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)/aapt2"
+          "$aapt2" dump badging "$apk" | grep -E "^(package|uses-permission)" | tee permissoes.txt
+          if grep -q "android.permission.INTERNET" permissoes.txt; then
+            echo "::error::O APK de entrega declara a permissão de internet."
+            exit 1
+          fi
+
+      - name: Anexar o APK à release
+        run: |
+          set -euo pipefail
+          cp android/app/build/outputs/apk/release/app-release.apk "MED-${TAG}.apk"
+          gh release upload "$TAG" "MED-${TAG}.apk" --clobber

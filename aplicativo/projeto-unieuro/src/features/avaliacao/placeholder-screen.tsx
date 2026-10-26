@@ -1,22 +1,36 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 
 import { FontFamilies, type ThemeColors } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
 import { useTheme } from '@/hooks/use-theme';
 
-export const CONSENT_PENDING_MESSAGE =
-  'Atendimento registrado. A apresentação e o aceite do termo de consentimento ainda estão em construção.';
+export type PlaceholderAction = {
+  label: string;
+  onPress: () => void;
+};
+
+export type PlaceholderScreenProps = {
+  title: string;
+  message: string;
+  /** Botão provisório extra, mostrado antes de "Voltar ao início". */
+  action?: PlaceholderAction;
+};
 
 /**
- * Destino provisório do registro do atendimento (#7). A tela do termo de
- * consentimento é a história #21. Até ela existir, esta tela confirma que o
- * atendimento foi gravado e leva de volta ao início.
+ * Base das telas provisórias de histórias que ainda não existem (o termo, #21, e as
+ * áreas de desenho). Mostra um título e um aviso de que a etapa está em construção,
+ * oferece um botão provisório opcional e sempre leva de volta ao início. Sem médico
+ * logado, volta ao login.
  */
-export default function ConsentPlaceholderScreen() {
+export default function PlaceholderScreen({
+  title,
+  message,
+  action,
+}: Readonly<PlaceholderScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const theme = useTheme();
@@ -28,19 +42,27 @@ export default function ConsentPlaceholderScreen() {
 
   if (!professional) return null;
 
+  const acoes: PlaceholderAction[] = [
+    ...(action ? [action] : []),
+    { label: 'Voltar ao início', onPress: () => router.replace('/menu') },
+  ];
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.content}>
         <Text accessibilityRole="header" style={styles.title}>
-          Termo de consentimento
+          {title}
         </Text>
-        <FeedbackMessage kind="info" message={CONSENT_PENDING_MESSAGE} />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace('/menu')}
-          style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-          <Text style={styles.buttonText}>Voltar ao início</Text>
-        </Pressable>
+        <FeedbackMessage kind="info" message={message} />
+        {acoes.map((acao) => (
+          <Pressable
+            key={acao.label}
+            accessibilityRole="button"
+            onPress={acao.onPress}
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+            <Text style={styles.buttonText}>{acao.label}</Text>
+          </Pressable>
+        ))}
       </View>
     </SafeAreaView>
   );

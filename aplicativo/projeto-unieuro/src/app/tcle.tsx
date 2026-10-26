@@ -1,7 +1,9 @@
-import ConsentPlaceholderScreen from '@/features/avaliacao/consent-placeholder-screen';
+import { useLocalSearchParams } from 'expo-router';
 
-// Termo de consentimento, aberto depois do registro do atendimento. A tela
-// definitiva é a história #21; até lá, esta rota mostra o destino provisório.
+import ConsentFlowScreen from '@/features/avaliacao/consent-flow-screen';
+
 export default function ConsentRoute() {
-  return <ConsentPlaceholderScreen />;
+  const { atendimento } = useLocalSearchParams<{ atendimento?: string }>();
+
+  return <ConsentFlowScreen atendimento={atendimento} />;
 }
