@@ -353,6 +353,7 @@ describe('HomeScreen', () => {
       renderCarregando([]);
 
       expect(screen.getByLabelText(LOADING_MESSAGE)).toBeOnTheScreen();
+      expect(screen.getAllByText(LOADING_MESSAGE)).toHaveLength(1);
       expect(screen.queryByText('Nenhum paciente ainda')).toBeNull();
       expect(screen.queryByText('Nenhum exame aplicado ainda.')).toBeNull();
     });
