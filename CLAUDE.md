@@ -123,10 +123,13 @@ npm run format                     # formata com o Prettier
 npm run format:check               # confere a formatação
 ```
 
-O workflow `build.yml` roda lint, formatação, testes e SonarCloud em todo PR. O
-`release.yml` gera uma release a cada merge na `develop` ou na `main`, com o `.json`
-das métricas anexado; o rótulo do PR define a versão (`MAJOR RELEASE`,
-`MINOR RELEASE`, sem rótulo para correção, `NOT RELEASE` para não gerar).
+O workflow `build.yml` roda lint, formatação, testes e SonarCloud em todo PR e, no
+push da `main` e da `develop`, passa ao SonarCloud a versão da release. O
+`release.yml` gera uma pré-release a cada PR mesclado na `develop` e uma release
+estável a cada push na `main`, com o `.json` das métricas anexado; nas da `main`,
+o job `apk` compila o APK no perfil `preview` e o anexa. O rótulo do PR define a
+versão (`MAJOR RELEASE`, `MINOR RELEASE`, sem rótulo para correção, `NOT RELEASE`
+para não gerar).
 
 ## 7. Branches, commits e PRs
 

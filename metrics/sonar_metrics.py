@@ -10,12 +10,15 @@ do próprio repositório de código, com o nome
     fga-eps-mds-<repositório>-<MM-DD-YYYY-HH-MM-SS>-v<X.Y.Z>.json
 
 Subcomandos:
+    pr-do-commit <sha>      imprime o número, o título e os rótulos de versão do PR
+                            que levou o commit à branch (formato de $GITHUB_OUTPUT)
     versao                  imprime tag=vX.Y.Z (formato de $GITHUB_OUTPUT)
     aguardar <merged_at>    espera o SonarCloud analisar a branch depois do merge
     coletar <tag>           grava o .json em analytics-raw-data/ e imprime arquivo=<caminho>
 
 Usa apenas a biblioteca padrão. Variáveis de ambiente: GH_TOKEN, GITHUB_REPOSITORY,
-BASE (branch de destino do PR) e MAJOR e MINOR ("true"/"false", vindas dos rótulos do PR).
+GITHUB_REF_NAME (branch do push), BASE (branch de destino do PR) e MAJOR e MINOR
+("true"/"false", vindas dos rótulos do PR).
 """
 
 import json
@@ -76,6 +79,27 @@ def obter_json(url, token=None):
         cabecalhos["Authorization"] = f"Bearer {token}"
     with urllib.request.urlopen(urllib.request.Request(url, headers=cabecalhos), timeout=30) as resposta:
         return json.load(resposta)
+
+
+def pr_do_commit(sha):
+    """Dados do PR que levou o commit à branch, no formato de $GITHUB_OUTPUT.
+
+    No push, o evento não traz o PR. A API devolve os PRs associados ao commit, e o
+    de merge é o que tem este commit como `merge_commit_sha`. Os rótulos dele
+    definem a versão, como no fechamento do PR. Sem PR, um push direto na `main`
+    sai como correção; na `develop`, não gera release, porque lá a release vem do
+    fechamento do PR."""
+    prs = obter_json(f"https://api.github.com/repos/{repositorio()}/commits/{sha}/pulls",
+                     os.environ.get("GH_TOKEN"))
+    pr = next((p for p in prs if p.get("merge_commit_sha") == sha),
+              next((p for p in prs if p.get("merged_at")), None))
+    rotulos = {r["name"] for r in pr.get("labels", [])} if pr else set()
+    gerar = "NOT RELEASE" not in rotulos if pr else os.environ.get("GITHUB_REF_NAME") == "main"
+    print(f"numero={pr['number'] if pr else ''}")
+    print(f"titulo={' '.join((pr or {}).get('title', '').split())}")
+    print(f"major={str('MAJOR RELEASE' in rotulos).lower()}")
+    print(f"minor={str('MINOR RELEASE' in rotulos).lower()}")
+    print(f"gerar={str(gerar).lower()}")
 
 
 def versao():
@@ -156,5 +180,5 @@ def coletar(tag):
 
 if __name__ == "__main__":
     comando, *argumentos = sys.argv[1:] or ["?"]
-    {"versao": versao, "aguardar": aguardar, "coletar": coletar}.get(
+    {"pr-do-commit": pr_do_commit, "versao": versao, "aguardar": aguardar, "coletar": coletar}.get(
         comando, lambda *_: sys.exit(__doc__))(*argumentos)
