@@ -18,6 +18,7 @@ const mockRouter = {
   navigate: jest.fn(),
   canDismiss: jest.fn(() => false),
   dismissAll: jest.fn(),
+  dismissTo: jest.fn(),
 };
 
 // O `useFocusEffect` roda o efeito como um `useEffect`. Para simular a volta do
@@ -71,7 +72,13 @@ jest.mock('react-native-worklets', () => jest.requireActual('react-native-workle
 // da imagem do desenho, declara o próprio `jest.mock` no arquivo.
 jest.mock('@shopify/react-native-skia', () => ({
   Canvas: 'Canvas',
+  Circle: 'Circle',
+  Group: 'Group',
   Path: 'Path',
+  Text: 'SkiaText',
+  matchFont: jest.fn(() => ({
+    measureText: jest.fn(() => ({ x: 0, y: -14, width: 12, height: 14 })),
+  })),
   Skia: { Path: { MakeFromSVGString: jest.fn((svg: string) => ({ svg })) } },
   usePathValue: (montar: (construtor: unknown) => void) => {
     const construtor = { moveTo: jest.fn(), lineTo: jest.fn() };

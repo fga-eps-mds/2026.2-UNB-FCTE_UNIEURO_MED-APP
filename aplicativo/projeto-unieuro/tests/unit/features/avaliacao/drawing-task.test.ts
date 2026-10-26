@@ -1,26 +1,24 @@
 import {
   DICA_CONFIRMAR,
   LEMBRETES,
-  TAREFAS_COM_DESENHO,
+  mostraCirculosDasTrilhas,
   mostraFiguraDoCubo,
-  temTelaDeDesenho,
 } from '@/features/avaliacao/drawing-task';
 import { TAREFAS } from '@/features/avaliacao/tarefas';
 
 const [relogio, cubo, trilhas] = TAREFAS;
 
 describe('telas de desenho das tarefas', () => {
-  it('o relógio e o cubo têm tela de desenho; as trilhas ainda não', () => {
-    expect(TAREFAS_COM_DESENHO).toEqual([1, 2]);
-    expect(temTelaDeDesenho(relogio)).toBe(true);
-    expect(temTelaDeDesenho(cubo)).toBe(true);
-    expect(temTelaDeDesenho(trilhas)).toBe(false);
-  });
-
   it('só a cópia do cubo mostra a figura de modelo', () => {
     expect(mostraFiguraDoCubo(relogio)).toBe(false);
     expect(mostraFiguraDoCubo(cubo)).toBe(true);
     expect(mostraFiguraDoCubo(trilhas)).toBe(false);
+  });
+
+  it('só as trilhas mostram os círculos no quadro', () => {
+    expect(mostraCirculosDasTrilhas(relogio)).toBe(false);
+    expect(mostraCirculosDasTrilhas(cubo)).toBe(false);
+    expect(mostraCirculosDasTrilhas(trilhas)).toBe(true);
   });
 });
 

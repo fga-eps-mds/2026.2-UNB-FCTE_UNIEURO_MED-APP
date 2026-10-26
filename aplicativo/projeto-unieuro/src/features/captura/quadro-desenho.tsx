@@ -17,7 +17,13 @@ import {
   type SkPathBuilder,
 } from '@shopify/react-native-skia';
 import { useEffect, useMemo, type ReactNode } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Gesture, GestureDetector, PointerType } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -29,9 +35,7 @@ import {
   type TipoPonteiro,
   type Traco,
 } from '@/features/captura/eventos-tracado';
-
-/** Espessura do traço no quadro, em pontos de tela. */
-export const ESPESSURA_TRACO = 4;
+import { COR_FUNDO, COR_TRACO, ESPESSURA_TRACO } from '@/features/captura/estilo-traco';
 
 /** Tamanho do quadro na tela, em pontos. As coordenadas dos traços estão nessa escala. */
 export type Dimensoes = { largura: number; altura: number };
@@ -41,7 +45,6 @@ export type Dimensoes = { largura: number; altura: number };
  * fundo branco, traço azul-noite, borda decorativa, raio 24 e sombra de nível 1.
  * As cores não mudam com o tema, porque a tela de desenho é sempre clara.
  */
-const COR_FUNDO = '#FFFFFF';
 const COR_BORDA = '#CBD5E1';
 const RAIO = 24;
 const ESTILO_TRACO = {
@@ -49,7 +52,7 @@ const ESTILO_TRACO = {
   strokeWidth: ESPESSURA_TRACO,
   strokeCap: 'round',
   strokeJoin: 'round',
-  color: '#0F172A',
+  color: COR_TRACO,
 } as const;
 
 type DadosDaCaneta = { pressure: number; tiltX: number; tiltY: number };
@@ -77,6 +80,8 @@ export type QuadroDesenhoProps = {
    * posicione pelo tamanho do quadro (`dimensoes`).
    */
   fundo?: ReactNode;
+  /** Ajusta a moldura (borda, raio, sombra), por exemplo o pontilhado da assinatura do termo. */
+  estiloMoldura?: StyleProp<ViewStyle>;
 };
 
 function tipoDoPonteiro(tipo: PointerType): TipoPonteiro {
@@ -119,6 +124,7 @@ export function QuadroDesenho({
   dica = 'Desenhe com a caneta ou com o dedo',
   desabilitado = false,
   fundo,
+  estiloMoldura,
 }: QuadroDesenhoProps) {
   // `emAndamento` é o traço que a caneta está fazendo, e só a thread de UI o
   // zera, ao começar um traço novo. `aguardando` é o traço recém-concluído, que
@@ -193,7 +199,7 @@ export function QuadroDesenho({
   // A moldura leva a borda e a sombra; o quadro de dentro corta o traço nos
   // cantos arredondados, e é o tamanho dele que dá a escala das coordenadas.
   return (
-    <View testID="moldura-quadro-desenho" style={styles.moldura}>
+    <View testID="moldura-quadro-desenho" style={[styles.moldura, estiloMoldura]}>
       <GestureDetector gesture={arrasto}>
         <View
           accessible

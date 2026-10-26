@@ -56,10 +56,19 @@ afterEach(async () => {
   await tablet.fechar();
 });
 
-async function inserirTarefa(ordem = 1, tipo = 'relogio', atendimento = attendanceId) {
+// Tamanho do quadro num tablet de 1280 × 800 deitado.
+const QUADRO = { largura: 960, altura: 600 };
+
+async function inserirTarefa(
+  ordem = 1,
+  tipo = 'relogio',
+  atendimento = attendanceId,
+  quadro: { largura: number | null; altura: number | null } = QUADRO,
+) {
   const result = await tablet.database.runAsync(
-    'INSERT INTO tarefa (id_avaliacao, tipo, ordem, data_hora_inicio) VALUES (?, ?, ?, ?)',
-    [atendimento, tipo, ordem, STARTED_AT],
+    `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [atendimento, tipo, ordem, quadro.largura, quadro.altura, STARTED_AT],
   );
   return result.lastInsertRowId;
 }
@@ -271,6 +280,23 @@ describe('restrições da tarefa', () => {
   it('recusa tarefa de um atendimento que não existe', async () => {
     await expect(inserirTarefa(1, 'relogio', 999)).rejects.toThrow(/FOREIGN KEY/);
   });
+
+  it('guarda a largura e a altura do quadro, que dão a escala do traçado', async () => {
+    const tarefa = await inserirTarefa(1, 'relogio', attendanceId, { largura: 960.5, altura: 600 });
+
+    await expect(
+      tablet.database.getFirstAsync('SELECT largura, altura FROM tarefa WHERE id = ?', [tarefa]),
+    ).resolves.toEqual({ largura: 960.5, altura: 600 });
+  });
+
+  it.each([
+    ['sem largura', { largura: null, altura: 600 }, /NOT NULL/],
+    ['sem altura', { largura: 960, altura: null }, /NOT NULL/],
+    ['com largura zero', { largura: 0, altura: 600 }, /CHECK/],
+    ['com altura negativa', { largura: 960, altura: -1 }, /CHECK/],
+  ])('recusa tarefa %s', async (_caso, quadro, erro) => {
+    await expect(inserirTarefa(1, 'relogio', attendanceId, quadro)).rejects.toThrow(erro);
+  });
 });
 
 describe('restrições do evento', () => {
@@ -284,7 +310,7 @@ describe('restrições do evento', () => {
     ['limpar com pressão', { ordem: 1, tipo: 'limpar', instante: 10, pressao: 0.5 }],
     ['tipo desconhecido', { ordem: 1, tipo: 'apagar', instante: 10 }],
     ['ponteiro desconhecido', ponto(1, 10, { ponteiro: 'luva' })],
-    ['pressão acima de 1', ponto(1, 10, { pressao: 1.5 })],
+    ['pressão negativa', ponto(1, 10, { pressao: -0.1 })],
     ['instante negativo', ponto(1, -1)],
     ['ordem zero', { ordem: 0, tipo: 'limpar', instante: 10 }],
   ])('recusa %s', async (_caso, evento) => {
@@ -303,19 +329,29 @@ describe('restrições do evento', () => {
   it('recusa evento de uma tarefa que não existe', async () => {
     await expect(inserirEvento(999, ponto(1, 10))).rejects.toThrow(/FOREIGN KEY/);
   });
+
+  it('aceita pressão acima de 1, que algumas canetas informam', async () => {
+    const tarefa = await inserirTarefa();
+
+    await inserirEvento(tarefa, ponto(1, 10, { pressao: 1.37 }));
+
+    await expect(
+      tablet.database.getFirstAsync('SELECT pressao FROM evento_tracado'),
+    ).resolves.toEqual({ pressao: 1.37 });
+  });
 });
 
-describe('migration da versão 5', () => {
-  it('leva um banco da versão 4 à 5 sem perder o atendimento já registrado', async () => {
+describe('migration da versão 6', () => {
+  it('leva um banco da versão 5 à 6 sem perder o atendimento nem o consentimento', async () => {
     const legacyTemp = createTempDatabase();
     const legacy = legacyTemp.open();
     try {
       await legacy.execAsync('PRAGMA foreign_keys = ON;');
-      for (const step of MIGRATIONS.slice(0, 4)) {
+      for (const step of MIGRATIONS.slice(0, 5)) {
         if (typeof step === 'string') await legacy.execAsync(step);
         else await step(legacy, cpfProtector);
       }
-      await legacy.execAsync('PRAGMA user_version = 4');
+      await legacy.execAsync('PRAGMA user_version = 5');
       const professional = await legacy.runAsync(
         `INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update)
          VALUES ('Bruno Lima', 'bruno@unieuro.com.br', '67890', 'GO', 'cifra', ?, 'hash', 'x', 'x')`,
@@ -331,6 +367,11 @@ describe('migration da versão 5', () => {
          VALUES (?, ?, ?, ?)`,
         [professional.lastInsertRowId, patient.lastInsertRowId, STARTED_AT, STARTED_AT],
       );
+      await legacy.runAsync(
+        `INSERT INTO consentimento (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora)
+         VALUES (?, '1.0', 1, 'paciente', ?, ?)`,
+        [attendance.lastInsertRowId, PNG, STARTED_AT],
+      );
 
       await migrate(legacy, cpfProtector);
 
@@ -343,9 +384,15 @@ describe('migration da versão 5', () => {
         ]),
       ).resolves.toEqual({ id_paciente: patient.lastInsertRowId });
       await expect(
+        legacy.getFirstAsync('SELECT aceito FROM consentimento WHERE id_avaliacao = ?', [
+          attendance.lastInsertRowId,
+        ]),
+      ).resolves.toEqual({ aceito: 1 });
+      await expect(
         legacy.runAsync(
-          'INSERT INTO tarefa (id_avaliacao, tipo, ordem, data_hora_inicio) VALUES (?, ?, ?, ?)',
-          [attendance.lastInsertRowId, 'relogio', 1, STARTED_AT],
+          `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [attendance.lastInsertRowId, 'relogio', 1, 960, 600, STARTED_AT],
         ),
       ).resolves.toMatchObject({ changes: 1 });
     } finally {

@@ -5,8 +5,9 @@
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
  * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
  * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
- * desativação da conta, e a versão 5 cria as tarefas de desenho, o desenho e o
- * traçado. Nenhuma delas existe ainda no `schema.sql` do MED-IA: as
+ * desativação da conta, a versão 5 guarda a decisão do TCLE e a versão 6 cria as
+ * tarefas de desenho, o desenho e o traçado. Nenhuma delas existe ainda no
+ * `schema.sql` do MED-IA: as
  * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
  * atualizado.
  */
@@ -96,18 +97,49 @@ ALTER TABLE profissional ADD COLUMN desativacao TEXT;
 `;
 
 /**
- * Versão 5: tarefas, desenho e traçado de cada atendimento (#10), conforme o
- * modelo lógico da arquitetura.
- *
- * Os eventos do traçado não podem ser alterados nem apagados, porque os traços
- * desfeitos também contam como dado da coleta (Atas 06 e 07).
+ * Versão 5: decisão do TCLE (#21). A chave única garante no banco a regra de um
+ * único consentimento por avaliação. A linha não existe enquanto a pessoa ainda
+ * não decidiu; nesse período, a avaliação permanece em
+ * `aguardando_consentimento`.
  */
 const SCHEMA_V5 = `
+CREATE TABLE IF NOT EXISTS consentimento (
+    id INTEGER PRIMARY KEY,
+    id_avaliacao INTEGER NOT NULL UNIQUE REFERENCES avaliacao (id),
+    versao_tcle TEXT NOT NULL,
+    aceito INTEGER NOT NULL CHECK (aceito IN (0, 1)),
+    assinado_por TEXT NOT NULL CHECK (assinado_por IN ('paciente', 'responsavel_legal')),
+    assinatura_png BLOB,
+    data_hora TEXT NOT NULL,
+    CHECK (length(trim(versao_tcle)) > 0),
+    CHECK (length(trim(data_hora)) > 0),
+    CHECK (
+      (aceito = 1 AND assinatura_png IS NOT NULL AND length(assinatura_png) > 0)
+      OR (aceito = 0 AND assinatura_png IS NULL)
+    )
+);
+`;
+
+/**
+ * Versão 6: tarefas, desenho e traçado de cada atendimento (#10), conforme o
+ * modelo lógico da arquitetura, mais a largura e a altura do quadro na tarefa:
+ * sem elas o traçado perde a escala, e nas trilhas não dá para saber por quais
+ * círculos ele passou (`trilhas.ts` posiciona os círculos pelo tamanho do quadro).
+ *
+ * Os eventos do traçado não podem ser alterados nem apagados, porque os traços
+ * desfeitos também contam como dado da coleta (Atas 06 e 07). Como as chaves
+ * estrangeiras não apagam em cascata, isso também impede apagar a tarefa e o
+ * atendimento que tenham traçado. Se entrar a exclusão a pedido (LGPD) ou de
+ * pacientes (Ata 08), uma migração nova precisa rever esses gatilhos.
+ */
+const SCHEMA_V6 = `
 CREATE TABLE IF NOT EXISTS tarefa (
     id INTEGER PRIMARY KEY,
     id_avaliacao INTEGER NOT NULL REFERENCES avaliacao (id),
     tipo TEXT NOT NULL CHECK (tipo IN ('relogio', 'cubo', 'trilhas')),
     ordem INTEGER NOT NULL CHECK (ordem BETWEEN 1 AND 3),
+    largura REAL NOT NULL CHECK (largura > 0),
+    altura REAL NOT NULL CHECK (altura > 0),
     data_hora_inicio TEXT NOT NULL,
     data_hora_termino TEXT,
     UNIQUE (id_avaliacao, ordem),
@@ -135,7 +167,8 @@ CREATE TABLE IF NOT EXISTS evento_tracado (
     coord_x REAL,
     coord_y REAL,
     instante INTEGER NOT NULL CHECK (instante >= 0),
-    pressao REAL CHECK (pressao BETWEEN 0 AND 1),
+    -- Sem limite superior: no Android a pressão da caneta pode passar de 1.
+    pressao REAL CHECK (pressao >= 0),
     inclinacao_x REAL,
     inclinacao_y REAL,
     UNIQUE (id_tarefa, ordem),
@@ -171,9 +204,10 @@ export type MigrationStep =
  * Cada posição leva o banco da versão anterior para a seguinte: a posição 0
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
- * conta), a posição 4 à versão 5 (tarefas, desenho e traçado), e assim por
- * diante. Para mudar o esquema, acrescente um passo no fim; não altere os que já
- * existem, porque os tablets com o banco criado não os executam de novo.
+ * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
+ * (tarefas, desenho e traçado), e assim por diante. Para mudar o esquema,
+ * acrescente um passo no fim; não altere os que já existem, porque os tablets com
+ * o banco criado não os executam de novo.
  */
 export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V1,
@@ -181,6 +215,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V3,
   SCHEMA_V4,
   SCHEMA_V5,
+  SCHEMA_V6,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

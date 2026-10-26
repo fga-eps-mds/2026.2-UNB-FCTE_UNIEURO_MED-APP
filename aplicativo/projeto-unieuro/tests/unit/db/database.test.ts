@@ -138,15 +138,22 @@ describe('esquema', () => {
     expect(MIGRATIONS[3]).toContain('ALTER TABLE profissional ADD COLUMN desativacao TEXT');
   });
 
-  it('chega à versão 5 com as tarefas, o desenho e o traçado da #10', () => {
-    const schemaV5 = MIGRATIONS[4];
+  it('chega à versão 5 com um único consentimento por avaliação', () => {
+    expect(MIGRATIONS[4]).toContain('CREATE TABLE IF NOT EXISTS consentimento');
+    expect(MIGRATIONS[4]).toContain('id_avaliacao INTEGER NOT NULL UNIQUE');
+    expect(MIGRATIONS[4]).toContain("assinado_por IN ('paciente', 'responsavel_legal')");
+    expect(MIGRATIONS[4]).toContain('assinatura_png BLOB');
+  });
 
-    expect(SCHEMA_VERSION).toBe(5);
-    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS tarefa');
-    expect(schemaV5).toContain('REFERENCES avaliacao (id)');
-    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS desenho');
-    expect(schemaV5).toContain('imagem_final BLOB NOT NULL');
-    expect(schemaV5).toContain('CREATE TABLE IF NOT EXISTS evento_tracado');
+  it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
+    const schemaV6 = MIGRATIONS[5];
+
+    expect(SCHEMA_VERSION).toBe(6);
+    expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
+    expect(schemaV6).toContain('REFERENCES avaliacao (id)');
+    expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
+    expect(schemaV6).toContain('imagem_final BLOB NOT NULL');
+    expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS evento_tracado');
   });
 });
 
