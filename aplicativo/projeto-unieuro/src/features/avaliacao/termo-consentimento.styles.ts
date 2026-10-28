@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { FontFamilies, type ThemeColors } from '@/constants/theme';
+import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 
 const fonts = FontFamilies;
 
@@ -105,6 +105,26 @@ export function createTermoStyles(colors: ThemeColors) {
       fontSize: 16,
       lineHeight: 22,
     },
+    cartaoEscolhaConsentimento: { ...cartao, padding: 12, gap: 4 },
+    tituloEscolhaConsentimento: {
+      color: colors.primary,
+      fontFamily: fonts.semibold,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    textoEscolhaConsentimento: {
+      color: colors.text,
+      fontFamily: fonts.regular,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    opcoesConsentimento: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+    ajudaEscolhaConsentimento: {
+      color: colors.textSecondary,
+      fontFamily: fonts.regular,
+      fontSize: 13,
+      lineHeight: 18,
+    },
     cartaoDecisao: { ...cartao, padding: 20, gap: 14 },
     declaracaoTitulo: {
       color: colors.primary,
@@ -131,7 +151,7 @@ export function createTermoStyles(colors: ThemeColors) {
       borderColor: colors.border,
       backgroundColor: colors.field,
     },
-    opcaoMarcada: { borderColor: colors.primary },
+    opcaoMarcada: { borderColor: colors.primary, backgroundColor: BrandPalette.lightPeach },
     opcaoPressionada: { opacity: 0.85 },
     radio: {
       width: 24,

@@ -104,13 +104,16 @@ export default function ConsentFlowScreen({
     <DecisaoTermoProvider
       aviso={aviso}
       onAssinar={(assinatura, contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
+          exigirContexto(contexto);
         return decidir(
           () =>
             registerConsentDecision({
               atendimentoId,
               versaoTermo,
               quemAssina,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
               aceito: true,
               assinaturaPng: gerarImagemDesenho(assinatura.tracos, assinatura.dimensoes),
             }),
@@ -118,9 +121,18 @@ export default function ConsentFlowScreen({
         );
       }}
       onRecusar={(contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
+          exigirContexto(contexto);
         return decidir(
-          () => registerConsentDecision({ atendimentoId, versaoTermo, quemAssina, aceito: false }),
+          () =>
+            registerConsentDecision({
+              atendimentoId,
+              versaoTermo,
+              quemAssina,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
+              aceito: false,
+            }),
           () => router.dismissTo('/menu'),
         );
       }}>

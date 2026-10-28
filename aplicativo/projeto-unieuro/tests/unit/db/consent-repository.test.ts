@@ -69,6 +69,8 @@ const decisao = (aceito: boolean, quemAssina: 'paciente' | 'responsavel_legal' =
     atendimentoId,
     versaoTermo: '2026-09-15',
     quemAssina,
+    autorizaImagensPesquisa: true,
+    autorizaDadosPesquisaFutura: false,
     decididoEm: DECISAO,
   };
   return aceito
@@ -83,7 +85,7 @@ describe('contrato', () => {
   });
 });
 
-describe('migration da versão 5', () => {
+describe('migration da versão 7', () => {
   it('cria a tabela de consentimento vazia em um banco novo', async () => {
     const columns = await database.getAllAsync<{ name: string }>(
       'PRAGMA table_info(consentimento)',
@@ -97,13 +99,15 @@ describe('migration da versão 5', () => {
       'assinado_por',
       'assinatura_png',
       'data_hora',
+      'autoriza_imagens_pesquisa',
+      'autoriza_dados_pesquisa_futura',
     ]);
     await expect(
       database.getFirstAsync<{ user_version: number }>('PRAGMA user_version'),
     ).resolves.toEqual({ user_version: SCHEMA_VERSION });
   });
 
-  it('leva um banco da versão 4 à versão 5 sem perder a avaliação', async () => {
+  it('leva um banco da versão 4 à versão 7 sem perder a avaliação', async () => {
     const legacyTemp = createTempDatabase();
     const legacy = legacyTemp.open();
     await legacy.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
@@ -141,7 +145,8 @@ describe('decisão e estado da avaliação', () => {
     await expect(repository.buscarEstado(atendimentoId)).resolves.toBe('em_andamento');
     await expect(
       database.getFirstAsync(
-        `SELECT id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora
+        `SELECT id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora,
+                autoriza_imagens_pesquisa, autoriza_dados_pesquisa_futura
          FROM consentimento WHERE id_avaliacao = ?`,
         [atendimentoId],
       ),
@@ -152,6 +157,8 @@ describe('decisão e estado da avaliação', () => {
       assinado_por: 'paciente',
       assinatura_png: ASSINATURA_PNG,
       data_hora: DECISAO,
+      autoriza_imagens_pesquisa: 1,
+      autoriza_dados_pesquisa_futura: 0,
     });
   });
 

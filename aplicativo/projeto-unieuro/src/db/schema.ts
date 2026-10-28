@@ -193,6 +193,18 @@ END;
 `;
 
 /**
+ * Versão 7: registra escolhas separadas de autorização para imagens desta pesquisa
+ * e uso futuro de dados. Valores nulos preservam registros feitos em versões
+ * anteriores ou decisões de recusa sem que os itens fossem respondidos.
+ */
+const SCHEMA_V7 = `
+ALTER TABLE consentimento ADD COLUMN autoriza_imagens_pesquisa INTEGER
+    CHECK (autoriza_imagens_pesquisa IS NULL OR autoriza_imagens_pesquisa IN (0, 1));
+ALTER TABLE consentimento ADD COLUMN autoriza_dados_pesquisa_futura INTEGER
+    CHECK (autoriza_dados_pesquisa_futura IS NULL OR autoriza_dados_pesquisa_futura IN (0, 1));
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -205,7 +217,8 @@ export type MigrationStep =
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
- * (tarefas, desenho e traçado), e assim por diante. Para mudar o esquema,
+ * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
+ * e assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -216,6 +229,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V4,
   SCHEMA_V5,
   SCHEMA_V6,
+  SCHEMA_V7,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

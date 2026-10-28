@@ -13,6 +13,8 @@ type DadosDaDecisao = {
   atendimentoId: number;
   versaoTermo: string;
   quemAssina: QuemAssina;
+  autorizaImagensPesquisa?: boolean | null;
+  autorizaDadosPesquisaFutura?: boolean | null;
 };
 
 type EscolhaConsentimento =

@@ -18,8 +18,15 @@ const profissional: SessionProfessional = {
 };
 
 // Substitui a área de assinatura do Eduardo: mostra o que a tela entrega a ela.
-function acoesDeTeste({ quemAssina, versaoTermo }: ContextoDecisao) {
-  return <Text>{`Assina: ${quemAssina}; versão: ${versaoTermo}`}</Text>;
+function acoesDeTeste({
+  quemAssina,
+  versaoTermo,
+  autorizaImagensPesquisa,
+  autorizaDadosPesquisaFutura,
+}: ContextoDecisao) {
+  return (
+    <Text>{`Assina: ${quemAssina}; versão: ${versaoTermo}; imagens: ${autorizaImagensPesquisa}; futuro: ${autorizaDadosPesquisaFutura}`}</Text>
+  );
 }
 
 function renderizarTela(professional: SessionProfessional | null = profissional) {
@@ -56,7 +63,11 @@ describe('TermoConsentimentoScreen', () => {
     renderizarTela();
 
     expect(screen.getByRole('radio', { name: 'Paciente' })).toBeChecked();
-    expect(screen.getByText(`Assina: paciente; versão: ${TERMO_TCLE.versao}`)).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        `Assina: paciente; versão: ${TERMO_TCLE.versao}; imagens: null; futuro: null`,
+      ),
+    ).toBeOnTheScreen();
   });
 
   it('aceite pelo responsável legal: entrega à assinatura quem foi marcado', async () => {
@@ -67,7 +78,32 @@ describe('TermoConsentimentoScreen', () => {
 
     expect(screen.getByRole('radio', { name: 'Responsável legal' })).toBeChecked();
     expect(
-      screen.getByText(`Assina: responsavel_legal; versão: ${TERMO_TCLE.versao}`),
+      screen.getByText(
+        `Assina: responsavel_legal; versão: ${TERMO_TCLE.versao}; imagens: null; futuro: null`,
+      ),
+    ).toBeOnTheScreen();
+  });
+
+  it('mostra as duas escolhas sem pré-seleção e entrega as respostas ao contexto', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+
+    const radios = [
+      'Uso das imagens: Sim',
+      'Uso das imagens: Não',
+      'Uso futuro: Sim',
+      'Uso futuro: Não',
+    ];
+    for (const label of radios)
+      expect(screen.getByRole('radio', { name: label })).not.toBeChecked();
+
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Não' }));
+
+    expect(
+      screen.getByText(
+        `Assina: paciente; versão: ${TERMO_TCLE.versao}; imagens: true; futuro: false`,
+      ),
     ).toBeOnTheScreen();
   });
 

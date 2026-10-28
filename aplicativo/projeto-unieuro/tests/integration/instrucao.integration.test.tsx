@@ -72,6 +72,8 @@ describe('do termo de consentimento à instrução', () => {
       [20, 80],
       [160, 100],
     ]);
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
 
     expect(registerConsentDecision).toHaveBeenCalledWith(

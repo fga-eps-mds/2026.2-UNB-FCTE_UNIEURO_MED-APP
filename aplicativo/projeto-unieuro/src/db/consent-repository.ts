@@ -38,8 +38,9 @@ export function createConsentRepository(
 
         await database.runAsync(
           `INSERT INTO consentimento
-             (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+             (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora,
+              autoriza_imagens_pesquisa, autoriza_dados_pesquisa_futura)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             decisao.atendimentoId,
             decisao.versaoTermo,
@@ -47,6 +48,12 @@ export function createConsentRepository(
             decisao.quemAssina,
             decisao.aceito ? decisao.assinaturaPng : null,
             decisao.decididoEm,
+            decisao.autorizaImagensPesquisa == null
+              ? null
+              : Number(decisao.autorizaImagensPesquisa),
+            decisao.autorizaDadosPesquisaFutura == null
+              ? null
+              : Number(decisao.autorizaDadosPesquisaFutura),
           ],
         );
         salva = true;

@@ -5,6 +5,10 @@ import { useRouter } from 'expo-router';
 
 import { returnToLogin, useSession } from '@/features/auth/session';
 import { QuemAssinaEscolha } from '@/features/avaliacao/quem-assina';
+import {
+  UsoDadosPesquisaEscolha,
+  type EscolhasUsoPesquisa,
+} from '@/features/avaliacao/uso-dados-pesquisa-escolha';
 import { TermoConsentimento } from '@/features/avaliacao/termo-consentimento';
 import { createTermoStyles, getTermoLayout } from '@/features/avaliacao/termo-consentimento.styles';
 import { TERMO_TCLE, type QuemAssina, type TermoTcle } from '@/features/avaliacao/termo-tcle';
@@ -16,6 +20,8 @@ export const ETAPA_CONSENTIMENTO = 'Etapa 2 de 5 · Consentimento';
 export type ContextoDecisao = {
   quemAssina: QuemAssina;
   versaoTermo: string;
+  autorizaImagensPesquisa: boolean | null;
+  autorizaDadosPesquisaFutura: boolean | null;
 };
 
 type TermoConsentimentoScreenProps = {
@@ -52,6 +58,10 @@ export default function TermoConsentimentoScreen({
   const { width } = useWindowDimensions();
   const layout = getTermoLayout(width);
   const [quemAssina, setQuemAssina] = useState<QuemAssina>('paciente');
+  const [escolhasPesquisa, setEscolhasPesquisa] = useState<EscolhasUsoPesquisa>({
+    autorizaImagensPesquisa: null,
+    autorizaDadosPesquisaFutura: null,
+  });
 
   useEffect(() => {
     if (!professional) returnToLogin(router);
@@ -74,6 +84,11 @@ export default function TermoConsentimentoScreen({
       <View style={[styles.corpo, margem, layout.duasColunas && styles.corpoDuasColunas]}>
         <TermoConsentimento styles={styles} termo={termo} />
         <View style={[styles.colunaDecisao, layout.duasColunas && styles.colunaDecisaoLateral]}>
+          <UsoDadosPesquisaEscolha
+            styles={styles}
+            valores={escolhasPesquisa}
+            onChange={setEscolhasPesquisa}
+          />
           <View style={styles.cartaoDecisao}>
             <Text accessibilityRole="header" style={styles.declaracaoTitulo}>
               Declaração de consentimento
@@ -82,7 +97,7 @@ export default function TermoConsentimentoScreen({
             <QuemAssinaEscolha onChange={setQuemAssina} styles={styles} valor={quemAssina} />
             {assinatura}
           </View>
-          {acoes({ quemAssina, versaoTermo: termo.versao })}
+          {acoes({ quemAssina, versaoTermo: termo.versao, ...escolhasPesquisa })}
         </View>
       </View>
     </SafeAreaView>

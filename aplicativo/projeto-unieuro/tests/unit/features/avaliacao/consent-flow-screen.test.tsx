@@ -1,4 +1,4 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
@@ -57,6 +57,8 @@ async function renderizar(atendimento: string | undefined = '12') {
 
 async function assinar() {
   medirQuadro(520, 160, ROTULO_QUADRO);
+  fireEvent.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+  fireEvent.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
   await desenharNoQuadro([
     [20, 80],
     [90, 40],
@@ -168,6 +170,8 @@ describe('Cenário: aceite', () => {
       atendimentoId: 12,
       versaoTermo: TERMO_TCLE.versao,
       quemAssina: 'paciente',
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
       aceito: true,
       assinaturaPng: PNG,
     });
@@ -229,6 +233,8 @@ describe('Cenário: recusa', () => {
       atendimentoId: 12,
       versaoTermo: TERMO_TCLE.versao,
       quemAssina: 'paciente',
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
       aceito: false,
     });
     expect(gerarImagemDesenho).not.toHaveBeenCalled();
