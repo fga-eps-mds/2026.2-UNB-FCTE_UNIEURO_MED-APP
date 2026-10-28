@@ -24,10 +24,18 @@ const ASSINATURA = [
 ] as const;
 
 const botaoAssinar = () => screen.getByRole('button', { name: 'Assinar e iniciar' });
+const autorizarUsoPesquisa = () => {
+  for (const label of ['Uso das imagens: Sim', 'Uso futuro: Sim']) {
+    const radio = screen.queryByRole('radio', { name: label });
+    if (radio) fireEvent.press(radio);
+  }
+};
 const botaoRecusar = () => screen.getByRole('button', { name: 'Recusar' });
+const botaoLimpar = () => screen.getByRole('button', { name: 'Apagar assinatura' });
 
 async function assinar() {
   medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+  autorizarUsoPesquisa();
   await desenharNoQuadro(ASSINATURA);
 }
 
@@ -75,6 +83,12 @@ describe('Cenário: assinar sem ter assinado', () => {
     expect(screen.queryByText('Assine aqui com a caneta')).toBeNull();
   });
 
+  it('mantém apagar assinatura desabilitado sem traços', () => {
+    renderizar();
+
+    expect(botaoLimpar()).toBeDisabled();
+  });
+
   it('deixa o "Recusar" disponível sem assinatura', () => {
     renderizar();
 
@@ -89,6 +103,32 @@ describe('Cenário: assinar e iniciar', () => {
     await assinar();
 
     expect(botaoAssinar()).toBeEnabled();
+  });
+
+  it('apaga os traços e exige uma nova assinatura antes de continuar', async () => {
+    const { user, onAssinar } = renderizar();
+    await assinar();
+    expect(botaoLimpar()).toBeEnabled();
+
+    await user.press(botaoLimpar());
+
+    expect(screen.getByText('Assine aqui com a caneta')).toBeOnTheScreen();
+    expect(botaoAssinar()).toBeDisabled();
+    expect(botaoLimpar()).toBeDisabled();
+
+    await assinar();
+    await user.press(botaoAssinar());
+
+    expect(onAssinar).toHaveBeenCalledTimes(1);
+    expect(onAssinar.mock.calls[0][0].tracos).toHaveLength(1);
+    expect(
+      onAssinar.mock.calls[0][0].tracos[0].map(({ x, y }: { x: number; y: number }) => [x, y]),
+    ).toEqual(
+      expect.arrayContaining([
+        [20, 80],
+        [240, 50],
+      ]),
+    );
   });
 
   it('entrega à ação os traços e o tamanho da área de assinatura', async () => {
@@ -151,6 +191,7 @@ describe('Cenário: assinar e iniciar', () => {
 
     expect(botaoAssinar()).toBeDisabled();
     expect(botaoRecusar()).toBeDisabled();
+    expect(botaoLimpar()).toBeDisabled();
     expect(screen.getByLabelText(ROTULO_QUADRO)).toBeDisabled();
     concluir();
   });
@@ -324,7 +365,12 @@ describe('Encaixe na tela do termo', () => {
 
     expect(aoAssinar).toHaveBeenCalledTimes(1);
     const [contexto, assinatura] = aoAssinar.mock.calls[0];
-    expect(contexto).toEqual({ quemAssina: 'responsavel_legal', versaoTermo: TERMO_TCLE.versao });
+    expect(contexto).toEqual({
+      quemAssina: 'responsavel_legal',
+      versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
+    });
     expect(assinatura.dimensoes).toEqual({ largura: LARGURA, altura: ALTURA });
     expect(assinatura.tracos).toHaveLength(1);
   });
@@ -339,6 +385,8 @@ describe('Encaixe na tela do termo', () => {
     expect(aoAssinar.mock.calls[0][0]).toEqual({
       quemAssina: 'paciente',
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
     });
   });
 
@@ -352,6 +400,8 @@ describe('Encaixe na tela do termo', () => {
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
     });
   });
 });
@@ -390,6 +440,30 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(botaoAssinar()).toBeDisabled();
   });
 
+  it('exige resposta explícita e autorização para imagens antes de habilitar o aceite', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+    await desenharNoQuadro(ASSINATURA);
+    expect(botaoAssinar()).toBeDisabled();
+
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Não' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Não' }));
+    expect(botaoAssinar()).toBeDisabled();
+
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    expect(botaoAssinar()).toBeEnabled();
+  });
+
+  it('aplica fundo pêssego e contorno primário à escolha marcada', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+
+    const simImagens = screen.getByRole('radio', { name: 'Uso das imagens: Sim' });
+    await user.press(simImagens);
+    expect(simImagens).toHaveStyle({ borderColor: '#9A3412', backgroundColor: '#FFE8D6' });
+  });
+
   it('entrega a assinatura com quem assina e a versão do termo', async () => {
     const user = userEvent.setup();
     const { aoAssinar } = renderizarTela();
@@ -401,7 +475,12 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(aoAssinar).toHaveBeenCalledTimes(1);
     const [assinatura, contexto] = aoAssinar.mock.calls[0];
     expect(assinatura.tracos).toHaveLength(1);
-    expect(contexto).toEqual({ quemAssina: 'responsavel_legal', versaoTermo: TERMO_TCLE.versao });
+    expect(contexto).toEqual({
+      quemAssina: 'responsavel_legal',
+      versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
+    });
   });
 
   it('entrega a recusa com quem assina e a versão do termo', async () => {
@@ -414,6 +493,8 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
     });
   });
 

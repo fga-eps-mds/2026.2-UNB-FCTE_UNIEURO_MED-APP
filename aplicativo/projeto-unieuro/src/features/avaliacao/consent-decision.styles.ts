@@ -16,7 +16,29 @@ export function createDecisaoStyles(colors: ThemeColors) {
 
   return StyleSheet.create({
     raiz: { gap: 16 },
-    areaAssinatura: { height: ALTURA_AREA_ASSINATURA },
+    areaAssinatura: { gap: 8 },
+    quadroAssinatura: { height: ALTURA_AREA_ASSINATURA },
+    botaoLimpar: {
+      minHeight: 48,
+      alignSelf: 'flex-end',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      backgroundColor: colors.surface,
+    },
+    botaoLimparDesabilitado: {
+      borderColor: DESABILITADO.fundo,
+      backgroundColor: DESABILITADO.fundo,
+    },
+    botaoLimparTexto: {
+      color: colors.primary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 18,
+      lineHeight: 24,
+    },
+    botaoLimparTextoDesabilitado: { color: DESABILITADO.texto },
     // Moldura pontilhada do protótipo, no lugar da borda contínua do quadro.
     molduraAssinatura: {
       borderWidth: 2,
