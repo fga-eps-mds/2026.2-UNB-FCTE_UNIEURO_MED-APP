@@ -1,5 +1,6 @@
 import {
   confirmarDesenho,
+  type DesenhoConfirmado,
   type DrawingRepository,
   type RegistroConfirmado,
 } from '@/features/captura/drawing';
@@ -32,7 +33,7 @@ const registro = (extra: Partial<RegistroConfirmado> = {}): RegistroConfirmado =
 let repository: jest.Mocked<DrawingRepository>;
 
 beforeEach(() => {
-  repository = { salvarDesenho: jest.fn(async () => undefined) };
+  repository = { salvarDesenho: jest.fn<Promise<void>, [DesenhoConfirmado]>(async () => {}) };
   jest.mocked(gerarImagemDesenho).mockReturnValue(PNG);
 });
 

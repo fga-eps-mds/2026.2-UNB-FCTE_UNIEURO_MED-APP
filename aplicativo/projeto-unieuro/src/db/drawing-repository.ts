@@ -1,8 +1,8 @@
 import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { EventoTracado } from '@/features/captura/eventos-tracado';
 import type { DesenhoConfirmado, DrawingRepository } from '@/features/captura/drawing';
+import type { EventoDePonto, EventoTracado } from '@/features/captura/eventos-tracado';
 
 const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao,
   inclinacao_x, inclinacao_y`;
@@ -10,8 +10,11 @@ const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, insta
 // 100 eventos por INSERT ficam bem abaixo do limite de parâmetros do SQLite.
 const EVENTS_PER_INSERT = 100;
 
+const isPoint = (event: EventoTracado): event is EventoDePonto =>
+  event.tipo === 'inicio' || event.tipo === 'ponto';
+
 function eventParams(taskId: number, event: EventoTracado): SQLiteBindValue[] {
-  if (event.tipo === 'desfazer' || event.tipo === 'limpar') {
+  if (!isPoint(event)) {
     return [taskId, event.ordem, event.tipo, null, null, null, event.instante, null, null, null];
   }
   return [

@@ -4,7 +4,10 @@ import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
-import DrawingTaskScreen, { FALHA_AO_SALVAR } from '@/features/avaliacao/drawing-task-screen';
+import DrawingTaskScreen, {
+  FALHA_AO_SALVAR,
+  type DrawingTaskScreenProps,
+} from '@/features/avaliacao/drawing-task-screen';
 import { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 import type { ParametroDeRota } from '@/features/avaliacao/tarefas';
 
@@ -38,7 +41,9 @@ function renderizarTela(opcoes: Opcoes = {}) {
     professional: profissional,
     ...opcoes,
   };
-  const onConfirmar = jest.fn(async () => undefined);
+  const onConfirmar = jest.fn<Promise<void>, Parameters<DrawingTaskScreenProps['onConfirmar']>>(
+    async () => {},
+  );
 
   render(
     <SessionProvider initialProfessional={professional}>
