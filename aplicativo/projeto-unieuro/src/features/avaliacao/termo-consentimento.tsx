@@ -19,6 +19,8 @@ const FOLGA_FIM = 24;
 type TermoConsentimentoProps = {
   termo: TermoTcle;
   styles: TermoStyles;
+  /** Termo ao lado do painel (tablet na horizontal). */
+  layoutLateral?: boolean;
 };
 
 /**
@@ -27,7 +29,11 @@ type TermoConsentimentoProps = {
  * passou pela tela. Ler até o fim não é exigido para a decisão: o termo pode ser
  * lido em voz alta para o paciente.
  */
-export function TermoConsentimento({ termo, styles }: Readonly<TermoConsentimentoProps>) {
+export function TermoConsentimento({
+  termo,
+  styles,
+  layoutLateral = false,
+}: Readonly<TermoConsentimentoProps>) {
   const [alturaVisivel, setAlturaVisivel] = useState(0);
   const [alturaConteudo, setAlturaConteudo] = useState(0);
   const [chegouAoFim, setChegouAoFim] = useState(false);
@@ -43,7 +49,7 @@ export function TermoConsentimento({ termo, styles }: Readonly<TermoConsentiment
   }
 
   return (
-    <View style={styles.colunaTermo}>
+    <View style={[styles.colunaTermo, layoutLateral && styles.colunaTermoLateral]}>
       <View style={styles.cartaoTermo}>
         <ScrollView
           accessibilityLabel="Texto do termo de consentimento"

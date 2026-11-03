@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Text, View, useWindowDimensions } from 'react-native';
+import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -81,23 +81,34 @@ export default function TermoConsentimentoScreen({
         )}
         <Text style={styles.etapa}>{ETAPA_CONSENTIMENTO}</Text>
       </View>
-      <View style={[styles.corpo, margem, layout.duasColunas && styles.corpoDuasColunas]}>
-        <TermoConsentimento styles={styles} termo={termo} />
-        <View style={[styles.colunaDecisao, layout.duasColunas && styles.colunaDecisaoLateral]}>
-          <UsoDadosPesquisaEscolha
-            styles={styles}
-            valores={escolhasPesquisa}
-            onChange={setEscolhasPesquisa}
-          />
-          <View style={styles.cartaoDecisao}>
-            <Text accessibilityRole="header" style={styles.declaracaoTitulo}>
-              Declaração de consentimento
-            </Text>
-            <Text style={styles.declaracao}>{termo.declaracao}</Text>
-            <QuemAssinaEscolha onChange={setQuemAssina} styles={styles} valor={quemAssina} />
-            {assinatura}
+      <View
+        // A chave força o layout a ser refeito ao girar o tablet.
+        key={layout.duasColunas ? 'horizontal' : 'vertical'}
+        style={[styles.corpo, margem, layout.duasColunas && styles.corpoDuasColunas]}>
+        <TermoConsentimento styles={styles} termo={termo} layoutLateral={layout.duasColunas} />
+        <View style={[styles.painel, layout.duasColunas && styles.painelLateral]}>
+          <ScrollView
+            accessibilityLabel="Escolhas, declaração e assinatura"
+            contentContainerStyle={styles.painelConteudo}
+            keyboardShouldPersistTaps="handled"
+            style={[styles.painelRolagem, layout.duasColunas && styles.painelRolagemLateral]}>
+            <UsoDadosPesquisaEscolha
+              styles={styles}
+              valores={escolhasPesquisa}
+              onChange={setEscolhasPesquisa}
+            />
+            <View style={styles.cartaoDecisao}>
+              <Text accessibilityRole="header" style={styles.declaracaoTitulo}>
+                Declaração de consentimento
+              </Text>
+              <Text style={styles.declaracao}>{termo.declaracao}</Text>
+              <QuemAssinaEscolha onChange={setQuemAssina} styles={styles} valor={quemAssina} />
+              {assinatura}
+            </View>
+          </ScrollView>
+          <View style={styles.rodape}>
+            {acoes({ quemAssina, versaoTermo: termo.versao, ...escolhasPesquisa })}
           </View>
-          {acoes({ quemAssina, versaoTermo: termo.versao, ...escolhasPesquisa })}
         </View>
       </View>
     </SafeAreaView>
