@@ -16,6 +16,22 @@ describe('layout da tela do termo', () => {
     expect(getTermoLayout(320).margem).toBe(16);
   });
 
+  it('dá ao termo espaço mínimo e deixa as colunas encolherem em paisagem', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.colunaTermo.minHeight).toBe(200);
+    expect(styles.colunaTermoLateral.minWidth).toBe(0);
+    expect(styles.painelLateral.minWidth).toBe(0);
+    expect(styles.painel.maxHeight).toBe('60%');
+  });
+
+  it('mantém as duas opções de quem assina juntas, lado a lado', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.quemAssinaOpcoes.flexDirection).toBe('row');
+    expect(styles.opcaoQuemAssina.flexShrink).toBe(1);
+  });
+
   it('usa letra de pelo menos 16 e corpo do termo de 20', () => {
     const styles = createTermoStyles(Colors.dark);
 
