@@ -149,6 +149,9 @@ export function createTermoStyles(colors: ThemeColors) {
       fontSize: 16,
       lineHeight: 22,
     },
+    // Opções lado a lado, sem quebra de linha entre elas; a fonte continua a mesma (acessibilidade).
+    quemAssinaOpcoes: { flexDirection: 'row', flexShrink: 1, gap: 8 },
+    opcaoQuemAssina: { flexShrink: 1, paddingHorizontal: 12, gap: 8 },
     opcao: {
       minHeight: 56,
       flexDirection: 'row',
