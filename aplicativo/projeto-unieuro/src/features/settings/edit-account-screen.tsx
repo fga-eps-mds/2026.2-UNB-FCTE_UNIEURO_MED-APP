@@ -25,6 +25,7 @@ import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createAccountFormStyles } from '@/features/settings/account-form.styles';
 import { FormField } from '@/features/settings/form-field';
 import { createSettingsStyles } from '@/features/settings/settings.styles';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import { useTheme } from '@/hooks/use-theme';
 
 const emptyPasswordChange: PasswordChangeInput = {
@@ -160,6 +161,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               label="NOME COMPLETO"
               autoCapitalize="words"
               autoComplete="name"
+              maxLength={MAX_NAME_LENGTH}
               value={profile.name}
               onChangeText={editProfile('name')}
               error={profileErrors.name}
