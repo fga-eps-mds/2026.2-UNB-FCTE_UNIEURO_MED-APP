@@ -1,8 +1,51 @@
 import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { DesenhoConfirmado, DrawingRepository } from '@/features/captura/drawing';
-import type { EventoDePonto, EventoTracado } from '@/features/captura/eventos-tracado';
+
+/*
+ * Os tipos abaixo espelham o `DesenhoConfirmado` e o `EventoTracado` da captura:
+ * o banco não importa tipos da camada de aplicação, e a `composition.ts` da
+ * feature confere, pelo tipo, que este repositório atende ao contrato dela.
+ */
+
+export type TaskType = 'relogio' | 'cubo' | 'trilhas';
+
+export type PointerType = 'caneta' | 'dedo' | 'mouse' | 'desconhecido';
+
+export type PointEventRecord = {
+  tipo: 'inicio' | 'ponto';
+  ordem: number;
+  /** Milissegundos desde o início da tarefa. */
+  instante: number;
+  x: number;
+  y: number;
+  ponteiro: PointerType;
+  pressao?: number;
+  inclinacaoX?: number;
+  inclinacaoY?: number;
+};
+
+export type ActionEventRecord = {
+  tipo: 'desfazer' | 'limpar';
+  ordem: number;
+  instante: number;
+};
+
+export type TracingEventRecord = PointEventRecord | ActionEventRecord;
+
+export type DrawingRecord = {
+  atendimentoId: number;
+  ordem: number;
+  tipo: TaskType;
+  largura: number;
+  altura: number;
+  /** Data e hora em ISO 8601, pelo relógio do tablet. */
+  iniciadoEm: string;
+  confirmadoEm: string;
+  /** Inclui os traços desfeitos e apagados. */
+  eventos: readonly TracingEventRecord[];
+  imagemPng: Uint8Array;
+};
 
 const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao,
   inclinacao_x, inclinacao_y`;
@@ -10,10 +53,10 @@ const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, insta
 // 100 eventos por INSERT ficam bem abaixo do limite de parâmetros do SQLite.
 const EVENTS_PER_INSERT = 100;
 
-const isPoint = (event: EventoTracado): event is EventoDePonto =>
+const isPoint = (event: TracingEventRecord): event is PointEventRecord =>
   event.tipo === 'inicio' || event.tipo === 'ponto';
 
-function eventParams(taskId: number, event: EventoTracado): SQLiteBindValue[] {
+function eventParams(taskId: number, event: TracingEventRecord): SQLiteBindValue[] {
   if (!isPoint(event)) {
     return [taskId, event.ordem, event.tipo, null, null, null, event.instante, null, null, null];
   }
@@ -34,7 +77,7 @@ function eventParams(taskId: number, event: EventoTracado): SQLiteBindValue[] {
 async function insertEvents(
   database: SQLiteDatabase,
   taskId: number,
-  events: readonly EventoTracado[],
+  events: readonly TracingEventRecord[],
 ) {
   for (let start = 0; start < events.length; start += EVENTS_PER_INSERT) {
     const batch = events.slice(start, start + EVENTS_PER_INSERT);
@@ -50,11 +93,9 @@ async function insertEvents(
  * Persistência do desenho confirmado (#10). A tarefa, os eventos do traçado e o
  * desenho entram na mesma transação: se qualquer um falhar, nada fica gravado.
  */
-export function createDrawingRepository(
-  open: () => Promise<SQLiteDatabase> = getDatabase,
-): DrawingRepository {
+export function createDrawingRepository(open: () => Promise<SQLiteDatabase> = getDatabase) {
   return {
-    async salvarDesenho(desenho: DesenhoConfirmado): Promise<void> {
+    async salvarDesenho(desenho: DrawingRecord): Promise<void> {
       const database = await open();
       await database.withTransactionAsync(async () => {
         const tarefa = await database.runAsync(
@@ -81,5 +122,7 @@ export function createDrawingRepository(
     },
   };
 }
+
+export type SqliteDrawingRepository = ReturnType<typeof createDrawingRepository>;
 
 export const drawingRepository = createDrawingRepository();

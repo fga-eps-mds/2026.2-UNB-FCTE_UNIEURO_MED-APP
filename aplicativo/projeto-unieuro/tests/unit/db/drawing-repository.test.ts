@@ -1,7 +1,10 @@
 import { createAttendanceRepository } from '@/db/attendance-repository';
-import { createDrawingRepository } from '@/db/drawing-repository';
-import type { DesenhoConfirmado, DrawingRepository } from '@/features/captura/drawing';
-import type { EventoTracado } from '@/features/captura/eventos-tracado';
+import {
+  createDrawingRepository,
+  type DrawingRecord,
+  type SqliteDrawingRepository,
+  type TracingEventRecord,
+} from '@/db/drawing-repository';
 
 import {
   abrirTabletComAnaEBruno,
@@ -16,7 +19,7 @@ const CONFIRMED_AT = '2026-11-03T14:03:10.000Z';
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
 let tablet: TabletComAnaEBruno;
-let repository: DrawingRepository;
+let repository: SqliteDrawingRepository;
 let attendanceId: number;
 
 beforeEach(async () => {
@@ -42,7 +45,7 @@ afterEach(async () => {
   await tablet.fechar();
 });
 
-const EVENTOS: EventoTracado[] = [
+const EVENTOS: TracingEventRecord[] = [
   { tipo: 'inicio', ordem: 1, instante: 100, x: 10, y: 20, ponteiro: 'caneta', pressao: 0.4 },
   {
     tipo: 'ponto',
@@ -58,7 +61,7 @@ const EVENTOS: EventoTracado[] = [
   { tipo: 'inicio', ordem: 3, instante: 900, x: 50, y: 60, ponteiro: 'dedo' },
 ];
 
-const desenho = (extra: Partial<DesenhoConfirmado> = {}): DesenhoConfirmado => ({
+const desenho = (extra: Partial<DrawingRecord> = {}): DrawingRecord => ({
   atendimentoId: attendanceId,
   ordem: 1,
   tipo: 'relogio',
@@ -146,7 +149,7 @@ describe('Cenário: traçado guardado', () => {
   });
 
   it('grava em lotes um traçado com mais de 100 pontos', async () => {
-    const longo: EventoTracado[] = Array.from({ length: 250 }, (_, indice) => ({
+    const longo: TracingEventRecord[] = Array.from({ length: 250 }, (_, indice) => ({
       tipo: indice === 0 ? 'inicio' : 'ponto',
       ordem: indice + 1,
       instante: indice * 16,
@@ -182,7 +185,7 @@ describe('Cenário: traçado guardado', () => {
 
 describe('Cenário: traços apagados também ficam', () => {
   it('grava o desfazer e o limpar junto com os pontos apagados', async () => {
-    const comApagados: EventoTracado[] = [
+    const comApagados: TracingEventRecord[] = [
       ...EVENTOS,
       { tipo: 'desfazer', ordem: 4, instante: 1200 },
       { tipo: 'limpar', ordem: 5, instante: 1500 },
@@ -241,7 +244,7 @@ describe('Cenário: tudo ou nada', () => {
   });
 
   it('não grava a tarefa nem a imagem quando um evento do traçado é recusado', async () => {
-    const invalido: EventoTracado[] = [
+    const invalido: TracingEventRecord[] = [
       ...EVENTOS,
       { tipo: 'ponto', ordem: 4, instante: -1, x: 1, y: 1, ponteiro: 'caneta' },
     ];
@@ -252,7 +255,7 @@ describe('Cenário: tudo ou nada', () => {
   });
 
   it('desfaz os lotes já gravados quando um evento de um lote seguinte é recusado', async () => {
-    const longo: EventoTracado[] = Array.from({ length: 250 }, (_, indice) => ({
+    const longo: TracingEventRecord[] = Array.from({ length: 250 }, (_, indice) => ({
       tipo: indice === 0 ? 'inicio' : 'ponto',
       ordem: indice + 1,
       // O evento 150, no segundo lote, tem instante negativo e é recusado.
