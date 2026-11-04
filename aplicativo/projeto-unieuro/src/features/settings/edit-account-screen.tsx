@@ -181,6 +181,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="CRM"
+                containerStyle={form.rowItem}
                 keyboardType="numeric"
                 maxLength={10}
                 value={profile.crmNumber}
@@ -190,6 +191,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="UF DO CRM"
+                containerStyle={form.rowItem}
                 autoCapitalize="characters"
                 maxLength={2}
                 value={profile.crmState}
@@ -211,6 +213,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="CONFIRME COM A SUA SENHA ATUAL"
+                containerStyle={form.rowItem}
                 secureTextEntry
                 autoComplete="current-password"
                 value={profilePassword}
@@ -286,6 +289,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               onPress={savePassword}
               style={({ pressed }) => [
                 form.primaryButton,
+                form.standaloneButton,
                 (pressed || savingPassword) && styles.pressed,
               ]}>
               {savingPassword ? (
