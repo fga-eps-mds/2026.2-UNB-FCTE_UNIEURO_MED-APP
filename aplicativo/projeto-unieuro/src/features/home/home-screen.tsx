@@ -140,9 +140,8 @@ export default function HomeScreen({
             <Text accessibilityRole="header" style={styles.title}>
               Seus pacientes
             </Text>
-            <Text style={styles.subtitle}>
-              {loading ? LOADING_MESSAGE : describeTotals(patients)}
-            </Text>
+            {/* Enquanto carrega, o aviso fica só no cartão da lista, para não ser lido duas vezes. */}
+            {!loading && <Text style={styles.subtitle}>{describeTotals(patients)}</Text>}
           </View>
           <Pressable
             accessibilityRole="button"
