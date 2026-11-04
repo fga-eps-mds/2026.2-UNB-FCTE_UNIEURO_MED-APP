@@ -23,4 +23,8 @@ describe('layout da tela do termo', () => {
     expect(styles.avisoRolagem.fontSize).toBeGreaterThanOrEqual(16);
     expect(styles.versao.fontSize).toBeGreaterThanOrEqual(16);
   });
+
+  it('deixa o nome do paciente encolher no cabeçalho, sem passar da tela', () => {
+    expect(createTermoStyles(Colors.light).paciente.flexShrink).toBe(1);
+  });
 });

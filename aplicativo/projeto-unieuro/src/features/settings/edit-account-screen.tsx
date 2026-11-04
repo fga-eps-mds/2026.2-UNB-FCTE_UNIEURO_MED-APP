@@ -135,7 +135,9 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
           <Text style={styles.backText}>‹ Configurações</Text>
         </Pressable>
         <View style={styles.accountText}>
-          <Text style={styles.professionalName}>{professional.name}</Text>
+          <Text style={styles.professionalName} numberOfLines={1}>
+            {professional.name}
+          </Text>
           <Text style={styles.label}>CRM {formatCrm(professional)}</Text>
         </View>
       </View>

@@ -116,7 +116,9 @@ export default function HomeScreen({
         </View>
         <View style={styles.account}>
           <View style={styles.accountText}>
-            <Text style={styles.professionalName}>{professional.name}</Text>
+            <Text style={styles.professionalName} numberOfLines={1}>
+              {professional.name}
+            </Text>
             <Text style={styles.professionalCrm}>CRM {formatCrm(professional)}</Text>
           </View>
           <Pressable

@@ -223,4 +223,10 @@ describe('EditAccountScreen', () => {
 
     expect(screen.getByLabelText('NOME COMPLETO')).toHaveProp('maxLength', MAX_NAME_LENGTH);
   });
+
+  it('corta em uma linha o nome do profissional no topo', () => {
+    renderTela();
+
+    expect(screen.getByText('Ana Carolina Souza')).toHaveProp('numberOfLines', 1);
+  });
 });

@@ -31,7 +31,7 @@ export function createSettingsStyles(theme: ThemeColors) {
     topBarWide: { paddingHorizontal: 40 },
     back: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 },
     backText: { ...buttonText, color: theme.primary },
-    accountText: { alignItems: 'flex-end' },
+    accountText: { flexShrink: 1, alignItems: 'flex-end' },
     professionalName: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
     label: { ...label, marginTop: 2 },
     content: { gap: 24, padding: 24, paddingBottom: 48 },
