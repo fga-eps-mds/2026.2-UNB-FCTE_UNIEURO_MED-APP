@@ -50,8 +50,10 @@ export type DrawingRecord = {
 const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao,
   inclinacao_x, inclinacao_y`;
 
-// 100 eventos por INSERT ficam bem abaixo do limite de parâmetros do SQLite.
-const EVENTS_PER_INSERT = 100;
+// 90 eventos × 10 colunas = 900 parâmetros por INSERT, abaixo do limite de 999 das
+// versões do SQLite anteriores à 3.32. O expo-sqlite embarca uma versão mais nova
+// (limite de 32.766), mas o lote não depende disso.
+const EVENTS_PER_INSERT = 90;
 
 const isPoint = (event: TracingEventRecord): event is PointEventRecord =>
   event.tipo === 'inicio' || event.tipo === 'ponto';

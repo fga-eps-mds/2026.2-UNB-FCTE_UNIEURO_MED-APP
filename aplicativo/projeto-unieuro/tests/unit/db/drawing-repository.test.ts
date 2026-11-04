@@ -167,6 +167,26 @@ describe('Cenário: traçado guardado', () => {
     expect(ultimo).toEqual({ ordem: 250, instante: 249 * 16 });
   });
 
+  it('não passa de 999 parâmetros por INSERT, o limite das versões antigas do SQLite', async () => {
+    const longo: TracingEventRecord[] = Array.from({ length: 250 }, (_, indice) => ({
+      tipo: indice === 0 ? 'inicio' : 'ponto',
+      ordem: indice + 1,
+      instante: indice,
+      x: indice,
+      y: indice,
+      ponteiro: 'caneta',
+    }));
+    const gravar = jest.spyOn(tablet.database, 'runAsync');
+
+    await repository.salvarDesenho(desenho({ eventos: longo }));
+
+    const parametros = gravar.mock.calls
+      .filter(([sql]) => String(sql).includes('INSERT INTO evento_tracado'))
+      .map(([, valores]) => (Array.isArray(valores) ? valores.length : 0));
+    expect(parametros).toEqual([900, 900, 700]);
+    expect(Math.max(...parametros)).toBeLessThanOrEqual(999);
+  });
+
   it('grava as três tarefas do mesmo atendimento', async () => {
     await repository.salvarDesenho(desenho());
     await repository.salvarDesenho(desenho({ ordem: 2, tipo: 'cubo' }));
