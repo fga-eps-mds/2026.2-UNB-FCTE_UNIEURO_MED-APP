@@ -1,72 +1,58 @@
-import type { CredentialsRepository } from '@/features/auth/authentication';
-import type { SessionProfessional } from '@/features/auth/session';
 import {
-  SENHA_INCORRETA,
-  SENHA_VAZIA,
+  DIGITOS_INCOMPLETOS,
+  DIGITOS_INCORRETOS,
+  DIGITOS_VAZIOS,
   confirmarProfissional,
+  type ProfessionalCpfRepository,
 } from '@/features/avaliacao/confirmacao-profissional';
 
-jest.mock('@/features/auth/password', () => ({
-  DUMMY_PASSWORD_HASH: 'hash-ficticio',
-  verifyPassword: jest.fn(
-    async (password: string, hash: string) => hash === 'hash-real' && password === 'senhaForte123',
-  ),
-}));
+const ID_PROFISSIONAL = 7;
+const CPF_PROTEGIDO = '11144477735';
 
-const profissional: SessionProfessional = {
-  id: 7,
-  name: 'Ana Carolina Souza',
-  email: 'ana@unieuro.com.br',
-  crmNumber: '12345',
-  crmState: 'DF',
-};
-
-function criarRepositorio(doBanco: Partial<SessionProfessional & { active: boolean }> = {}) {
-  return {
-    findByEmail: jest.fn(async () => ({
-      ...profissional,
-      active: true,
-      ...doBanco,
-      passwordHash: 'hash-real',
-    })),
-  } satisfies CredentialsRepository;
+function criarRepositorio(cpf: string | null = CPF_PROTEGIDO): ProfessionalCpfRepository {
+  return { getCpf: jest.fn(async () => cpf) };
 }
 
 describe('confirmarProfissional', () => {
-  it('confirma o profissional da sessão pela senha dele', async () => {
+  it('confirma pelos quatro primeiros dígitos do CPF protegido do profissional da sessão', async () => {
     const repositorio = criarRepositorio();
 
-    await expect(
-      confirmarProfissional('senhaForte123', profissional, repositorio),
-    ).resolves.toEqual({ confirmado: true });
-    expect(repositorio.findByEmail).toHaveBeenCalledWith('ana@unieuro.com.br');
-  });
-
-  it('recusa a senha errada', async () => {
-    await expect(
-      confirmarProfissional('outraSenha', profissional, criarRepositorio()),
-    ).resolves.toEqual({ confirmado: false, mensagem: SENHA_INCORRETA });
-  });
-
-  it('pede a senha quando ela está vazia, sem consultar o banco', async () => {
-    const repositorio = criarRepositorio();
-
-    await expect(confirmarProfissional('', profissional, repositorio)).resolves.toEqual({
-      confirmado: false,
-      mensagem: SENHA_VAZIA,
+    await expect(confirmarProfissional('1114', ID_PROFISSIONAL, repositorio)).resolves.toEqual({
+      confirmado: true,
     });
-    expect(repositorio.findByEmail).not.toHaveBeenCalled();
+    expect(repositorio.getCpf).toHaveBeenCalledWith(ID_PROFISSIONAL);
   });
 
-  it('recusa quando o e-mail leva a outro profissional', async () => {
-    await expect(
-      confirmarProfissional('senhaForte123', profissional, criarRepositorio({ id: 99 })),
-    ).resolves.toEqual({ confirmado: false, mensagem: SENHA_INCORRETA });
+  it('recusa dígitos incorretos sem revelar os dígitos esperados', async () => {
+    const resultado = await confirmarProfissional('9999', ID_PROFISSIONAL, criarRepositorio());
+
+    expect(resultado).toEqual({ confirmado: false, mensagem: DIGITOS_INCORRETOS });
+    expect(DIGITOS_INCORRETOS).not.toContain('1114');
+    expect(DIGITOS_INCORRETOS).not.toContain(CPF_PROTEGIDO);
   });
 
-  it('recusa a conta desativada, como o login', async () => {
-    await expect(
-      confirmarProfissional('senhaForte123', profissional, criarRepositorio({ active: false })),
-    ).resolves.toEqual({ confirmado: false, mensagem: SENHA_INCORRETA });
+  it.each([
+    ['', DIGITOS_VAZIOS],
+    ['1', DIGITOS_INCOMPLETOS],
+    ['111', DIGITOS_INCOMPLETOS],
+    ['11a4', DIGITOS_INCOMPLETOS],
+    ['11144', DIGITOS_INCOMPLETOS],
+  ])('recusa entrada %p sem ler o CPF protegido', async (digitos, mensagem) => {
+    const repositorio = criarRepositorio();
+
+    await expect(confirmarProfissional(digitos, ID_PROFISSIONAL, repositorio)).resolves.toEqual({
+      confirmado: false,
+      mensagem,
+    });
+    expect(repositorio.getCpf).not.toHaveBeenCalled();
   });
+
+  it.each([null, '', '1114'])(
+    'informa falha de leitura para CPF indisponível ou inválido',
+    async (cpf) => {
+      await expect(
+        confirmarProfissional('1114', ID_PROFISSIONAL, criarRepositorio(cpf)),
+      ).rejects.toThrow('CPF do profissional da sessão indisponível.');
+    },
+  );
 });
