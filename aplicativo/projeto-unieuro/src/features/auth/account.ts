@@ -1,5 +1,6 @@
 import { hashPassword, verifyPassword } from '@/features/auth/password';
 import { MIN_PASSWORD_LENGTH, isBrazilianState, isValidEmail } from '@/features/auth/registration';
+import { NAME_TOO_LONG, isNameTooLong } from '@/features/shared/name';
 
 /**
  * Manutenção da conta do profissional (#5): consultar, editar os dados, trocar
@@ -55,6 +56,7 @@ export function validateProfile(input: AccountProfile): ProfileValidation {
   const crmState = input.crmState.trim().toUpperCase();
 
   if (!name) errors.name = 'Preencha o nome.';
+  else if (isNameTooLong(name)) errors.name = NAME_TOO_LONG;
 
   if (!email) errors.email = 'Preencha o e-mail.';
   else if (!isValidEmail(email)) errors.email = 'Informe um e-mail válido.';

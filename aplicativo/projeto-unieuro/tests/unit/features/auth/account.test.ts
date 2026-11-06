@@ -6,6 +6,7 @@ import {
   validateProfile,
 } from '@/features/auth/account';
 import { verifyPassword } from '@/features/auth/password';
+import { MAX_NAME_LENGTH, NAME_TOO_LONG } from '@/features/shared/name';
 import {
   ANA,
   SENHA_DE_TESTE as SENHA,
@@ -132,6 +133,14 @@ describe('campo inválido na edição', () => {
       },
     });
     await expect(contaDaAna()).resolves.toMatchObject(dadosDaAna);
+  });
+
+  it('recusa um nome acima do limite e aceita o tamanho máximo', () => {
+    expect(validateProfile({ ...dadosDaAna, name: 'a'.repeat(MAX_NAME_LENGTH + 1) })).toEqual({
+      valid: false,
+      errors: { name: NAME_TOO_LONG },
+    });
+    expect(validateProfile({ ...dadosDaAna, name: 'a'.repeat(MAX_NAME_LENGTH) }).valid).toBe(true);
   });
 
   it('pede o e-mail e o CRM quando ficam vazios', () => {

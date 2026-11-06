@@ -3,6 +3,7 @@ import { ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { ProfessionalRepository } from '@/features/auth/registration';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import RegisterScreen from '../../../../src/features/auth/register-screen';
 
 jest.mock('@/features/auth/password', () => ({
@@ -285,5 +286,11 @@ describe('RegisterScreen', () => {
     });
 
     expect(screen.getByRole('header', { name: 'CRIAR CONTA' })).toHaveStyle({ fontSize: 32 });
+  });
+
+  it('não deixa digitar nem colar um nome acima do limite', () => {
+    render(<RegisterScreen />);
+
+    expect(screen.getByLabelText('NOME COMPLETO')).toHaveProp('maxLength', MAX_NAME_LENGTH);
   });
 });
