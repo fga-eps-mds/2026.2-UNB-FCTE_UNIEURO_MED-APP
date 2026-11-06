@@ -28,6 +28,8 @@ describe('registrarDecisaoConsentimento', () => {
           assinaturaPng: ASSINATURA_PNG,
           versaoTermo: '2026-09-15',
           quemAssina: 'responsavel_legal',
+          autorizaImagensPesquisa: true,
+          autorizaDadosPesquisaFutura: false,
         },
         repository,
         () => AGORA,
@@ -43,6 +45,8 @@ describe('registrarDecisaoConsentimento', () => {
       assinaturaPng: ASSINATURA_PNG,
       versaoTermo: '2026-09-15',
       quemAssina: 'responsavel_legal',
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: false,
       decididoEm: '2026-10-24T15:04:35.000Z',
     });
   });
@@ -97,6 +101,94 @@ describe('registrarDecisaoConsentimento', () => {
         repository,
       ),
     ).resolves.toEqual({ sucesso: false, motivo: 'decisao_ja_registrada' });
+  });
+});
+
+describe('autorizações dos itens 9 e 10', () => {
+  const aceite = (autorizacoes: {
+    autorizaImagensPesquisa?: boolean | null;
+    autorizaDadosPesquisaFutura?: boolean | null;
+  }) => ({
+    atendimentoId: 12,
+    aceito: true as const,
+    assinaturaPng: ASSINATURA_PNG,
+    versaoTermo: '2026-09-15',
+    quemAssina: 'paciente' as const,
+    ...autorizacoes,
+  });
+
+  it.each([
+    ['sem nenhuma resposta', {}],
+    [
+      'com as duas respostas nulas',
+      { autorizaImagensPesquisa: null, autorizaDadosPesquisaFutura: null },
+    ],
+    [
+      'sem resposta no item 10',
+      { autorizaImagensPesquisa: true, autorizaDadosPesquisaFutura: null },
+    ],
+    [
+      'sem resposta no item 9',
+      { autorizaImagensPesquisa: null, autorizaDadosPesquisaFutura: true },
+    ],
+    [
+      'com o item 9 em "Não"',
+      { autorizaImagensPesquisa: false, autorizaDadosPesquisaFutura: true },
+    ],
+    [
+      'com os dois itens em "Não"',
+      { autorizaImagensPesquisa: false, autorizaDadosPesquisaFutura: false },
+    ],
+  ])('rejeita o aceite %s, sem gravar nada', async (_caso, autorizacoes) => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento(aceite(autorizacoes), repository, () => AGORA),
+    ).resolves.toEqual({ sucesso: false, motivo: 'autorizacoes_invalidas' });
+    expect(repository.salvarDecisao).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    'aceita com o item 9 em "Sim" e o item 10 respondido (%s)',
+    async (futura) => {
+      const repository = criarRepository();
+
+      await expect(
+        registrarDecisaoConsentimento(
+          aceite({ autorizaImagensPesquisa: true, autorizaDadosPesquisaFutura: futura }),
+          repository,
+          () => AGORA,
+        ),
+      ).resolves.toMatchObject({ sucesso: true, estado: 'em_andamento' });
+      expect(repository.salvarDecisao).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('permite recusar com os itens sem resposta', async () => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento(
+        {
+          atendimentoId: 12,
+          aceito: false,
+          versaoTermo: '2026-09-15',
+          quemAssina: 'paciente',
+          autorizaImagensPesquisa: null,
+          autorizaDadosPesquisaFutura: null,
+        },
+        repository,
+        () => AGORA,
+      ),
+    ).resolves.toMatchObject({ sucesso: true, estado: 'cancelada' });
+  });
+
+  it('confere o atendimento antes das autorizações', async () => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento({ ...aceite({}), atendimentoId: 0 }, repository),
+    ).resolves.toEqual({ sucesso: false, motivo: 'atendimento_invalido' });
   });
 });
 

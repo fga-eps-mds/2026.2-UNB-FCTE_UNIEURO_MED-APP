@@ -93,7 +93,7 @@ export default function ConsentFlowScreen({
       const resultado = await registrar();
       if (resultado.sucesso) return aoRegistrar();
       if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
-      throw new Error('Atendimento inválido ao registrar a decisão do termo.');
+      throw new Error(`Decisão do termo não registrada: ${resultado.motivo}.`);
     } catch (error_) {
       setAviso(MENSAGEM_FALHA_DECISAO);
       throw error_;

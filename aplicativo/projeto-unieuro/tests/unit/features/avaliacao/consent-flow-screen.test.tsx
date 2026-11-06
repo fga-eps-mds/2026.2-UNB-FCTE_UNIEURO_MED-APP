@@ -318,6 +318,19 @@ describe('Cenário: falha ao registrar', () => {
     expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
+  it('trata autorizações inválidas como falha, sem navegar', async () => {
+    jest
+      .mocked(registerConsentDecision)
+      .mockResolvedValue({ sucesso: false, motivo: 'autorizacoes_invalidas' });
+    const user = await renderizar();
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_FALHA_DECISAO);
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
   it('mostra o aviso dentro da confirmação quando a recusa não pôde ser gravada', async () => {
     jest.mocked(registerConsentDecision).mockRejectedValueOnce(new Error('banco indisponível'));
     const user = await renderizar();
