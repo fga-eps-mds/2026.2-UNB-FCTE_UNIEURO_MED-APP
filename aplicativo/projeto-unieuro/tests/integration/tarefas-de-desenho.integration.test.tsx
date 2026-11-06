@@ -12,6 +12,12 @@ jest.mock('@/features/avaliacao/use-consent-gate', () => ({
   useConsentGate: jest.fn(() => 'liberado'),
 }));
 
+// A gravação do desenho (#10) tem teste próprio, com o banco de verdade, em
+// `gravacao-desenho.integration.test.tsx`. Aqui ela sempre dá certo.
+jest.mock('@/features/captura/composition', () => ({
+  confirmDrawing: jest.fn(async () => undefined),
+}));
+
 // Percorre as rotas da #9 como o paciente as vê: a instrução de cada tarefa, o
 // desenho e o "Confirmar", que abre a instrução seguinte e, depois das trilhas, a
 // tela final (#11). Só a navegação é simulada (jest.setup.ts): cada passo abre a
