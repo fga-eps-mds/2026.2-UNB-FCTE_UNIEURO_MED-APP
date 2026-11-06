@@ -138,8 +138,13 @@ jobs:
   # APK da release estável (#45): gerado aqui, com o perfil de entrega, para o PO
   # baixar direto da release, sem depender da conta do Expo. O perfil `preview`
   # aplica o app.config.js, que tira a internet e as permissões sem uso (#63).
-  # O APK é assinado com a chave de debug do projeto Android gerado pelo Expo, a
-  # mesma dos APKs anteriores, então instala por cima sem perder dados.
+  # O APK leva a versão da tag (v2.1.3 vira versionName 2.1.3 e versionCode 20103)
+  # e é assinado com a chave do MED, guardada nos segredos do repositório (#104).
+  # Os APKs até a v2.0.2 saíram com a chave de debug do modelo do Expo, então o
+  # primeiro APK com a chave do MED exige desinstalar o aplicativo uma vez. Depois
+  # dele, cada versão instala por cima da anterior sem perder dados. Num disparo
+  # manual para uma tag antiga, o job falha de propósito, porque aquele código não
+  # tem a assinatura do MED.
   apk:
     name: APK da release
     needs: release
@@ -179,14 +184,42 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # O nome da versão sai da tag; o app.config.js calcula o código da versão.
+      - name: Definir a versão do APK
+        run: echo "APP_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
       - name: Gerar o projeto Android no perfil de entrega
         env:
           EAS_BUILD_PROFILE: preview
           CI: 1
         run: npx expo prebuild --platform android --no-install
 
+      # A chave nunca vai para o repositório: vem dos segredos, em base64, e só
+      # existe no disco do executor durante o build.
+      - name: Preparar a chave de assinatura
+        env:
+          MED_KEYSTORE_BASE64: ${{ secrets.MED_KEYSTORE_BASE64 }}
+          MED_KEYSTORE_PASSWORD: ${{ secrets.MED_KEYSTORE_PASSWORD }}
+          MED_KEY_ALIAS: ${{ secrets.MED_KEY_ALIAS }}
+          MED_KEY_PASSWORD: ${{ secrets.MED_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for segredo in MED_KEYSTORE_BASE64 MED_KEYSTORE_PASSWORD MED_KEY_ALIAS MED_KEY_PASSWORD; do
+            if [ -z "${!segredo}" ]; then
+              echo "::error::O segredo $segredo não está configurado no repositório."
+              exit 1
+            fi
+          done
+          chave="$RUNNER_TEMP/med-release.jks"
+          echo "$MED_KEYSTORE_BASE64" | base64 --decode > "$chave"
+          echo "MED_KEYSTORE_PATH=$chave" >> "$GITHUB_ENV"
+
       - name: Compilar o APK
         working-directory: aplicativo/projeto-unieuro/android
+        env:
+          MED_KEYSTORE_PASSWORD: ${{ secrets.MED_KEYSTORE_PASSWORD }}
+          MED_KEY_ALIAS: ${{ secrets.MED_KEY_ALIAS }}
+          MED_KEY_PASSWORD: ${{ secrets.MED_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
 
       # Garante a regra do CLAUDE.md: o APK de entrega não pode pedir internet.
@@ -201,8 +234,34 @@ jobs:
             exit 1
           fi
 
+      # Garante a #104: o APK de entrega não pode sair com a chave de debug, e a
+      # versão e o código da versão precisam ser os da tag.
+      - name: Conferir a assinatura e a versão do APK
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          ferramentas="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+
+          "$ferramentas/apksigner" verify --print-certs "$apk" | tee assinatura.txt
+          if grep -q "CN=Android Debug" assinatura.txt; then
+            echo "::error::O APK de entrega está assinado com a chave de debug."
+            exit 1
+          fi
+
+          IFS=. read -r maior menor correcao <<< "$APP_VERSION"
+          codigo=$(( 10#$maior * 10000 + 10#$menor * 100 + 10#$correcao ))
+          "$ferramentas/aapt2" dump badging "$apk" | grep -E "^package" | tee versao.txt
+          if ! grep -q "versionName='$APP_VERSION'" versao.txt || ! grep -q "versionCode='$codigo'" versao.txt; then
+            echo "::error::O APK não tem a versão $APP_VERSION (código $codigo) da tag $TAG."
+            exit 1
+          fi
+
       - name: Anexar o APK à release
         run: |
           set -euo pipefail
           cp android/app/build/outputs/apk/release/app-release.apk "MED-${TAG}.apk"
           gh release upload "$TAG" "MED-${TAG}.apk" --clobber
+
+      - name: Apagar a chave de assinatura do executor
+        if: always()
+        run: rm -f "${RUNNER_TEMP}/med-release.jks"
