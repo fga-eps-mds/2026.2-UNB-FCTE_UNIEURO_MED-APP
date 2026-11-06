@@ -24,13 +24,21 @@ on:
   pull_request:
     branches: [develop]
     types: [closed]
-  # Gera só o APK de uma release já publicada: serve para testar o job `apk` e
-  # para anexar o APK a releases antigas.
+  # Disparo manual do job `apk`, sem passar pela release. Dois usos, nunca os dois
+  # juntos:
+  #   tag     gera o APK de uma release já publicada e o anexa a ela;
+  #   versao  gera um APK de TESTE da branch escolhida e o guarda como artefato do
+  #           workflow (7 dias), sem criar nem alterar release. Serve para conferir a
+  #           assinatura e a versão antes da release e para testar a atualização por
+  #           cima no tablet (#104). Não é APK de entrega.
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag de uma release já publicada que vai receber o APK (ex.: v1.2.0)"
-        required: true
+        description: "Tag de uma release já publicada que vai receber o APK (ex.: v1.2.0). Deixe em branco para gerar um APK de teste"
+        required: false
+      versao:
+        description: "Só para o APK de teste: versão MAJOR.MINOR.PATCH da branch escolhida (ex.: 2.0.3). Use uma que o tablet aceite, maior que a instalada"
+        required: false
 
 permissions:
   contents: write
@@ -157,16 +165,18 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release.outputs.tag }}
+      VERSAO_TESTE: ${{ github.event_name == 'workflow_dispatch' && inputs.versao || '' }}
 
     defaults:
       run:
         working-directory: aplicativo/projeto-unieuro
 
     steps:
-      # O APK sai do mesmo código da release: no disparo manual, o da tag informada.
+      # O APK sai do mesmo código da release: no disparo manual, o da tag informada
+      # ou, no APK de teste, o da branch em que o workflow foi disparado.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.TAG || github.sha }}
 
       - name: Configurar o Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -184,9 +194,22 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      # O nome da versão sai da tag; o app.config.js calcula o código da versão.
+      # O nome da versão sai da tag (ou da versão informada no APK de teste); o
+      # app.config.js calcula o código da versão.
       - name: Definir a versão do APK
-        run: echo "APP_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          if [ -n "$TAG" ] && [ -n "$VERSAO_TESTE" ]; then
+            echo "::error::Informe a tag de uma release ou a versão do APK de teste, não as duas."
+            exit 1
+          fi
+          versao="${TAG#v}"
+          [ -z "$TAG" ] && versao="$VERSAO_TESTE"
+          if [ -z "$versao" ]; then
+            echo "::error::Informe a tag de uma release ou a versão do APK de teste."
+            exit 1
+          fi
+          echo "APP_VERSION=$versao" >> "$GITHUB_ENV"
 
       - name: Gerar o projeto Android no perfil de entrega
         env:
@@ -252,15 +275,42 @@ jobs:
           codigo=$(( 10#$maior * 10000 + 10#$menor * 100 + 10#$correcao ))
           "$ferramentas/aapt2" dump badging "$apk" | grep -E "^package" | tee versao.txt
           if ! grep -q "versionName='$APP_VERSION'" versao.txt || ! grep -q "versionCode='$codigo'" versao.txt; then
-            echo "::error::O APK não tem a versão $APP_VERSION (código $codigo) da tag $TAG."
+            echo "::error::O APK não tem a versão $APP_VERSION (código $codigo)."
             exit 1
           fi
 
+          # A impressão digital do certificado prova que dois APKs saíram da mesma
+          # chave, condição para um instalar por cima do outro.
+          {
+            echo "### APK ${APP_VERSION} (código ${codigo})"
+            echo
+            echo '```'
+            grep -E "Signer #1 certificate (DN|SHA-256 digest)" assinatura.txt
+            echo '```'
+            [ -z "$TAG" ] && echo "APK de **teste** da branch \`${GITHUB_REF_NAME}\`: não é de entrega."
+          } >> "$GITHUB_STEP_SUMMARY" || true
+
       - name: Anexar o APK à release
+        if: env.TAG != ''
         run: |
           set -euo pipefail
           cp android/app/build/outputs/apk/release/app-release.apk "MED-${TAG}.apk"
           gh release upload "$TAG" "MED-${TAG}.apk" --clobber
+
+      # APK de teste: fica só como artefato do workflow, para baixar e instalar no
+      # tablet. A versão no nome evita confundi-lo com o APK de uma release.
+      - name: Guardar o APK de teste como artefato
+        if: env.TAG == ''
+        run: cp android/app/build/outputs/apk/release/app-release.apk "MED-teste-${APP_VERSION}.apk"
+
+      - name: Publicar o artefato do APK de teste
+        if: env.TAG == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MED-teste-${{ env.APP_VERSION }}
+          path: aplicativo/projeto-unieuro/MED-teste-${{ env.APP_VERSION }}.apk
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Apagar a chave de assinatura do executor
         if: always()

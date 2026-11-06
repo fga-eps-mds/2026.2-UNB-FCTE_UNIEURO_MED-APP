@@ -152,6 +152,14 @@ base64 -i med-release.jks
   Guarde o `.jks` e as senhas em dois lugares seguros com pessoas diferentes da equipe.
   **Sem a chave, nenhuma versão futura instala por cima das anteriores.** Nunca versione
   a chave (o `.gitignore` já ignora `*.jks`).
+- **APK de teste, antes da release:** em Actions, "Export de métricas", "Run workflow", na
+  branch que se quer testar, deixe `tag` em branco e preencha `versao` (por exemplo,
+  `2.0.3`). O job `apk` compila, confere a assinatura e a versão e guarda o APK como
+  artefato por 7 dias, sem criar nem alterar release. Use uma versão maior que a
+  instalada no tablet, para ele aceitar a atualização, e que ainda não tenha saído: o
+  Android não deixa instalar uma versão menor por cima. O resumo da execução mostra a
+  impressão digital do certificado; dois APKs só instalam um por cima do outro se ela
+  for igual. Não entregue esse APK ao PO nem ao cliente.
 - A primeira versão assinada com a chave do MED exige **desinstalar o aplicativo uma vez**
   nos tablets, porque o Android não aceita outra assinatura por cima. Faça isso antes de
   haver dados reais. Dali em diante, o APK novo instala por cima e mantém os dados.
