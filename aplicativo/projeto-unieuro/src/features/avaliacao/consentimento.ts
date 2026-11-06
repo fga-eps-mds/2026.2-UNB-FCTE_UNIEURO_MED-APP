@@ -13,6 +13,8 @@ type DadosDaDecisao = {
   atendimentoId: number;
   versaoTermo: string;
   quemAssina: QuemAssina;
+  autorizaImagensPesquisa?: boolean | null;
+  autorizaDadosPesquisaFutura?: boolean | null;
 };
 
 type EscolhaConsentimento =
@@ -44,9 +46,25 @@ export type ConsentimentoRepository = {
 
 export type ResultadoDecisao =
   | { sucesso: true; estado: 'em_andamento' | 'cancelada'; decididoEm: string }
-  | { sucesso: false; motivo: 'atendimento_invalido' | 'decisao_ja_registrada' };
+  | {
+      sucesso: false;
+      motivo: 'atendimento_invalido' | 'autorizacoes_invalidas' | 'decisao_ja_registrada';
+    };
 
 const idValido = (id: number) => Number.isInteger(id) && id > 0;
+
+/**
+ * Regra das autorizações dos itens 9 e 10 do TCLE. Só o aceite exige respostas:
+ * o item 9 (imagens dos desenhos) precisa ser "Sim", porque a análise por IA
+ * depende das imagens, e o item 10 (pesquisas futuras) precisa ter resposta, "Sim"
+ * ou "Não". A recusa pode ser gravada com os itens sem resposta.
+ */
+function autorizacoesValidas(input: RegistrarDecisaoInput) {
+  if (!input.aceito) return true;
+  return (
+    input.autorizaImagensPesquisa === true && typeof input.autorizaDadosPesquisaFutura === 'boolean'
+  );
+}
 
 /**
  * Regra da decisão do TCLE. O instante é criado aqui para que toda chamada grave
@@ -59,6 +77,10 @@ export async function registrarDecisaoConsentimento(
 ): Promise<ResultadoDecisao> {
   if (!idValido(input.atendimentoId)) {
     return { sucesso: false, motivo: 'atendimento_invalido' };
+  }
+
+  if (!autorizacoesValidas(input)) {
+    return { sucesso: false, motivo: 'autorizacoes_invalidas' };
   }
 
   const decididoEm = agora().toISOString();

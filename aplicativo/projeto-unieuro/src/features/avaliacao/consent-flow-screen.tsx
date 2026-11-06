@@ -93,7 +93,7 @@ export default function ConsentFlowScreen({
       const resultado = await registrar();
       if (resultado.sucesso) return aoRegistrar();
       if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
-      throw new Error('Atendimento inválido ao registrar a decisão do termo.');
+      throw new Error(`Decisão do termo não registrada: ${resultado.motivo}.`);
     } catch (error_) {
       setAviso(MENSAGEM_FALHA_DECISAO);
       throw error_;
@@ -104,13 +104,16 @@ export default function ConsentFlowScreen({
     <DecisaoTermoProvider
       aviso={aviso}
       onAssinar={(assinatura, contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
+          exigirContexto(contexto);
         return decidir(
           () =>
             registerConsentDecision({
               atendimentoId,
               versaoTermo,
               quemAssina,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
               aceito: true,
               assinaturaPng: gerarImagemDesenho(assinatura.tracos, assinatura.dimensoes),
             }),
@@ -118,9 +121,18 @@ export default function ConsentFlowScreen({
         );
       }}
       onRecusar={(contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
+          exigirContexto(contexto);
         return decidir(
-          () => registerConsentDecision({ atendimentoId, versaoTermo, quemAssina, aceito: false }),
+          () =>
+            registerConsentDecision({
+              atendimentoId,
+              versaoTermo,
+              quemAssina,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
+              aceito: false,
+            }),
           () => router.dismissTo('/menu'),
         );
       }}>

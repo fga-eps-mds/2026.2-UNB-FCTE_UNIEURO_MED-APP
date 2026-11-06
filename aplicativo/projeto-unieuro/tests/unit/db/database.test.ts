@@ -148,12 +148,18 @@ describe('esquema', () => {
   it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
     const schemaV6 = MIGRATIONS[5];
 
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
     expect(schemaV6).toContain('REFERENCES avaliacao (id)');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
     expect(schemaV6).toContain('imagem_final BLOB NOT NULL');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS evento_tracado');
+  });
+
+  it('chega à versão 7 registrando escolhas dos itens 9 e 10 do TCLE', () => {
+    const schemaV7 = MIGRATIONS[6];
+    expect(schemaV7).toContain('autoriza_imagens_pesquisa');
+    expect(schemaV7).toContain('autoriza_dados_pesquisa_futura');
   });
 });
 

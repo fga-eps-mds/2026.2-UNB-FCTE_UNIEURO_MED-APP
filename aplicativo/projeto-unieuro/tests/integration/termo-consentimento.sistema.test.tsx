@@ -47,6 +47,8 @@ type LinhaConsentimento = {
   assinado_por: string;
   assinatura_png: Uint8Array | null;
   data_hora: string;
+  autoriza_imagens_pesquisa: number | null;
+  autoriza_dados_pesquisa_futura: number | null;
 };
 
 async function criarAtendimento(nome: string, cpf: string) {
@@ -180,6 +182,8 @@ describe('Cenário: aceite do termo', () => {
       [160, 100],
     ]);
 
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
 
     const consentimento = await consentimentoDe(atendimentoId);
@@ -187,6 +191,8 @@ describe('Cenário: aceite do termo', () => {
       aceito: 1,
       versao_tcle: TERMO_TCLE.versao,
       assinado_por: 'responsavel_legal',
+      autoriza_imagens_pesquisa: 1,
+      autoriza_dados_pesquisa_futura: 1,
     });
     expect(Array.from(consentimento!.assinatura_png!)).toEqual(Array.from(ASSINATURA_PNG));
     expect(await estadoDe(atendimentoId)).toBe('em_andamento');

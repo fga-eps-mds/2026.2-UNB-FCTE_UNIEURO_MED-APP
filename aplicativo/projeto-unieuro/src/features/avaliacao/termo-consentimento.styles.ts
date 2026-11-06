@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-import { FontFamilies, type ThemeColors } from '@/constants/theme';
+import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 
 const fonts = FontFamilies;
 
@@ -49,9 +49,18 @@ export function createTermoStyles(colors: ThemeColors) {
     etapa: { color: colors.primary, fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 },
     corpo: { flex: 1, gap: 24, paddingVertical: 24 },
     corpoDuasColunas: { flexDirection: 'row' },
-    colunaTermo: { flex: 1, minHeight: 0, gap: 8 },
-    colunaDecisao: { gap: 16 },
-    colunaDecisaoLateral: { flex: 1 },
+    // minHeight evita que o termo seja espremido a zero quando o painel da decisão é alto.
+    colunaTermo: { flex: 1, minHeight: 200, gap: 8 },
+    // Na horizontal o termo fica com 5 partes da largura e o painel com 4, e ocupa a altura toda.
+    colunaTermoLateral: { flex: 5, minWidth: 0, alignSelf: 'stretch' },
+    // Painel da decisão: rolagem (escolhas + declaração + assinatura) e, fixo abaixo dela, o rodapé com os botões.
+    // Em pé fica embaixo, com altura limitada para o termo sempre ter espaço; deitado fica ao lado e ocupa a altura toda.
+    painel: { gap: 12, flexShrink: 0, maxHeight: '60%' },
+    painelLateral: { flex: 4, minWidth: 0, alignSelf: 'stretch', maxHeight: '100%' },
+    painelRolagem: { flexGrow: 0, flexShrink: 1 },
+    painelRolagemLateral: { flexGrow: 1 },
+    painelConteudo: { gap: 16, paddingBottom: 4 },
+    rodape: { gap: 12, flexShrink: 0 },
     cartaoTermo: { ...cartao, flex: 1, overflow: 'hidden' },
     rolagem: { padding: 28, gap: 16 },
     titulo: {
@@ -105,6 +114,26 @@ export function createTermoStyles(colors: ThemeColors) {
       fontSize: 16,
       lineHeight: 22,
     },
+    cartaoEscolhaConsentimento: { ...cartao, padding: 12, gap: 4 },
+    tituloEscolhaConsentimento: {
+      color: colors.primary,
+      fontFamily: fonts.semibold,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    textoEscolhaConsentimento: {
+      color: colors.text,
+      fontFamily: fonts.regular,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    opcoesConsentimento: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+    ajudaEscolhaConsentimento: {
+      color: colors.textSecondary,
+      fontFamily: fonts.regular,
+      fontSize: 16,
+      lineHeight: 22,
+    },
     cartaoDecisao: { ...cartao, padding: 20, gap: 14 },
     declaracaoTitulo: {
       color: colors.primary,
@@ -120,6 +149,9 @@ export function createTermoStyles(colors: ThemeColors) {
       fontSize: 16,
       lineHeight: 22,
     },
+    // Opções lado a lado, sem quebra de linha entre elas; a fonte continua a mesma (acessibilidade).
+    quemAssinaOpcoes: { flexDirection: 'row', flexShrink: 1, gap: 8 },
+    opcaoQuemAssina: { flexShrink: 1, paddingHorizontal: 12, gap: 8 },
     opcao: {
       minHeight: 56,
       flexDirection: 'row',
@@ -131,7 +163,7 @@ export function createTermoStyles(colors: ThemeColors) {
       borderColor: colors.border,
       backgroundColor: colors.field,
     },
-    opcaoMarcada: { borderColor: colors.primary },
+    opcaoMarcada: { borderColor: colors.primary, backgroundColor: BrandPalette.lightPeach },
     opcaoPressionada: { opacity: 0.85 },
     radio: {
       width: 24,
