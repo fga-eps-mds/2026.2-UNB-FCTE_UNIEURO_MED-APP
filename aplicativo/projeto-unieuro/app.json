@@ -43,7 +43,8 @@
           "configureAndroidBackup": false
         }
       ],
-      "./plugins/with-data-extraction-rules"
+      "./plugins/with-data-extraction-rules",
+      "./plugins/with-release-signing"
     ],
     "experiments": {
       "typedRoutes": true,
