@@ -131,8 +131,8 @@ export function createTermoStyles(colors: ThemeColors) {
     ajudaEscolhaConsentimento: {
       color: colors.textSecondary,
       fontFamily: fonts.regular,
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 16,
+      lineHeight: 22,
     },
     cartaoDecisao: { ...cartao, padding: 20, gap: 14 },
     declaracaoTitulo: {

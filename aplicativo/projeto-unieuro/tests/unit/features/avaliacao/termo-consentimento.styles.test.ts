@@ -38,5 +38,6 @@ describe('layout da tela do termo', () => {
     expect(styles.paragrafo.fontSize).toBe(20);
     expect(styles.avisoRolagem.fontSize).toBeGreaterThanOrEqual(16);
     expect(styles.versao.fontSize).toBeGreaterThanOrEqual(16);
+    expect(styles.ajudaEscolhaConsentimento.fontSize).toBeGreaterThanOrEqual(16);
   });
 });
