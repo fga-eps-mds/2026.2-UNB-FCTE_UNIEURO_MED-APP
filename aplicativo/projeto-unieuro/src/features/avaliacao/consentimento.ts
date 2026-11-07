@@ -1,3 +1,4 @@
+import { parseCpf } from '@/features/shared/cpf';
 import type { QuemAssina } from '@/features/avaliacao/termo-tcle';
 
 export type EstadoAvaliacao =
@@ -28,12 +29,25 @@ type EscolhaConsentimento =
       assinaturaPng?: null;
     };
 
-export type RegistrarDecisaoInput = DadosDaDecisao & EscolhaConsentimento;
+export type RegistrarDecisaoInput = DadosDaDecisao &
+  EscolhaConsentimento & {
+    /**
+     * CPF do responsável legal, com ou sem máscara. Obrigatório e válido no aceite
+     * por responsável legal; nos demais casos é ignorado e não é gravado.
+     */
+    cpfResponsavel?: string | null;
+  };
 
-export type DecisaoConsentimento = RegistrarDecisaoInput & {
-  /** Data e hora em ISO 8601, pelo relógio do tablet. */
-  decididoEm: string;
-};
+export type DecisaoConsentimento = DadosDaDecisao &
+  EscolhaConsentimento & {
+    /**
+     * Só os 11 dígitos, já validados, e só no aceite pelo responsável legal. O
+     * repositório grava a cifra, nunca o texto.
+     */
+    cpfResponsavel?: string | null;
+    /** Data e hora em ISO 8601, pelo relógio do tablet. */
+    decididoEm: string;
+  };
 
 export type ConsentimentoRepository = {
   /**
@@ -48,7 +62,11 @@ export type ResultadoDecisao =
   | { sucesso: true; estado: 'em_andamento' | 'cancelada'; decididoEm: string }
   | {
       sucesso: false;
-      motivo: 'atendimento_invalido' | 'autorizacoes_invalidas' | 'decisao_ja_registrada';
+      motivo:
+        | 'atendimento_invalido'
+        | 'autorizacoes_invalidas'
+        | 'cpf_responsavel_invalido'
+        | 'decisao_ja_registrada';
     };
 
 const idValido = (id: number) => Number.isInteger(id) && id > 0;
@@ -64,6 +82,17 @@ function autorizacoesValidas(input: RegistrarDecisaoInput) {
   return (
     input.autorizaImagensPesquisa === true && typeof input.autorizaDadosPesquisaFutura === 'boolean'
   );
+}
+
+/**
+ * CPF que acompanha o aceite. O responsável legal precisa informar um CPF válido,
+ * e o paciente não tem CPF de responsável: mesmo que a chamada traga um, ele é
+ * descartado. A recusa não identifica o responsável. Devolve `undefined` quando o
+ * CPF exigido está ausente ou é inválido.
+ */
+function cpfDoAceite(input: RegistrarDecisaoInput): string | null | undefined {
+  if (!input.aceito || input.quemAssina !== 'responsavel_legal') return null;
+  return parseCpf(input.cpfResponsavel ?? '') ?? undefined;
 }
 
 /**
@@ -83,8 +112,13 @@ export async function registrarDecisaoConsentimento(
     return { sucesso: false, motivo: 'autorizacoes_invalidas' };
   }
 
+  const cpfResponsavel = cpfDoAceite(input);
+  if (cpfResponsavel === undefined) {
+    return { sucesso: false, motivo: 'cpf_responsavel_invalido' };
+  }
+
   const decididoEm = agora().toISOString();
-  const salva = await repository.salvarDecisao({ ...input, decididoEm });
+  const salva = await repository.salvarDecisao({ ...input, cpfResponsavel, decididoEm });
   if (!salva) return { sucesso: false, motivo: 'decisao_ja_registrada' };
 
   return {

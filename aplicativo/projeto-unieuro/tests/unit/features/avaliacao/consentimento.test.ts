@@ -1,7 +1,9 @@
+import type { QuemAssina } from '@/features/avaliacao/termo-tcle';
 import {
   registrarDecisaoConsentimento,
   verificarAcessoTarefas,
   type ConsentimentoRepository,
+  type RegistrarDecisaoInput,
   type EstadoAvaliacao,
 } from '@/features/avaliacao/consentimento';
 
@@ -28,6 +30,7 @@ describe('registrarDecisaoConsentimento', () => {
           assinaturaPng: ASSINATURA_PNG,
           versaoTermo: '2026-09-15',
           quemAssina: 'responsavel_legal',
+          cpfResponsavel: '111.444.777-35',
           autorizaImagensPesquisa: true,
           autorizaDadosPesquisaFutura: false,
         },
@@ -45,6 +48,7 @@ describe('registrarDecisaoConsentimento', () => {
       assinaturaPng: ASSINATURA_PNG,
       versaoTermo: '2026-09-15',
       quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
       autorizaImagensPesquisa: true,
       autorizaDadosPesquisaFutura: false,
       decididoEm: '2026-10-24T15:04:35.000Z',
@@ -189,6 +193,91 @@ describe('autorizações dos itens 9 e 10', () => {
     await expect(
       registrarDecisaoConsentimento({ ...aceite({}), atendimentoId: 0 }, repository),
     ).resolves.toEqual({ sucesso: false, motivo: 'atendimento_invalido' });
+  });
+});
+
+describe('CPF do responsável legal', () => {
+  const aceite = (extra: {
+    quemAssina?: QuemAssina;
+    cpfResponsavel?: string | null;
+  }): RegistrarDecisaoInput => ({
+    atendimentoId: 12,
+    aceito: true,
+    assinaturaPng: ASSINATURA_PNG,
+    versaoTermo: '2026-09-15',
+    quemAssina: 'responsavel_legal',
+    autorizaImagensPesquisa: true,
+    autorizaDadosPesquisaFutura: true,
+    ...extra,
+  });
+
+  it.each([
+    ['ausente', undefined],
+    ['nulo', null],
+    ['vazio', ''],
+    ['em branco', '   '],
+    ['incompleto', '111.444.777'],
+    ['com dígito verificador errado', '111.444.777-36'],
+    ['com todos os dígitos iguais', '111.111.111-11'],
+  ])('não registra o aceite do responsável legal com CPF %s', async (_caso, cpf) => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento(aceite({ cpfResponsavel: cpf }), repository, () => AGORA),
+    ).resolves.toEqual({ sucesso: false, motivo: 'cpf_responsavel_invalido' });
+    expect(repository.salvarDecisao).not.toHaveBeenCalled();
+  });
+
+  it('entrega ao repositório só os 11 dígitos, sem a máscara', async () => {
+    const repository = criarRepository();
+
+    await registrarDecisaoConsentimento(
+      aceite({ cpfResponsavel: '111.444.777-35' }),
+      repository,
+      () => AGORA,
+    );
+
+    expect(repository.salvarDecisao).toHaveBeenCalledWith(
+      expect.objectContaining({ cpfResponsavel: '11144477735' }),
+    );
+  });
+
+  it('não exige CPF no aceite pelo paciente e descarta o que vier junto', async () => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento(aceite({ quemAssina: 'paciente' }), repository, () => AGORA),
+    ).resolves.toMatchObject({ sucesso: true, estado: 'em_andamento' });
+    await registrarDecisaoConsentimento(
+      aceite({ quemAssina: 'paciente', cpfResponsavel: '11144477735' }),
+      repository,
+      () => AGORA,
+    );
+
+    for (const [decisao] of jest.mocked(repository.salvarDecisao).mock.calls) {
+      expect(decisao.cpfResponsavel).toBeNull();
+    }
+  });
+
+  it('não exige CPF na recusa, mesmo quando o responsável legal é quem recusa', async () => {
+    const repository = criarRepository();
+
+    await expect(
+      registrarDecisaoConsentimento(
+        {
+          atendimentoId: 12,
+          aceito: false,
+          versaoTermo: '2026-09-15',
+          quemAssina: 'responsavel_legal',
+          cpfResponsavel: '11144477735',
+        },
+        repository,
+        () => AGORA,
+      ),
+    ).resolves.toMatchObject({ sucesso: true, estado: 'cancelada' });
+    expect(repository.salvarDecisao).toHaveBeenCalledWith(
+      expect.objectContaining({ cpfResponsavel: null }),
+    );
   });
 });
 
