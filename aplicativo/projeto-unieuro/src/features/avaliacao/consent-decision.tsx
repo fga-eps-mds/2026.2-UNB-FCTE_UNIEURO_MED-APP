@@ -52,6 +52,7 @@ const DICA_ASSINAR = 'Assine na área acima para continuar';
 const DICA_AUTORIZACAO = 'Escolha Sim ou Não para os dois itens de uso de dados antes de continuar';
 const DICA_SEM_IMAGENS =
   'A autorização para uso das imagens é necessária para participar desta pesquisa';
+const DICA_CPF = 'Informe um CPF válido do responsável legal para continuar';
 
 const DecisaoReact = createContext<DecisaoContexto | null>(null);
 
@@ -207,6 +208,22 @@ export function AvisoDecisao() {
   );
 }
 
+type DicaDoBotao = {
+  temTraco: boolean;
+  contexto?: ContextoDecisao;
+  escolhasCompletas: boolean;
+  cpfCompleto: boolean;
+};
+
+/** Explica ao leitor de tela o primeiro requisito que ainda falta para assinar. */
+function dicaDoBotao({ temTraco, contexto, escolhasCompletas, cpfCompleto }: DicaDoBotao) {
+  if (!temTraco) return DICA_ASSINAR;
+  if (contexto?.autorizaImagensPesquisa === false) return DICA_SEM_IMAGENS;
+  if (!escolhasCompletas) return DICA_AUTORIZACAO;
+  if (!cpfCompleto) return DICA_CPF;
+  return undefined;
+}
+
 /** "Recusar" e "Assinar e iniciar". Na tela do termo, ficam abaixo do cartão. */
 export function BotoesDecisao({ contexto }: Readonly<{ contexto?: ContextoDecisao }>) {
   const { styles, temTraco, ocupado, podeAssinar, assinar, pedirRecusa } = useDecisao();
@@ -215,7 +232,12 @@ export function BotoesDecisao({ contexto }: Readonly<{ contexto?: ContextoDecisa
     (contexto.autorizaImagensPesquisa !== null &&
       contexto.autorizaDadosPesquisaFutura !== null &&
       contexto.autorizaImagensPesquisa);
-  const podeConcluirAssinatura = podeAssinar && escolhasCompletas;
+  // O responsável legal só assina com o CPF válido; o paciente não informa CPF.
+  const cpfCompleto =
+    contexto === undefined ||
+    contexto.quemAssina !== 'responsavel_legal' ||
+    contexto.cpfResponsavel !== null;
+  const podeConcluirAssinatura = podeAssinar && escolhasCompletas && cpfCompleto;
 
   return (
     <View style={styles.botoes}>
@@ -234,15 +256,7 @@ export function BotoesDecisao({ contexto }: Readonly<{ contexto?: ContextoDecisa
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !podeConcluirAssinatura }}
-        accessibilityHint={
-          !temTraco
-            ? DICA_ASSINAR
-            : contexto?.autorizaImagensPesquisa === false
-              ? DICA_SEM_IMAGENS
-              : escolhasCompletas
-                ? undefined
-                : DICA_AUTORIZACAO
-        }
+        accessibilityHint={dicaDoBotao({ temTraco, contexto, escolhasCompletas, cpfCompleto })}
         disabled={!podeConcluirAssinatura}
         onPress={() => assinar(contexto)}
         style={({ pressed }) => [

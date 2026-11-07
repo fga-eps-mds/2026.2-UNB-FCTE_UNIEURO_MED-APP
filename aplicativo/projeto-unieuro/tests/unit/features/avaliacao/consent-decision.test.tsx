@@ -360,6 +360,7 @@ describe('Encaixe na tela do termo', () => {
     const { aoAssinar } = renderizarTela();
 
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     await assinar();
     await user.press(botaoAssinar());
 
@@ -367,6 +368,7 @@ describe('Encaixe na tela do termo', () => {
     const [contexto, assinatura] = aoAssinar.mock.calls[0];
     expect(contexto).toEqual({
       quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
       versaoTermo: TERMO_TCLE.versao,
       autorizaImagensPesquisa: true,
       autorizaDadosPesquisaFutura: true,
@@ -384,6 +386,7 @@ describe('Encaixe na tela do termo', () => {
 
     expect(aoAssinar.mock.calls[0][0]).toEqual({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
       autorizaImagensPesquisa: true,
       autorizaDadosPesquisaFutura: true,
@@ -399,6 +402,7 @@ describe('Encaixe na tela do termo', () => {
 
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
       autorizaImagensPesquisa: null,
       autorizaDadosPesquisaFutura: null,
@@ -455,6 +459,89 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(botaoAssinar()).toBeEnabled();
   });
 
+  describe('CPF obrigatório do responsável legal', () => {
+    const campoCpf = () => screen.getByLabelText('CPF do responsável legal');
+
+    async function prepararResponsavel() {
+      const user = userEvent.setup();
+      const telas = renderizarTela();
+      medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+      await desenharNoQuadro(ASSINATURA);
+      await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+      await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
+      await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+      return { user, ...telas };
+    }
+
+    it('com o CPF vazio, não deixa concluir o aceite e explica o que falta', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      expect(botaoAssinar()).toBeDisabled();
+      expect(botaoAssinar()).toHaveProp(
+        'accessibilityHint',
+        'Informe um CPF válido do responsável legal para continuar',
+      );
+      await user.press(botaoAssinar());
+
+      expect(aoAssinar).not.toHaveBeenCalled();
+    });
+
+    it('com o CPF inválido, não deixa concluir o aceite', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      fireEvent.changeText(campoCpf(), '111.444.777-36');
+      await user.press(botaoAssinar());
+
+      expect(botaoAssinar()).toBeDisabled();
+      expect(aoAssinar).not.toHaveBeenCalled();
+    });
+
+    it('com o CPF válido, habilita o aceite e entrega o CPF na decisão', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      fireEvent.changeText(campoCpf(), '111.444.777-35');
+      await user.press(botaoAssinar());
+
+      expect(botaoAssinar().props.accessibilityHint).toBeUndefined();
+      expect(aoAssinar).toHaveBeenCalledTimes(1);
+      expect(aoAssinar.mock.calls[0][1]).toMatchObject({ cpfResponsavel: '11144477735' });
+    });
+
+    it('volta a bloquear o aceite se o CPF for apagado', async () => {
+      await prepararResponsavel();
+      fireEvent.changeText(campoCpf(), '111.444.777-35');
+      expect(botaoAssinar()).toBeEnabled();
+
+      fireEvent.changeText(campoCpf(), '');
+
+      expect(botaoAssinar()).toBeDisabled();
+    });
+
+    it('o paciente conclui o aceite sem CPF', async () => {
+      const user = userEvent.setup();
+      const { aoAssinar } = renderizarTela();
+      await assinar();
+
+      expect(screen.queryByLabelText('CPF do responsável legal')).toBeNull();
+      expect(botaoAssinar()).toBeEnabled();
+      await user.press(botaoAssinar());
+
+      expect(aoAssinar).toHaveBeenCalledTimes(1);
+      expect(aoAssinar.mock.calls[0][1]).toMatchObject({ cpfResponsavel: null });
+    });
+
+    it('a recusa não exige o CPF do responsável', async () => {
+      const user = userEvent.setup();
+      const { aoRecusar } = renderizarTela();
+      await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+
+      await user.press(botaoRecusar());
+      await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+
+      expect(aoRecusar).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('aplica fundo pêssego e contorno primário à escolha marcada', async () => {
     const user = userEvent.setup();
     renderizarTela();
@@ -469,6 +556,7 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     const { aoAssinar } = renderizarTela();
 
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     await assinar();
     await user.press(botaoAssinar());
 
@@ -477,6 +565,7 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(assinatura.tracos).toHaveLength(1);
     expect(contexto).toEqual({
       quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
       versaoTermo: TERMO_TCLE.versao,
       autorizaImagensPesquisa: true,
       autorizaDadosPesquisaFutura: true,
@@ -492,6 +581,7 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
 
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
       autorizaImagensPesquisa: null,
       autorizaDadosPesquisaFutura: null,

@@ -38,7 +38,8 @@ function exigirContexto(contexto: ContextoDecisao | undefined) {
 /**
  * Termo de consentimento do atendimento (#21). O termo só aparece enquanto a
  * avaliação aguarda o consentimento, com o nome e a ficha do paciente no
- * cabeçalho. O aceite grava a assinatura em PNG e abre a instrução da primeira
+ * cabeçalho. O aceite grava a assinatura em PNG (e, se quem assina é o responsável
+ * legal, o CPF dele, cifrado) e abre a instrução da primeira
  * tarefa; a recusa grava sem assinatura e volta ao início. Uma falha ao gravar
  * avisa e libera a tela para outra tentativa, sem mudar de tela.
  */
@@ -104,14 +105,20 @@ export default function ConsentFlowScreen({
     <DecisaoTermoProvider
       aviso={aviso}
       onAssinar={(assinatura, contexto) => {
-        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
-          exigirContexto(contexto);
+        const {
+          quemAssina,
+          cpfResponsavel,
+          versaoTermo,
+          autorizaImagensPesquisa,
+          autorizaDadosPesquisaFutura,
+        } = exigirContexto(contexto);
         return decidir(
           () =>
             registerConsentDecision({
               atendimentoId,
               versaoTermo,
               quemAssina,
+              cpfResponsavel,
               autorizaImagensPesquisa,
               autorizaDadosPesquisaFutura,
               aceito: true,
