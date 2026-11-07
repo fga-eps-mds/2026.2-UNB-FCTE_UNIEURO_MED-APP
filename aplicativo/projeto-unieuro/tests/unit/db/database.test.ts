@@ -148,7 +148,7 @@ describe('esquema', () => {
   it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
     const schemaV6 = MIGRATIONS[5];
 
-    expect(SCHEMA_VERSION).toBe(7);
+    expect(SCHEMA_VERSION).toBe(8);
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
     expect(schemaV6).toContain('REFERENCES avaliacao (id)');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
@@ -160,6 +160,12 @@ describe('esquema', () => {
     const schemaV7 = MIGRATIONS[6];
     expect(schemaV7).toContain('autoriza_imagens_pesquisa');
     expect(schemaV7).toContain('autoriza_dados_pesquisa_futura');
+  });
+
+  it('chega à versão 8 guardando só o CPF cifrado do responsável legal', () => {
+    const schemaV8 = MIGRATIONS[7];
+    expect(schemaV8).toContain('ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado');
+    expect(schemaV8).not.toMatch(/cpf_responsavel\s+TEXT/);
   });
 });
 
