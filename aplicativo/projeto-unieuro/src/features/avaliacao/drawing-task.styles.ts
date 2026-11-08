@@ -11,6 +11,9 @@ export const CORES_DA_TAREFA = Colors.light;
 /** Altura do "Confirmar": o tamanho extragrande, só deste botão (guia de identidade visual). */
 export const ALTURA_BOTAO_CONFIRMAR = 112;
 
+/** Altura do "Desfazer" e do "Apagar tudo" (#23): o tamanho grande dos botões do paciente. */
+export const ALTURA_BOTAO_ACAO = 84;
+
 /** Largura da coluna do "Confirmar" e do cartão da figura de modelo, como no protótipo. */
 export const LARGURA_LATERAL = 260;
 
@@ -29,9 +32,14 @@ export function createDrawingTaskStyles() {
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: cores.background },
     corpo: { flex: 1, gap: 16, paddingHorizontal: 40, paddingTop: 16, paddingBottom: 40 },
-    ferramentas: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+    // Deitado, o lembrete, o "Desfazer", o "Apagar tudo" e o "Confirmar" ficam numa linha,
+    // como no protótipo da #23. Em pé, os botões descem para a linha de baixo. A quebra
+    // depende só da largura da tela, e não do desenho, para o quadro não mudar de tamanho
+    // no meio da tarefa.
+    ferramentas: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16 },
     lembrete: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: 400,
       minHeight: ALTURA_BOTAO_CONFIRMAR,
       justifyContent: 'center',
       gap: 4,
@@ -52,6 +60,27 @@ export function createDrawingTaskStyles() {
       fontSize: 20,
       lineHeight: 28,
     },
+    acoes: { flexDirection: 'row', gap: 16 },
+    botaoAcao: {
+      minWidth: 200,
+      minHeight: ALTURA_BOTAO_ACAO,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: cores.primary,
+      backgroundColor: cores.surface,
+    },
+    botaoAcaoPressionado: { backgroundColor: BrandPalette.lightPeach },
+    botaoAcaoDesabilitado: { borderColor: DESABILITADO.fundo, backgroundColor: DESABILITADO.fundo },
+    textoAcao: {
+      color: cores.primary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 24,
+      lineHeight: 30,
+    },
+    textoAcaoDesabilitado: { color: DESABILITADO.texto },
     confirmar: { width: LARGURA_LATERAL, gap: 8 },
     botaoConfirmar: {
       minHeight: ALTURA_BOTAO_CONFIRMAR,
@@ -99,5 +128,85 @@ export function createDrawingTaskStyles() {
     },
     figura: { overflow: 'hidden', borderRadius: 16, backgroundColor: FUNDO_ACOLHEDOR },
     quadro: { flex: 1 },
+
+    // Confirmação do "Apagar tudo" (#23), no padrão da confirmação de recusa do TCLE.
+    fundoDialogo: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    },
+    dialogo: {
+      width: '100%',
+      maxWidth: 620,
+      gap: 16,
+      padding: 36,
+      borderRadius: 24,
+      backgroundColor: cores.surface,
+    },
+    dialogoTitulo: {
+      color: cores.text,
+      fontFamily: FontFamilies.bold,
+      fontSize: 28,
+      lineHeight: 36,
+    },
+    dialogoTexto: {
+      color: cores.textSecondary,
+      fontFamily: FontFamilies.regular,
+      fontSize: 22,
+      lineHeight: 32,
+    },
+    dialogoRegistro: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 12,
+      padding: 16,
+      borderRadius: 12,
+      backgroundColor: cores.field,
+    },
+    dialogoRegistroRotulo: {
+      color: cores.primary,
+      fontFamily: FontFamilies.bold,
+      fontSize: 20,
+      lineHeight: 26,
+      letterSpacing: 0.5,
+    },
+    dialogoRegistroTexto: {
+      flexShrink: 1,
+      color: cores.textSecondary,
+      fontFamily: FontFamilies.regular,
+      fontSize: 20,
+      lineHeight: 26,
+    },
+    dialogoBotoes: { flexDirection: 'row', gap: 16 },
+    botaoCancelar: {
+      flex: 1,
+      minHeight: ALTURA_BOTAO_ACAO,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: cores.primary,
+      backgroundColor: cores.surface,
+    },
+    botaoApagar: {
+      flex: 1,
+      minHeight: ALTURA_BOTAO_ACAO,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 16,
+      backgroundColor: cores.primary,
+    },
+    botaoApagarPressionado: { backgroundColor: LARANJA_ESCURO },
+    textoApagar: {
+      color: cores.onPrimary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 24,
+      lineHeight: 30,
+    },
   });
 }
+
+export type DrawingTaskStyles = ReturnType<typeof createDrawingTaskStyles>;
