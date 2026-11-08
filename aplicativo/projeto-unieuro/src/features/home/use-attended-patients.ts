@@ -57,5 +57,13 @@ export function useAttendedPatients(repository: PatientListRepository) {
 
   const loading = professionalId !== null && loadedFor !== professionalId;
 
-  return { patients, loadFailed, loading };
+  const loadPatientCpfs = useCallback(
+    () =>
+      professionalId === null
+        ? Promise.resolve([])
+        : repository.listAttendedPatientCpfs(professionalId),
+    [professionalId, repository],
+  );
+
+  return { patients, loadFailed, loading, loadPatientCpfs };
 }

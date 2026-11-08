@@ -135,6 +135,30 @@ describe('tela inicial com os pacientes do banco', () => {
     expect(screen.queryByText('Antônio Carlos Ferreira')).toBeNull();
   });
 
+  it('busca pelos primeiros dígitos do CPF cifrado no banco', async () => {
+    const user = userEvent.setup();
+    renderInicio(ana);
+    await screen.findByText('José Alves Martins');
+
+    await user.type(screen.getByLabelText('Buscar paciente'), '987.654');
+
+    expect(await screen.findByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+    expect(screen.queryByText('José Alves Martins')).toBeNull();
+  });
+
+  it('não encontra pelo CPF o paciente atendido só por outro profissional', async () => {
+    const user = userEvent.setup();
+    renderInicio(ana);
+    await screen.findByText('José Alves Martins');
+
+    await user.type(screen.getByLabelText('Buscar paciente'), '39053344705');
+
+    expect(
+      await screen.findByText('Nenhum paciente encontrado para “39053344705”.'),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('Maria das Dores')).toBeNull();
+  });
+
   it('mostra o atendimento registrado depois, quando a tela volta a ter foco', async () => {
     renderInicio(ana);
     await screen.findByText('José Alves Martins');
