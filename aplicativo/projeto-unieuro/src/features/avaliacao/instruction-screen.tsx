@@ -1,13 +1,14 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { returnToLogin, useSession } from '@/features/auth/session';
 import {
   TAMANHO_ICONE_TAREFA,
   createInstructionStyles,
+  getInstructionLayout,
 } from '@/features/avaliacao/instruction.styles';
 import {
   obterTarefa,
@@ -38,6 +39,10 @@ export type InstructionScreenProps = {
  *
  * Sem médico logado, volta ao login. Sem avaliação em andamento ou com uma tarefa
  * que não existe, volta ao início. O botão voltar do Android não sai da avaliação.
+ *
+ * As medidas do cartão acompanham o tamanho da tela (#109). No tablet, deitado ou em
+ * pé, tudo cabe sem rolar; numa tela pequena, como a de um celular, a tela rola em vez
+ * de cortar a instrução ou o botão.
  */
 export default function InstructionScreen({
   tarefa: tarefaParam,
@@ -47,7 +52,9 @@ export default function InstructionScreen({
   const router = useRouter();
   const { professional } = useSession();
   const theme = useTheme();
-  const styles = useMemo(() => createInstructionStyles(theme), [theme]);
+  const { width, height } = useWindowDimensions();
+  const layout = useMemo(() => getInstructionLayout(width, height), [width, height]);
+  const styles = useMemo(() => createInstructionStyles(theme, layout), [theme, layout]);
   useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
@@ -67,7 +74,7 @@ export default function InstructionScreen({
       <TaskTopBar numero={tarefa.numero} cores={theme} />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.card}>
+        <View testID="cartao-instrucao" style={styles.card}>
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons
               accessibilityElementsHidden
