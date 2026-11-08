@@ -41,6 +41,7 @@ export function createTermoStyles(colors: ThemeColors) {
       borderBottomColor: colors.border,
     },
     paciente: {
+      flexShrink: 1,
       color: colors.textSecondary,
       fontFamily: fonts.semibold,
       fontSize: 16,

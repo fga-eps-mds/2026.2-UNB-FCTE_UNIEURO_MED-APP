@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import { useTheme } from '@/hooks/use-theme';
 import {
   registerProfessional,
@@ -62,6 +63,7 @@ const fieldRows: {
     {
       label: 'NOME COMPLETO',
       name: 'fullName',
+      maxLength: MAX_NAME_LENGTH,
       placeholder: 'Ana Carolina Souza',
       autoCapitalize: 'words',
       autoComplete: 'name',

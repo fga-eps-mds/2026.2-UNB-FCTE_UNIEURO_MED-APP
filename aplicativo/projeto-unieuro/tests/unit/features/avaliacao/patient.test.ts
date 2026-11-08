@@ -1,5 +1,6 @@
 import type { PatientForm } from '@/features/avaliacao/attendance';
 import { parseBirthDate, parseSchoolingYears, validatePatient } from '@/features/avaliacao/patient';
+import { MAX_NAME_LENGTH, NAME_TOO_LONG } from '@/features/shared/name';
 
 const TODAY = new Date(2026, 9, 9, 10, 30);
 
@@ -190,5 +191,18 @@ describe('parseSchoolingYears', () => {
 
   it('devolve null para texto vazio', () => {
     expect(parseSchoolingYears('')).toBeNull();
+  });
+});
+
+describe('limite do nome do paciente', () => {
+  it('aceita um nome com o tamanho máximo', () => {
+    expect(validate({ name: 'a'.repeat(MAX_NAME_LENGTH) }).valid).toBe(true);
+  });
+
+  it('recusa um nome acima do limite, mesmo que não venha do campo', () => {
+    expect(validate({ name: 'a'.repeat(MAX_NAME_LENGTH + 1) })).toEqual({
+      valid: false,
+      errors: { name: NAME_TOO_LONG },
+    });
   });
 });
