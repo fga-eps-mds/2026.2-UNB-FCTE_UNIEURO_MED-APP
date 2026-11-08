@@ -1,14 +1,20 @@
+import { File } from 'expo-file-system';
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
-import { closeDatabase, getDatabase, migrate } from '@/db/database';
+import { closeDatabase, getDatabase, LEGACY_DATABASE_MESSAGE, migrate } from '@/db/database';
 import { applyDatabaseEncryption } from '@/db/database-encryption';
+import { loadOrCreateDatabaseKey } from '@/db/database-key';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 jest.mock('expo-sqlite', () => ({
+  defaultDatabaseDirectory: '/sqlite',
   openDatabaseAsync: jest.fn(),
 }));
+
+const mockFile = { exists: false, size: 0, open: jest.fn() };
+jest.mock('expo-file-system', () => ({ File: jest.fn(() => mockFile) }));
 
 // A conversão do CPF tem teste próprio em `cpf-migration.test.ts`. Aqui só
 // importa que `migrate` a execute no passo certo.
@@ -24,6 +30,10 @@ jest.mock('@/db/database-encryption', () => ({
   applyDatabaseEncryption: jest.fn(async () => undefined),
 }));
 
+jest.mock('@/db/database-key', () => ({
+  loadOrCreateDatabaseKey: jest.fn(async () => new Uint8Array(32)),
+}));
+
 const protector: CpfProtector = {
   blindIndex: jest.fn(),
   encrypt: jest.fn(),
@@ -32,6 +42,14 @@ const protector: CpfProtector = {
 
 const mockOpenDatabaseAsync = jest.mocked(openDatabaseAsync);
 const mockApplyDatabaseEncryption = jest.mocked(applyDatabaseEncryption);
+const mockLoadOrCreateDatabaseKey = jest.mocked(loadOrCreateDatabaseKey);
+
+/** Executa a função de chave que `getDatabase` entregou a `applyDatabaseEncryption`. */
+async function loadKeyPassedToEncryption() {
+  const loadKey = mockApplyDatabaseEncryption.mock.calls[0]?.[1];
+  expect(loadKey).toBeDefined();
+  await loadKey!();
+}
 
 function createDatabase(userVersion: number | null = 0) {
   const database = {
@@ -47,6 +65,8 @@ function createDatabase(userVersion: number | null = 0) {
 
 afterEach(async () => {
   await closeDatabase();
+  mockFile.exists = false;
+  mockFile.size = 0;
 });
 
 describe('migrate', () => {
@@ -180,7 +200,7 @@ describe('getDatabase', () => {
     expect(second).toBe(database);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledTimes(1);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledWith(DATABASE_NAME);
-    expect(mockApplyDatabaseEncryption).toHaveBeenCalledWith(database);
+    expect(mockApplyDatabaseEncryption).toHaveBeenCalledWith(database, expect.any(Function));
     expect(mockApplyDatabaseEncryption.mock.invocationCallOrder[0]).toBeLessThan(
       database.withTransactionAsync.mock.invocationCallOrder[0],
     );
@@ -206,8 +226,76 @@ describe('getDatabase', () => {
       .mockResolvedValueOnce(undefined);
 
     await expect(getDatabase()).rejects.toThrow('cofre indisponível');
+    expect(database.closeAsync).toHaveBeenCalledTimes(1);
     await expect(getDatabase()).resolves.toBe(database);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('fecha a conexão quando uma migração falha', async () => {
+    const database = createDatabase();
+    database.execAsync.mockRejectedValueOnce(new Error('migração falhou'));
+    mockOpenDatabaseAsync.mockResolvedValue(database);
+
+    await expect(getDatabase()).rejects.toThrow('migração falhou');
+    expect(database.closeAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva a falha original mesmo se o fechamento da conexão falhar', async () => {
+    const database = createDatabase();
+    database.closeAsync.mockRejectedValueOnce(new Error('falha ao fechar'));
+    mockApplyDatabaseEncryption.mockRejectedValueOnce(new Error('cofre indisponível'));
+    mockOpenDatabaseAsync.mockResolvedValue(database);
+
+    await expect(getDatabase()).rejects.toThrow('cofre indisponível');
+    await expect(getDatabase()).resolves.toBe(database);
+  });
+
+  it('identifica um banco antigo antes de abri-lo', async () => {
+    const close = jest.fn();
+    mockFile.exists = true;
+    mockFile.size = 100;
+    mockFile.open.mockReturnValue({
+      readBytes: () => Uint8Array.from('SQLite format 3\0', (c) => c.charCodeAt(0)),
+      close,
+    });
+
+    await expect(getDatabase()).rejects.toThrow(LEGACY_DATABASE_MESSAGE);
+    expect(close).toHaveBeenCalled();
+    expect(mockOpenDatabaseAsync).not.toHaveBeenCalled();
+  });
+
+  it('procura o arquivo do banco por uma URI file:// no diretório do SQLite', async () => {
+    mockOpenDatabaseAsync.mockResolvedValue(createDatabase());
+
+    await getDatabase();
+
+    expect(File).toHaveBeenCalledWith('file:///sqlite', DATABASE_NAME);
+  });
+
+  it('não deixa criar outra chave quando já existe um banco cifrado', async () => {
+    const close = jest.fn();
+    mockFile.exists = true;
+    mockFile.size = 4096;
+    mockFile.open.mockReturnValue({
+      readBytes: () => new Uint8Array(16).fill(0xa5),
+      close,
+    });
+    mockOpenDatabaseAsync.mockResolvedValue(createDatabase());
+
+    await getDatabase();
+    await loadKeyPassedToEncryption();
+
+    expect(close).toHaveBeenCalled();
+    expect(mockLoadOrCreateDatabaseKey).toHaveBeenCalledWith(undefined, undefined, true);
+  });
+
+  it('permite criar a chave na primeira instalação, sem arquivo do banco', async () => {
+    mockOpenDatabaseAsync.mockResolvedValue(createDatabase());
+
+    await getDatabase();
+    await loadKeyPassedToEncryption();
+
+    expect(mockLoadOrCreateDatabaseKey).toHaveBeenCalledWith(undefined, undefined, false);
   });
 });
 

@@ -5,6 +5,7 @@ import { getItemAsync, setItemAsync } from 'expo-secure-store';
 import {
   DATABASE_KEY_BYTES,
   DATABASE_KEY_NAME,
+  DATABASE_KEY_MISSING_MESSAGE,
   loadOrCreateDatabaseKey,
   type DatabaseKeyStore,
 } from '@/db/database-key';
@@ -26,6 +27,25 @@ function createStore(saved: string | null): DatabaseKeyStore & { get: jest.Mock;
 }
 
 describe('loadOrCreateDatabaseKey', () => {
+  it('reutiliza a chave de um banco existente sem sobrescrevê-la', async () => {
+    const store = createStore('ab'.repeat(DATABASE_KEY_BYTES));
+    const randomBytes = jest.fn();
+
+    const key = await loadOrCreateDatabaseKey(store, randomBytes, true);
+
+    expect(bytesToHex(key)).toBe('ab'.repeat(DATABASE_KEY_BYTES));
+    expect(randomBytes).not.toHaveBeenCalled();
+    expect(store.set).not.toHaveBeenCalled();
+  });
+  it('não cria outra chave quando existe um banco com dados', async () => {
+    const store = createStore(null);
+    const randomBytes = jest.fn();
+    await expect(loadOrCreateDatabaseKey(store, randomBytes, true)).rejects.toThrow(
+      DATABASE_KEY_MISSING_MESSAGE,
+    );
+    expect(randomBytes).not.toHaveBeenCalled();
+    expect(store.set).not.toHaveBeenCalled();
+  });
   it('gera 256 bits e guarda a chave fora do banco no primeiro uso', async () => {
     const store = createStore(null);
     const generated = new Uint8Array(DATABASE_KEY_BYTES).fill(7);

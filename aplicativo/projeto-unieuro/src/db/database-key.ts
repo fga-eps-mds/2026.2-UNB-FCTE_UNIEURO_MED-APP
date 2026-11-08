@@ -4,6 +4,8 @@ import { getItemAsync, setItemAsync } from 'expo-secure-store';
 
 export const DATABASE_KEY_NAME = 'med.database.key.v1';
 export const DATABASE_KEY_BYTES = 32;
+export const DATABASE_KEY_MISSING_MESSAGE =
+  'A chave do banco existente não está disponível. Procure o suporte antes de reinstalar o aplicativo.';
 
 const DATABASE_KEY_HEX_LENGTH = DATABASE_KEY_BYTES * 2;
 const HEXADECIMAL = /^[0-9a-f]+$/;
@@ -41,9 +43,12 @@ function decodeStoredKey(stored: string): Uint8Array {
 export async function loadOrCreateDatabaseKey(
   store: DatabaseKeyStore = secureKeyStore,
   randomBytes: RandomBytes = getRandomBytesAsync,
+  databaseHasData = false,
 ): Promise<Uint8Array> {
   const saved = await store.get(DATABASE_KEY_NAME);
   if (saved !== null) return decodeStoredKey(saved);
+
+  if (databaseHasData) throw new Error(DATABASE_KEY_MISSING_MESSAGE);
 
   const created = await randomBytes(DATABASE_KEY_BYTES);
   if (created.length !== DATABASE_KEY_BYTES) {

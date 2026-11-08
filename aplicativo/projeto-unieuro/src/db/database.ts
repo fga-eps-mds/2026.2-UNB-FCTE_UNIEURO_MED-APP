@@ -1,11 +1,34 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
+import { File } from 'expo-file-system';
+import { defaultDatabaseDirectory, openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
 import { applyDatabaseEncryption } from '@/db/database-encryption';
+import { loadOrCreateDatabaseKey } from '@/db/database-key';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 let connection: Promise<SQLiteDatabase> | null = null;
+
+export const LEGACY_DATABASE_MESSAGE =
+  'Banco de uma versão anterior encontrado. Reinstale o aplicativo para continuar. Os dados locais serão apagados.';
+
+function inspectDatabaseFile(): boolean {
+  // No Android, `defaultDatabaseDirectory` é um caminho sem esquema, e o
+  // expo-file-system só aceita URI `file://`.
+  const file = new File(`file://${defaultDatabaseDirectory}`, DATABASE_NAME);
+  if (!file.exists || file.size === 0) return false;
+  const handle = file.open();
+  try {
+    const header = handle.readBytes(16);
+    const sqliteHeader = 'SQLite format 3\0';
+    if (header.length === 16 && header.every((byte, i) => byte === sqliteHeader.charCodeAt(i))) {
+      throw new Error(LEGACY_DATABASE_MESSAGE);
+    }
+  } finally {
+    handle.close();
+  }
+  return true;
+}
 
 /**
  * Aplica os passos de `MIGRATIONS` que o banco ainda não recebeu. A versão
@@ -45,10 +68,18 @@ export async function migrate(
 }
 
 async function openAndMigrate(): Promise<SQLiteDatabase> {
+  const databaseHasData = inspectDatabaseFile();
   const database = await openDatabaseAsync(DATABASE_NAME);
-  await applyDatabaseEncryption(database);
-  await migrate(database);
-  return database;
+  try {
+    await applyDatabaseEncryption(database, () =>
+      loadOrCreateDatabaseKey(undefined, undefined, databaseHasData),
+    );
+    await migrate(database);
+    return database;
+  } catch (error) {
+    await database.closeAsync().catch(() => undefined);
+    throw error;
+  }
 }
 
 /**
