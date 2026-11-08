@@ -301,7 +301,9 @@ describe('o que a tela mostra ao paciente', () => {
     expect(screen.getByText('Tarefa 1 de 3')).toBeOnTheScreen();
     expect(screen.getByText(HELP_MESSAGE)).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Desenhe um relógio' })).toBeOnTheScreen();
-    expect(screen.getByText('Com todos os números, marcando 11h10.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Círculo, todos os números e ponteiros em onze e dez.'),
+    ).toBeOnTheScreen();
   });
 
   it('mostra o progresso e o lembrete do cubo', () => {

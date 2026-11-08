@@ -11,7 +11,10 @@ import type { Tarefa } from '@/features/avaliacao/tarefas';
 export type Lembrete = { titulo: string; frase: string };
 
 export const LEMBRETES: Readonly<Record<number, Lembrete>> = {
-  1: { titulo: 'Desenhe um relógio', frase: 'Com todos os números, marcando 11h10.' },
+  1: {
+    titulo: 'Desenhe um relógio',
+    frase: 'Círculo, todos os números e ponteiros em onze e dez.',
+  },
   2: { titulo: 'Copie o cubo', frase: 'Desenhe do jeito que você consegue.' },
   3: { titulo: 'Ligue números e letras', frase: 'Alterne em ordem: 1, A, 2, B… até o E.' },
 };

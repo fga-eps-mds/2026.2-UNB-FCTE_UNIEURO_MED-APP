@@ -35,7 +35,7 @@ describe('lembrete de cada tarefa', () => {
   it('repete o pedido do relógio e do cubo com as palavras do protótipo', () => {
     expect(LEMBRETES[1]).toEqual({
       titulo: 'Desenhe um relógio',
-      frase: 'Com todos os números, marcando 11h10.',
+      frase: 'Círculo, todos os números e ponteiros em onze e dez.',
     });
     expect(LEMBRETES[2]).toEqual({
       titulo: 'Copie o cubo',
@@ -43,9 +43,23 @@ describe('lembrete de cada tarefa', () => {
     });
   });
 
-  it('marca no relógio a mesma hora da instrução: onze horas e dez minutos', () => {
+  it('marca no relógio a mesma hora da instrução: onze e dez', () => {
     expect(relogio.instrucao).toContain('onze horas e dez minutos');
-    expect(LEMBRETES[1].frase).toContain('11h10');
+    expect(LEMBRETES[1].frase).toContain('onze e dez');
+  });
+
+  it('pede no relógio o círculo, os números e os ponteiros, na instrução e no lembrete', () => {
+    for (const texto of [relogio.instrucao, LEMBRETES[1].frase]) {
+      expect(texto).toMatch(/círculo/i);
+      expect(texto).toMatch(/números/i);
+      expect(texto).toMatch(/ponteiros/i);
+    }
+  });
+
+  it('não escreve a hora em algarismos, para não ser lida como "escreva 11:10"', () => {
+    for (const texto of [relogio.instrucao, LEMBRETES[1].frase]) {
+      expect(texto).not.toMatch(/\d/);
+    }
   });
 
   it('pede nas trilhas a sequência do MoCA, alternando número e letra até o E', () => {
