@@ -3,6 +3,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
 import { closeDatabase, getDatabase, migrate } from '@/db/database';
+import { applyDatabaseEncryption } from '@/db/database-encryption';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 jest.mock('expo-sqlite', () => ({
@@ -19,6 +20,10 @@ jest.mock('@/db/cpf-migration', () => ({
 // aplicativo. Nestes testes o protetor é sempre passado de fora.
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
+jest.mock('@/db/database-encryption', () => ({
+  applyDatabaseEncryption: jest.fn(async () => undefined),
+}));
+
 const protector: CpfProtector = {
   blindIndex: jest.fn(),
   encrypt: jest.fn(),
@@ -26,6 +31,7 @@ const protector: CpfProtector = {
 };
 
 const mockOpenDatabaseAsync = jest.mocked(openDatabaseAsync);
+const mockApplyDatabaseEncryption = jest.mocked(applyDatabaseEncryption);
 
 function createDatabase(userVersion: number | null = 0) {
   const database = {
@@ -174,6 +180,10 @@ describe('getDatabase', () => {
     expect(second).toBe(database);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledTimes(1);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledWith(DATABASE_NAME);
+    expect(mockApplyDatabaseEncryption).toHaveBeenCalledWith(database);
+    expect(mockApplyDatabaseEncryption.mock.invocationCallOrder[0]).toBeLessThan(
+      database.withTransactionAsync.mock.invocationCallOrder[0],
+    );
     expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
   });
 
@@ -184,6 +194,18 @@ describe('getDatabase', () => {
       .mockResolvedValueOnce(database);
 
     await expect(getDatabase()).rejects.toThrow('falha ao abrir');
+    await expect(getDatabase()).resolves.toBe(database);
+    expect(mockOpenDatabaseAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('tenta abrir de novo depois de uma falha ao aplicar a chave', async () => {
+    const database = createDatabase();
+    mockOpenDatabaseAsync.mockResolvedValue(database);
+    mockApplyDatabaseEncryption
+      .mockRejectedValueOnce(new Error('cofre indisponível'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(getDatabase()).rejects.toThrow('cofre indisponível');
     await expect(getDatabase()).resolves.toBe(database);
     expect(mockOpenDatabaseAsync).toHaveBeenCalledTimes(2);
   });

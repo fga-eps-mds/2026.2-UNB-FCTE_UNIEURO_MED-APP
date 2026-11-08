@@ -2,6 +2,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
+import { applyDatabaseEncryption } from '@/db/database-encryption';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 
 let connection: Promise<SQLiteDatabase> | null = null;
@@ -45,6 +46,7 @@ export async function migrate(
 
 async function openAndMigrate(): Promise<SQLiteDatabase> {
   const database = await openDatabaseAsync(DATABASE_NAME);
+  await applyDatabaseEncryption(database);
   await migrate(database);
   return database;
 }
