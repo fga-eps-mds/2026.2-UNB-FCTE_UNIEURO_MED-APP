@@ -48,7 +48,8 @@
           "configureAndroidBackup": false
         }
       ],
-      "./plugins/with-data-extraction-rules"
+      "./plugins/with-data-extraction-rules",
+      "./plugins/with-gradle-jdk"
     ],
     "experiments": {
       "typedRoutes": true,
