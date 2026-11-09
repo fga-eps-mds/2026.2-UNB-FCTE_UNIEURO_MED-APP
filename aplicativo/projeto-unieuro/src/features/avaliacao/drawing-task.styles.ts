@@ -52,6 +52,7 @@ export function createDrawingTaskStyles() {
       fontSize: 20,
       lineHeight: 28,
     },
+    aviso: { color: cores.error, fontFamily: FontFamilies.semibold },
     confirmar: { width: LARGURA_LATERAL, gap: 8 },
     botaoConfirmar: {
       minHeight: ALTURA_BOTAO_CONFIRMAR,
