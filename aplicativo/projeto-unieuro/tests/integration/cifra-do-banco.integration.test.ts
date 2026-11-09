@@ -1,3 +1,4 @@
+import { bytesToHex } from '@noble/hashes/utils';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { createAttendanceRepository } from '@/db/attendance-repository';
@@ -212,10 +213,14 @@ describe('Cenário: arquivos copiados', () => {
 describe('chave guardada no cofre', () => {
   it('gera a chave na primeira abertura e reabre o banco com a mesma nas seguintes', async () => {
     const cofre = criarCofre();
-    const carregarChave = () =>
-      loadOrCreateDatabaseKey(cofre, async (quantidade) =>
-        Uint8Array.from({ length: quantidade }, (_, indice) => (indice * 7 + 3) % 256),
-      );
+    // Cada chamada devolve uma chave diferente. Se a segunda abertura ignorasse o
+    // cofre e gerasse outra, o banco não abriria e o gerador seria chamado duas vezes.
+    let chamadas = 0;
+    const gerarChave = jest.fn(async (quantidade: number) => {
+      chamadas += 1;
+      return new Uint8Array(quantidade).fill(chamadas);
+    });
+    const carregarChave = () => loadOrCreateDatabaseKey(cofre, gerarChave);
 
     const primeira = banco.open();
     await applyDatabaseEncryption(primeira, carregarChave);
@@ -223,12 +228,14 @@ describe('chave guardada no cofre', () => {
     await primeira.closeAsync();
 
     const chaveGuardada = cofre.valores.get(DATABASE_KEY_NAME);
-    expect(chaveGuardada).toHaveLength(DATABASE_KEY_BYTES * 2);
+    expect(chaveGuardada).toBe(bytesToHex(new Uint8Array(DATABASE_KEY_BYTES).fill(1)));
 
     const segunda = banco.open();
     await applyDatabaseEncryption(segunda, carregarChave);
 
     await expect(contarPacientes(segunda)).resolves.toEqual({ total: 1 });
+    expect(gerarChave).toHaveBeenCalledTimes(1);
+    expect(cofre.valores.get(DATABASE_KEY_NAME)).toBe(chaveGuardada);
     expect(cofre.valores.size).toBe(1);
     // A chave fica no cofre; o arquivo do banco não a contém.
     expect(banco.rawContains(chaveGuardada!)).toBe(false);
