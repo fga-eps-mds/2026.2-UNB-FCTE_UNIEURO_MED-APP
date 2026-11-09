@@ -36,7 +36,12 @@
         }
       ],
       "expo-font",
-      "expo-sqlite",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
       [
         "expo-secure-store",
         {
@@ -44,6 +49,7 @@
         }
       ],
       "./plugins/with-data-extraction-rules",
+      "./plugins/with-gradle-jdk",
       "./plugins/with-release-signing"
     ],
     "experiments": {

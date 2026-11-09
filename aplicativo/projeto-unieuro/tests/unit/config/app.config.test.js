@@ -61,6 +61,10 @@ describe('configuração por perfil de build', () => {
     ]);
   });
 
+  it('compila o SQLite com SQLCipher para cifrar o arquivo inteiro', () => {
+    expect(appJson.expo.plugins).toContainEqual(['expo-sqlite', { useSQLCipher: true }]);
+  });
+
   it('soma ao bloqueio que já estiver no app.json', () => {
     const config = createConfig(
       {

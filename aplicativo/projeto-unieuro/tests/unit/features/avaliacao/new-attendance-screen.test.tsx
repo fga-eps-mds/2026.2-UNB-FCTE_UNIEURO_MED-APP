@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import type { AttendanceRepository, PatientField } from '@/features/avaliacao/attendance';
 import NewAttendanceScreen from '@/features/avaliacao/new-attendance-screen';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -492,5 +493,11 @@ describe('NewAttendanceScreen', () => {
       expect(screen.getByTestId('linha-perfil')).toHaveStyle({ flexDirection: 'column' });
       expect(screen.getByRole('header', { name: 'Novo exame' })).toHaveStyle({ fontSize: 28 });
     });
+  });
+
+  it('não deixa digitar nem colar um nome de paciente acima do limite', () => {
+    renderizarTela();
+
+    expect(screen.getByLabelText('Nome completo')).toHaveProp('maxLength', MAX_NAME_LENGTH);
   });
 });
