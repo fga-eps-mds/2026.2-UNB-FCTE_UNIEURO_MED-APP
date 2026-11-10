@@ -1,5 +1,6 @@
 import { BrandPalette, Colors, FontFamilies } from '@/constants/theme';
 import {
+  ALTURA_BOTAO_ACAO,
   ALTURA_BOTAO_CONFIRMAR,
   CORES_DA_TAREFA,
   DESABILITADO,
@@ -76,5 +77,43 @@ describe('createDrawingTaskStyles', () => {
   it('deixa o quadro ocupar o espaço que sobra', () => {
     expect(styles.quadro.flex).toBe(1);
     expect(styles.area.flex).toBe(1);
+  });
+
+  it('dá ao "Desfazer" e ao "Apagar tudo" o botão grande do guia, com contorno laranja', () => {
+    expect(ALTURA_BOTAO_ACAO).toBe(84);
+    expect(styles.botaoAcao).toMatchObject({
+      minHeight: 84,
+      borderWidth: 2,
+      borderColor: Colors.light.primary,
+      backgroundColor: Colors.light.surface,
+    });
+    expect(styles.botaoAcaoDesabilitado.backgroundColor).toBe(DESABILITADO.fundo);
+    expect(styles.textoAcaoDesabilitado.color).toBe(DESABILITADO.texto);
+  });
+
+  it('deixa os botões descerem de linha com o tablet em pé, sem apertar o lembrete', () => {
+    expect(styles.ferramentas.flexWrap).toBe('wrap');
+    expect(styles.lembrete).toMatchObject({ flexGrow: 1, flexBasis: 400 });
+  });
+
+  it('mantém com 20 pontos ou mais o texto dos botões novos e da confirmação de apagar', () => {
+    const textos = [
+      styles.textoAcao,
+      styles.textoApagar,
+      styles.dialogoTitulo,
+      styles.dialogoTexto,
+      styles.dialogoRegistroRotulo,
+      styles.dialogoRegistroTexto,
+    ];
+
+    for (const texto of textos) {
+      expect(texto.fontSize).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('dá aos botões da confirmação de apagar o mesmo tamanho grande', () => {
+    expect(styles.botaoCancelar.minHeight).toBe(ALTURA_BOTAO_ACAO);
+    expect(styles.botaoApagar.minHeight).toBe(ALTURA_BOTAO_ACAO);
+    expect(styles.botaoApagarPressionado.backgroundColor).toBe(LARANJA_ESCURO);
   });
 });

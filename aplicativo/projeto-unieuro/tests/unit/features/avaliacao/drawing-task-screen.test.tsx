@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { REGISTRO_APAGAR, TITULO_APAGAR } from '@/features/avaliacao/apagar-desenho-dialog';
 import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
 import DrawingTaskScreen, {
   FALHA_AO_SALVAR,
@@ -443,4 +444,129 @@ describe('tela sem avaliação em andamento', () => {
       expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
     },
   );
+});
+
+// História #23: confirmar ou refazer o desenho antes de avançar.
+const botaoDesfazer = () => screen.getByRole('button', { name: 'Desfazer' });
+const botaoApagarTudo = () => screen.getByRole('button', { name: 'Apagar tudo' });
+
+describe('Cenário: desfazer o último traço', () => {
+  it('deixa "Desfazer" e "Apagar tudo" desabilitados antes do primeiro traço', () => {
+    renderizarTela();
+
+    expect(botaoDesfazer()).toBeDisabled();
+    expect(botaoApagarTudo()).toBeDisabled();
+  });
+
+  it('tira da tela só o último traço e registra o desfazer nos dados da coleta', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([
+      [10, 10],
+      [20, 20],
+    ]);
+    await desenharNoQuadro([
+      [50, 50],
+      [60, 60],
+    ]);
+
+    await user.press(botaoDesfazer());
+    await user.press(botaoConfirmar());
+
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.tracos[0].map(({ x, y }: { x: number; y: number }) => [x, y])).toEqual([
+      [10, 10],
+      [20, 20],
+    ]);
+    expect(registro.eventos.filter((e: { tipo: string }) => e.tipo === 'desfazer')).toHaveLength(1);
+  });
+
+  it('desabilita o "Confirmar" de novo quando o desfazer tira o único traço', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoDesfazer());
+
+    expect(botaoConfirmar()).toBeDisabled();
+    expect(botaoDesfazer()).toBeDisabled();
+  });
+});
+
+describe('Cenário: refazer o desenho', () => {
+  it('pede confirmação antes de apagar, avisando que o apagamento fica registrado', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+
+    expect(screen.getByRole('header', { name: TITULO_APAGAR })).toBeOnTheScreen();
+    expect(screen.getByText(REGISTRO_APAGAR)).toBeOnTheScreen();
+  });
+
+  it('não apaga nada quando o paciente cancela', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR })).toBeNull();
+    await user.press(botaoConfirmar());
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.eventos.some((e: { tipo: string }) => e.tipo === 'limpar')).toBe(false);
+  });
+
+  it('esvazia o quadro ao confirmar o apagamento, sem os traços descartados no resultado', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+    await desenharNoQuadro([[30, 30]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Apagar' }));
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR })).toBeNull();
+    expect(botaoConfirmar()).toBeDisabled();
+
+    await desenharNoQuadro([[70, 70]]);
+    await user.press(botaoConfirmar());
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.tracos[0][0]).toMatchObject({ x: 70, y: 70 });
+  });
+
+  it('registra a limpeza nos dados da coleta, com o horário', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Apagar' }));
+    await desenharNoQuadro([[40, 40]]);
+    await user.press(botaoConfirmar());
+
+    const [, registro] = onConfirmar.mock.calls[0];
+    const limpar = registro.eventos.find((e: { tipo: string }) => e.tipo === 'limpar');
+    expect(limpar).toBeDefined();
+    expect(typeof limpar?.instante).toBe('number');
+    expect(limpar?.instante).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('Cenário: confirmar e avançar', () => {
+  it('não deixa desfazer nem apagar depois de confirmar', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+
+    expect(botaoDesfazer()).toBeDisabled();
+    expect(botaoApagarTudo()).toBeDisabled();
+  });
 });

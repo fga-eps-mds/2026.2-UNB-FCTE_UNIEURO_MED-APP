@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { returnToLogin, useSession } from '@/features/auth/session';
+import { ConfirmarApagarDesenho } from '@/features/avaliacao/apagar-desenho-dialog';
 import { CubeFigure } from '@/features/avaliacao/cube-figure';
 import {
   DICA_CONFIRMAR,
@@ -40,7 +41,9 @@ export const FALHA_AO_SALVAR = 'Não foi possível salvar o desenho. Toque em Co
 
 /**
  * Tela de desenho das três tarefas (história #9): o lembrete da tarefa, o quadro de
- * desenho e o "Confirmar", que só habilita depois do primeiro traço. Na cópia do
+ * desenho e o "Confirmar", que só habilita depois do primeiro traço. O "Desfazer" tira
+ * o último traço e o "Apagar tudo", depois de confirmado, limpa o quadro (#23); os dois
+ * ficam registrados no traçado, e os traços descartados não entram no desenho. Na cópia do
  * cubo, a figura de modelo fica ao lado do quadro durante toda a tarefa; nas
  * trilhas, os círculos ficam dentro do quadro, por baixo dos traços.
  *
@@ -60,6 +63,7 @@ export default function DrawingTaskScreen({
   const confirmou = useRef(false);
   const [confirmado, setConfirmado] = useState(false);
   const [falhou, setFalhou] = useState(false);
+  const [pedindoApagar, setPedindoApagar] = useState(false);
   useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
@@ -75,6 +79,13 @@ export default function DrawingTaskScreen({
 
   const lembrete = LEMBRETES[tarefa.numero];
   const podeConfirmar = registro.temTraco && !confirmado;
+  // Desfazer e apagar só fazem sentido com traço, e não depois de confirmar.
+  const podeCorrigir = registro.temTraco && !confirmado;
+
+  const apagar = () => {
+    registro.limpar();
+    setPedindoApagar(false);
+  };
 
   const confirmar = async () => {
     if (confirmou.current) return;
@@ -113,6 +124,39 @@ export default function DrawingTaskScreen({
             ) : (
               <Text style={styles.lembreteFrase}>{lembrete.frase}</Text>
             )}
+          </View>
+
+          <View style={styles.acoes}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !podeCorrigir }}
+              accessibilityHint="Tira o último traço do desenho."
+              disabled={!podeCorrigir}
+              onPress={registro.desfazer}
+              style={({ pressed }) => [
+                styles.botaoAcao,
+                pressed && styles.botaoAcaoPressionado,
+                !podeCorrigir && styles.botaoAcaoDesabilitado,
+              ]}>
+              <Text style={[styles.textoAcao, !podeCorrigir && styles.textoAcaoDesabilitado]}>
+                Desfazer
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !podeCorrigir }}
+              accessibilityHint="Pede confirmação para apagar todo o desenho."
+              disabled={!podeCorrigir}
+              onPress={() => setPedindoApagar(true)}
+              style={({ pressed }) => [
+                styles.botaoAcao,
+                pressed && styles.botaoAcaoPressionado,
+                !podeCorrigir && styles.botaoAcaoDesabilitado,
+              ]}>
+              <Text style={[styles.textoAcao, !podeCorrigir && styles.textoAcaoDesabilitado]}>
+                Apagar tudo
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.confirmar}>
@@ -170,6 +214,13 @@ export default function DrawingTaskScreen({
           </View>
         </View>
       </View>
+
+      <ConfirmarApagarDesenho
+        visible={pedindoApagar}
+        onCancelar={() => setPedindoApagar(false)}
+        onApagar={apagar}
+        styles={styles}
+      />
     </SafeAreaView>
   );
 }
