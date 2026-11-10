@@ -1,13 +1,14 @@
-import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import HomeScreen, {
+  CPF_SEARCH_FAILED_MESSAGE,
   LOADING_MESSAGE,
   LOAD_FAILED_MESSAGE,
   NOTICE_DURATION_MS,
 } from '@/features/home/home-screen';
-import type { PatientSummary } from '@/features/home/patients';
+import type { PatientCpf, PatientSummary } from '@/features/home/patients';
 
 const profissional: SessionProfessional = {
   id: 1,
@@ -201,6 +202,92 @@ describe('HomeScreen', () => {
       await user.type(screen.getByLabelText('Buscar paciente'), 'Helena');
 
       expect(screen.getByText('Nenhum paciente encontrado para “Helena”.')).toBeOnTheScreen();
+    });
+  });
+
+  describe('busca pelo CPF', () => {
+    const cpfsDosPacientes: PatientCpf[] = [
+      { patientId: 1, cpf: '12345678909' },
+      { patientId: 2, cpf: '98765432100' },
+    ];
+
+    const tela = (
+      loadPatientCpfs: () => Promise<PatientCpf[]>,
+      patients: readonly PatientSummary[] = pacientes,
+    ) => (
+      <SessionProvider initialProfessional={profissional}>
+        <HomeScreen patients={patients} loadPatientCpfs={loadPatientCpfs} />
+      </SessionProvider>
+    );
+
+    it('encontra o paciente pelos primeiros dígitos do CPF, com ou sem pontuação', async () => {
+      const user = userEvent.setup();
+      render(tela(jest.fn().mockResolvedValue(cpfsDosPacientes)));
+
+      await user.type(screen.getByLabelText('Buscar paciente'), '123.45');
+
+      expect(await screen.findByText('José Alves Martins')).toBeOnTheScreen();
+      expect(botoesDePaciente()).toHaveLength(1);
+    });
+
+    it('só lê os CPFs quando a busca tem dígitos, e uma vez só', async () => {
+      const user = userEvent.setup();
+      const loadPatientCpfs = jest.fn().mockResolvedValue(cpfsDosPacientes);
+      render(tela(loadPatientCpfs));
+      const busca = screen.getByLabelText('Buscar paciente');
+
+      await user.type(busca, 'antonio');
+      expect(loadPatientCpfs).not.toHaveBeenCalled();
+
+      await user.clear(busca);
+      await user.type(busca, '987');
+
+      expect(await screen.findByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+      expect(loadPatientCpfs).toHaveBeenCalledTimes(1);
+    });
+
+    it('lê os CPFs de novo quando a lista de pacientes muda', async () => {
+      const user = userEvent.setup();
+      const loadPatientCpfs = jest.fn().mockResolvedValue(cpfsDosPacientes);
+      const { rerender } = render(tela(loadPatientCpfs));
+      await user.type(screen.getByLabelText('Buscar paciente'), '123');
+      await screen.findByText('José Alves Martins');
+
+      rerender(tela(loadPatientCpfs, [...pacientes]));
+
+      await waitFor(() => expect(loadPatientCpfs).toHaveBeenCalledTimes(2));
+    });
+
+    it('não usa os CPFs de uma leitura que termina depois de a lista mudar', async () => {
+      const user = userEvent.setup();
+      let terminarPrimeira!: (cpfs: PatientCpf[]) => void;
+      const loadPatientCpfs = jest
+        .fn()
+        .mockReturnValueOnce(new Promise((resolve) => (terminarPrimeira = resolve)))
+        .mockResolvedValueOnce([]);
+      const { rerender } = render(tela(loadPatientCpfs));
+      await user.type(screen.getByLabelText('Buscar paciente'), '123');
+
+      rerender(tela(loadPatientCpfs, [...pacientes]));
+      await waitFor(() => expect(loadPatientCpfs).toHaveBeenCalledTimes(2));
+      await act(async () => terminarPrimeira(cpfsDosPacientes));
+
+      expect(screen.queryByText('José Alves Martins')).toBeNull();
+    });
+
+    it('avisa quando os CPFs não puderam ser lidos e continua buscando pelo nome', async () => {
+      const user = userEvent.setup();
+      render(tela(jest.fn().mockRejectedValue(new Error('chave indisponível'))));
+      const busca = screen.getByLabelText('Buscar paciente');
+
+      await user.type(busca, '123');
+      expect(await screen.findByText(CPF_SEARCH_FAILED_MESSAGE)).toBeOnTheScreen();
+
+      await user.clear(busca);
+      await user.type(busca, 'antonio');
+
+      expect(screen.queryByText(CPF_SEARCH_FAILED_MESSAGE)).toBeNull();
+      expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
     });
   });
 

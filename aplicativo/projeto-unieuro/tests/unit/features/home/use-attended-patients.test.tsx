@@ -29,7 +29,10 @@ const repositoryWith = (...answers: (AttendedPatient[] | Error)[]) => {
     if (answer instanceof Error) list.mockRejectedValueOnce(answer);
     else list.mockResolvedValueOnce(answer);
   }
-  return { listAttendedPatients: list } satisfies PatientListRepository;
+  return {
+    listAttendedPatients: list,
+    listAttendedPatientCpfs: jest.fn().mockResolvedValue([{ patientId: 1, cpf: '12345678909' }]),
+  } satisfies PatientListRepository;
 };
 
 function renderWithSession(
@@ -104,6 +107,7 @@ describe('pacientes atendidos na tela inicial', () => {
       listAttendedPatients: jest.fn(
         () => new Promise<AttendedPatient[]>((done) => (resolve = done)),
       ),
+      listAttendedPatientCpfs: jest.fn(),
     };
     const { result, unmount } = renderWithSession(repository, ana);
 
@@ -119,6 +123,7 @@ describe('pacientes atendidos na tela inicial', () => {
       listAttendedPatients: jest.fn(
         () => new Promise<AttendedPatient[]>((_resolve, fail) => (reject = fail)),
       ),
+      listAttendedPatientCpfs: jest.fn(),
     };
     const { result, unmount } = renderWithSession(repository, ana);
 
@@ -145,6 +150,26 @@ describe('pacientes atendidos na tela inicial', () => {
 
     expect(result.current.list.patients).toEqual([]);
     expect(result.current.list.loadFailed).toBe(false);
+  });
+
+  describe('CPFs para a busca', () => {
+    it('lê os CPFs dos pacientes do profissional da sessão', async () => {
+      const repository = repositoryWith([jose]);
+      const { result } = renderWithSession(repository, ana);
+
+      await expect(result.current.loadPatientCpfs()).resolves.toEqual([
+        { patientId: 1, cpf: '12345678909' },
+      ]);
+      expect(repository.listAttendedPatientCpfs).toHaveBeenCalledWith(7);
+    });
+
+    it('não lê CPF nenhum sem profissional na sessão', async () => {
+      const repository = repositoryWith();
+      const { result } = renderWithSession(repository, null);
+
+      await expect(result.current.loadPatientCpfs()).resolves.toEqual([]);
+      expect(repository.listAttendedPatientCpfs).not.toHaveBeenCalled();
+    });
   });
 
   describe('carregando', () => {
