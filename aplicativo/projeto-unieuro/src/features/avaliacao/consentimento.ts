@@ -56,6 +56,11 @@ export type ConsentimentoRepository = {
    */
   salvarDecisao(decisao: DecisaoConsentimento): Promise<boolean>;
   buscarEstado(atendimentoId: number): Promise<EstadoAvaliacao | null>;
+  /**
+   * Diz se o CPF (só os 11 dígitos) é o do paciente do atendimento. A comparação
+   * é feita no banco, sem levar o CPF do paciente para a tela.
+   */
+  cpfEhDoPaciente(atendimentoId: number, cpf: string): Promise<boolean>;
 };
 
 export type ResultadoDecisao =
@@ -66,6 +71,7 @@ export type ResultadoDecisao =
         | 'atendimento_invalido'
         | 'autorizacoes_invalidas'
         | 'cpf_responsavel_invalido'
+        | 'cpf_responsavel_igual_paciente'
         | 'decisao_ja_registrada';
     };
 
@@ -115,6 +121,14 @@ export async function registrarDecisaoConsentimento(
   const cpfResponsavel = cpfDoAceite(input);
   if (cpfResponsavel === undefined) {
     return { sucesso: false, motivo: 'cpf_responsavel_invalido' };
+  }
+
+  // O responsável legal assina pelo paciente, então não pode ser o próprio paciente.
+  if (
+    cpfResponsavel !== null &&
+    (await repository.cpfEhDoPaciente(input.atendimentoId, cpfResponsavel))
+  ) {
+    return { sucesso: false, motivo: 'cpf_responsavel_igual_paciente' };
   }
 
   const decididoEm = agora().toISOString();

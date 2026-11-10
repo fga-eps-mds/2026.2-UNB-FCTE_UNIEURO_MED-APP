@@ -89,6 +89,20 @@ export function createConsentRepository(
       );
       return row?.estado ?? null;
     },
+
+    // Compara pelo índice de busca do CPF: o CPF do paciente não é decifrado.
+    async cpfEhDoPaciente(atendimentoId: number, cpf: string): Promise<boolean> {
+      const indice = await protector.blindIndex(cpf);
+      const database = await open();
+      const row = await database.getFirstAsync<{ igual: number }>(
+        `SELECT 1 AS igual FROM avaliacao a
+           JOIN paciente p ON p.id = a.id_paciente
+          WHERE a.id = ? AND p.cpf_indice = ?
+          LIMIT 1`,
+        [atendimentoId, indice],
+      );
+      return row !== null;
+    },
   };
 }
 

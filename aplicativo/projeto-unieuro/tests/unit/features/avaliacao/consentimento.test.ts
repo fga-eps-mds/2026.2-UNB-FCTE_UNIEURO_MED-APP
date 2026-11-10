@@ -10,10 +10,14 @@ import {
 const AGORA = new Date('2026-10-24T15:04:35.000Z');
 const ASSINATURA_PNG = new Uint8Array([137, 80, 78, 71]);
 
-function criarRepository(estado: EstadoAvaliacao | null = 'aguardando_consentimento') {
+function criarRepository(
+  estado: EstadoAvaliacao | null = 'aguardando_consentimento',
+  cpfDoPaciente = false,
+) {
   const repository: ConsentimentoRepository = {
     salvarDecisao: jest.fn(async () => true),
     buscarEstado: jest.fn(async () => estado),
+    cpfEhDoPaciente: jest.fn(async () => cpfDoPaciente),
   };
   return repository;
 }
@@ -278,6 +282,52 @@ describe('CPF do responsável legal', () => {
     expect(repository.salvarDecisao).toHaveBeenCalledWith(
       expect.objectContaining({ cpfResponsavel: null }),
     );
+    expect(repository.cpfEhDoPaciente).not.toHaveBeenCalled();
+  });
+});
+
+describe('CPF do responsável igual ao do paciente', () => {
+  const aceiteDoResponsavel: RegistrarDecisaoInput = {
+    atendimentoId: 12,
+    aceito: true,
+    assinaturaPng: ASSINATURA_PNG,
+    versaoTermo: '2026-09-15',
+    quemAssina: 'responsavel_legal',
+    cpfResponsavel: '529.982.247-25',
+    autorizaImagensPesquisa: true,
+    autorizaDadosPesquisaFutura: true,
+  };
+
+  it('não registra o aceite quando o CPF do responsável é o do paciente', async () => {
+    const repository = criarRepository('aguardando_consentimento', true);
+
+    await expect(
+      registrarDecisaoConsentimento(aceiteDoResponsavel, repository, () => AGORA),
+    ).resolves.toEqual({ sucesso: false, motivo: 'cpf_responsavel_igual_paciente' });
+    expect(repository.cpfEhDoPaciente).toHaveBeenCalledWith(12, '52998224725');
+    expect(repository.salvarDecisao).not.toHaveBeenCalled();
+  });
+
+  it('registra o aceite quando o CPF do responsável é de outra pessoa', async () => {
+    const repository = criarRepository('aguardando_consentimento', false);
+
+    await expect(
+      registrarDecisaoConsentimento(aceiteDoResponsavel, repository, () => AGORA),
+    ).resolves.toMatchObject({ sucesso: true, estado: 'em_andamento' });
+    expect(repository.salvarDecisao).toHaveBeenCalled();
+  });
+
+  it('não compara CPF quando o próprio paciente assina', async () => {
+    const repository = criarRepository('aguardando_consentimento', true);
+
+    await expect(
+      registrarDecisaoConsentimento(
+        { ...aceiteDoResponsavel, quemAssina: 'paciente' },
+        repository,
+        () => AGORA,
+      ),
+    ).resolves.toMatchObject({ sucesso: true });
+    expect(repository.cpfEhDoPaciente).not.toHaveBeenCalled();
   });
 });
 

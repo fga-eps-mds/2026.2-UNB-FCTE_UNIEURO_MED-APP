@@ -89,6 +89,25 @@ describe('contrato', () => {
   it('atende ao repositório da regra de consentimento', () => {
     expect(typeof repository.salvarDecisao).toBe('function');
     expect(typeof repository.buscarEstado).toBe('function');
+    expect(typeof repository.cpfEhDoPaciente).toBe('function');
+  });
+});
+
+describe('CPF do responsável comparado ao do paciente', () => {
+  const CPF_DO_PACIENTE = '52998224725';
+
+  it('reconhece o CPF do paciente do atendimento', async () => {
+    await expect(repository.cpfEhDoPaciente(atendimentoId, CPF_DO_PACIENTE)).resolves.toBe(true);
+  });
+
+  it('não confunde outro CPF com o do paciente', async () => {
+    await expect(repository.cpfEhDoPaciente(atendimentoId, CPF_RESPONSAVEL)).resolves.toBe(false);
+  });
+
+  it('não acha paciente num atendimento que não existe', async () => {
+    await expect(repository.cpfEhDoPaciente(atendimentoId + 999, CPF_DO_PACIENTE)).resolves.toBe(
+      false,
+    );
   });
 });
 
