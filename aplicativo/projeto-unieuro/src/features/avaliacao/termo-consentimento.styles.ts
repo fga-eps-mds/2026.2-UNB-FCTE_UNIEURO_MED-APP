@@ -153,6 +153,26 @@ export function createTermoStyles(colors: ThemeColors) {
     // Opções lado a lado, sem quebra de linha entre elas; a fonte continua a mesma (acessibilidade).
     quemAssinaOpcoes: { flexDirection: 'row', flexShrink: 1, gap: 8 },
     opcaoQuemAssina: { flexShrink: 1, paddingHorizontal: 12, gap: 8 },
+    campoCpf: { gap: 6 },
+    campoCpfRotulo: {
+      color: colors.textSecondary,
+      fontFamily: fonts.semibold,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    campoCpfEntrada: {
+      minHeight: 56,
+      paddingHorizontal: 18,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.field,
+      color: colors.text,
+      fontFamily: fonts.regular,
+      fontSize: 20,
+    },
+    campoCpfEntradaFoco: { borderColor: colors.primary },
+    campoCpfEntradaInvalida: { borderColor: colors.error },
     opcao: {
       minHeight: 56,
       flexDirection: 'row',

@@ -32,6 +32,16 @@ describe('layout da tela do termo', () => {
     expect(styles.opcaoQuemAssina.flexShrink).toBe(1);
   });
 
+  it('deixa o campo de CPF do responsável legível: letra de 20, altura de toque de 56 e borda de erro', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.campoCpfEntrada.fontSize).toBe(20);
+    expect(styles.campoCpfEntrada.minHeight).toBeGreaterThanOrEqual(56);
+    expect(styles.campoCpfRotulo.fontSize).toBeGreaterThanOrEqual(16);
+    expect(styles.campoCpfEntradaInvalida.borderColor).toBe(Colors.light.error);
+    expect(styles.campoCpfEntradaFoco.borderColor).toBe(Colors.light.primary);
+  });
+
   it('usa letra de pelo menos 16 e corpo do termo de 20', () => {
     const styles = createTermoStyles(Colors.dark);
 
