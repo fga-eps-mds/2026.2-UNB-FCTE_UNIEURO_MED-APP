@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { returnToLogin, useSession } from '@/features/auth/session';
+import { ConfirmarApagarDesenho } from '@/features/avaliacao/apagar-desenho-dialog';
 import { CubeFigure } from '@/features/avaliacao/cube-figure';
 import {
   DICA_CONFIRMAR,
@@ -30,15 +31,19 @@ export type DrawingTaskScreenProps = {
   /** Parâmetro `atendimento` da rota: a avaliação em andamento. */
   atendimento: ParametroDeRota;
   /**
-   * Recebe o desenho confirmado. Quem navega decide o destino, e a captura do
-   * traçado (#10) grava o registro a partir daqui.
+   * Recebe o desenho confirmado, grava (#10) e decide o destino. Se a promessa
+   * falhar, a tela avisa e mantém o desenho para o paciente confirmar de novo.
    */
-  onConfirmar: (tarefa: Tarefa, registro: RegistroTracado) => void;
+  onConfirmar: (tarefa: Tarefa, registro: RegistroTracado) => Promise<void>;
 };
+
+export const FALHA_AO_SALVAR = 'Não foi possível salvar o desenho. Toque em Confirmar de novo.';
 
 /**
  * Tela de desenho das três tarefas (história #9): o lembrete da tarefa, o quadro de
- * desenho e o "Confirmar", que só habilita depois do primeiro traço. Na cópia do
+ * desenho e o "Confirmar", que só habilita depois do primeiro traço. O "Desfazer" tira
+ * o último traço e o "Apagar tudo", depois de confirmado, limpa o quadro (#23); os dois
+ * ficam registrados no traçado, e os traços descartados não entram no desenho. Na cópia do
  * cubo, a figura de modelo fica ao lado do quadro durante toda a tarefa; nas
  * trilhas, os círculos ficam dentro do quadro, por baixo dos traços.
  *
@@ -57,6 +62,8 @@ export default function DrawingTaskScreen({
   // O segundo toque em "Confirmar" antes de a tela sair pularia uma tarefa.
   const confirmou = useRef(false);
   const [confirmado, setConfirmado] = useState(false);
+  const [falhou, setFalhou] = useState(false);
+  const [pedindoApagar, setPedindoApagar] = useState(false);
   useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
@@ -72,12 +79,27 @@ export default function DrawingTaskScreen({
 
   const lembrete = LEMBRETES[tarefa.numero];
   const podeConfirmar = registro.temTraco && !confirmado;
+  // Desfazer e apagar só fazem sentido com traço, e não depois de confirmar.
+  const podeCorrigir = registro.temTraco && !confirmado;
 
-  const confirmar = () => {
+  const apagar = () => {
+    registro.limpar();
+    setPedindoApagar(false);
+  };
+
+  const confirmar = async () => {
     if (confirmou.current) return;
     confirmou.current = true;
     setConfirmado(true);
-    onConfirmar(tarefa, registro);
+    setFalhou(false);
+    try {
+      await onConfirmar(tarefa, registro);
+    } catch {
+      // Nada ficou gravado (#10, "tudo ou nada"): o desenho continua na tela.
+      confirmou.current = false;
+      setConfirmado(false);
+      setFalhou(true);
+    }
   };
 
   return (
@@ -90,7 +112,51 @@ export default function DrawingTaskScreen({
             <Text accessibilityRole="header" style={styles.lembreteTitulo}>
               {lembrete.titulo}
             </Text>
-            <Text style={styles.lembreteFrase}>{lembrete.frase}</Text>
+            {/* O aviso ocupa o lugar da frase, e não uma linha nova: se a faixa de
+                cima crescesse, o quadro encolheria e mudaria a escala do desenho. */}
+            {falhou ? (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                style={[styles.lembreteFrase, styles.aviso]}>
+                {FALHA_AO_SALVAR}
+              </Text>
+            ) : (
+              <Text style={styles.lembreteFrase}>{lembrete.frase}</Text>
+            )}
+          </View>
+
+          <View style={styles.acoes}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !podeCorrigir }}
+              accessibilityHint="Tira o último traço do desenho."
+              disabled={!podeCorrigir}
+              onPress={registro.desfazer}
+              style={({ pressed }) => [
+                styles.botaoAcao,
+                pressed && styles.botaoAcaoPressionado,
+                !podeCorrigir && styles.botaoAcaoDesabilitado,
+              ]}>
+              <Text style={[styles.textoAcao, !podeCorrigir && styles.textoAcaoDesabilitado]}>
+                Desfazer
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !podeCorrigir }}
+              accessibilityHint="Pede confirmação para apagar todo o desenho."
+              disabled={!podeCorrigir}
+              onPress={() => setPedindoApagar(true)}
+              style={({ pressed }) => [
+                styles.botaoAcao,
+                pressed && styles.botaoAcaoPressionado,
+                !podeCorrigir && styles.botaoAcaoDesabilitado,
+              ]}>
+              <Text style={[styles.textoAcao, !podeCorrigir && styles.textoAcaoDesabilitado]}>
+                Apagar tudo
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.confirmar}>
@@ -99,7 +165,7 @@ export default function DrawingTaskScreen({
               accessibilityState={{ disabled: !podeConfirmar }}
               accessibilityHint={registro.temTraco ? undefined : DICA_CONFIRMAR}
               disabled={!podeConfirmar}
-              onPress={confirmar}
+              onPress={() => void confirmar()}
               style={({ pressed }) => [
                 styles.botaoConfirmar,
                 pressed && styles.botaoConfirmarPressionado,
@@ -148,6 +214,13 @@ export default function DrawingTaskScreen({
           </View>
         </View>
       </View>
+
+      <ConfirmarApagarDesenho
+        visible={pedindoApagar}
+        onCancelar={() => setPedindoApagar(false)}
+        onApagar={apagar}
+        styles={styles}
+      />
     </SafeAreaView>
   );
 }

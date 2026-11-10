@@ -72,8 +72,10 @@ export function createHomeStyles(theme: ThemeColors) {
       letterSpacing: 0.6,
     },
     brandCaption: { ...label, marginTop: 2 },
-    account: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    accountText: { alignItems: 'flex-end' },
+    // O nome do profissional encolhe e vira reticências, para não empurrar os
+    // botões de configurações e de sair para fora da tela (#97).
+    account: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
+    accountText: { flexShrink: 1, alignItems: 'flex-end' },
     professionalName: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
     professionalCrm: { ...label, marginTop: 2 },
     body: { flex: 1, gap: 24, padding: 24 },

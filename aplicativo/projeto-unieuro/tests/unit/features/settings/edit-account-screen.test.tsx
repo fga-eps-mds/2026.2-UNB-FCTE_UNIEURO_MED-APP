@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 
 import type { AccountRepository } from '@/features/auth/account';
 import { verifyPassword } from '@/features/auth/password';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import { SessionProvider, useSession, type SessionProfessional } from '@/features/auth/session';
 import EditAccountScreen, {
   PASSWORD_CHANGED,
@@ -215,5 +216,17 @@ describe('EditAccountScreen', () => {
       expect(screen.getByText(SAVE_FAILED)).toBeOnTheScreen();
       expect(screen.queryByText(PASSWORD_CHANGED)).toBeNull();
     });
+  });
+
+  it('não deixa digitar nem colar um nome acima do limite', () => {
+    renderTela();
+
+    expect(screen.getByLabelText('NOME COMPLETO')).toHaveProp('maxLength', MAX_NAME_LENGTH);
+  });
+
+  it('corta em uma linha o nome do profissional no topo', () => {
+    renderTela();
+
+    expect(screen.getByText('Ana Carolina Souza')).toHaveProp('numberOfLines', 1);
   });
 });

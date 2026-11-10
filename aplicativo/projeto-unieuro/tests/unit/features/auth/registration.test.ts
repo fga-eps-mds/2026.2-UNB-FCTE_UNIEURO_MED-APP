@@ -8,6 +8,7 @@ import {
   type RegistrationInput,
   type ValidRegistration,
 } from '@/features/auth/registration';
+import { MAX_NAME_LENGTH, NAME_TOO_LONG } from '@/features/shared/name';
 
 jest.mock('@/features/auth/password', () => ({
   hashPassword: jest.fn(async () => 'hash-da-senha'),
@@ -121,6 +122,20 @@ describe('collectRegistrationFieldErrors', () => {
   });
 });
 
+describe('limite do nome no cadastro', () => {
+  it('aponta no campo o nome acima do limite', () => {
+    expect(
+      collectRegistrationFieldErrors({ ...validInput, name: 'a'.repeat(MAX_NAME_LENGTH + 1) }),
+    ).toStrictEqual({ name: NAME_TOO_LONG });
+  });
+
+  it('aceita um nome com o tamanho máximo', () => {
+    expect(
+      collectRegistrationFieldErrors({ ...validInput, name: 'a'.repeat(MAX_NAME_LENGTH) }),
+    ).toStrictEqual({});
+  });
+});
+
 describe('validateRegistration', () => {
   it('normaliza nome, e-mail, CRM e CPF de um cadastro válido', () => {
     expect(validateRegistration(validInput)).toEqual({
@@ -137,6 +152,7 @@ describe('validateRegistration', () => {
 
   it.each([
     ['nome vazio', { name: '   ' }, 'Preencha todos os campos para continuar.'],
+    ['nome acima do limite', { name: 'a'.repeat(MAX_NAME_LENGTH + 1) }, NAME_TOO_LONG],
     ['e-mail sem domínio', { email: 'ana.souza' }, 'Informe um e-mail válido.'],
     ['CRM sem UF', { crm: '12345' }, 'Informe o CRM no formato 12345/DF.'],
     ['CPF com dígito verificador errado', { cpf: '111.444.777-30' }, 'Informe um CPF válido.'],

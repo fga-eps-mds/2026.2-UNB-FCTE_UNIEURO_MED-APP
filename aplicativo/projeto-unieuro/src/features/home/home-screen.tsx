@@ -21,13 +21,16 @@ import {
 import {
   EXAM_STATUS_LABEL,
   countExams,
+  cpfDigitsOf,
   describeTotals,
   filterPatients,
   formatDate,
   sortByLastExam,
   type ExamStatus,
+  type PatientCpf,
   type PatientSummary,
 } from '@/features/home/patients';
+import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
 import { useTheme } from '@/hooks/use-theme';
 
 type HomeScreenProps = {
@@ -37,12 +40,19 @@ type HomeScreenProps = {
   loadFailed?: boolean;
   /** A primeira leitura dos pacientes ainda não terminou. */
   loading?: boolean;
+  /** Lê os CPFs dos pacientes da lista, quando a busca tem dígitos de CPF. */
+  loadPatientCpfs?: () => Promise<PatientCpf[]>;
 };
+
+const NO_PATIENT_CPFS = () => Promise.resolve([]);
 
 export const LOADING_MESSAGE = 'Carregando os seus pacientes.';
 
 export const LOAD_FAILED_MESSAGE =
   'Não foi possível carregar os seus pacientes. Saia e entre de novo para tentar outra vez.';
+
+export const CPF_SEARCH_FAILED_MESSAGE =
+  'Não foi possível buscar pelo CPF agora. Busque pelo nome ou pelo número da ficha.';
 
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
@@ -63,6 +73,7 @@ export default function HomeScreen({
   patients,
   loadFailed = false,
   loading = false,
+  loadPatientCpfs = NO_PATIENT_CPFS,
 }: HomeScreenProps) {
   const router = useRouter();
   const { professional, signOut } = useSession();
@@ -90,8 +101,14 @@ export default function HomeScreen({
     return () => clearTimeout(timer);
   }, [notice]);
 
+  const searchesByCpf = cpfDigitsOf(query) !== null;
+  const { cpfs, failed: cpfSearchFailed } = usePatientCpfs(
+    loadPatientCpfs,
+    patients,
+    searchesByCpf,
+  );
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);
-  const visible = useMemo(() => filterPatients(ordered, query), [ordered, query]);
+  const visible = useMemo(() => filterPatients(ordered, query, cpfs), [ordered, query, cpfs]);
   const hasExams = countExams(patients) > 0;
   const hasPatients = patients.length > 0;
 
@@ -116,7 +133,9 @@ export default function HomeScreen({
         </View>
         <View style={styles.account}>
           <View style={styles.accountText}>
-            <Text style={styles.professionalName}>{professional.name}</Text>
+            <Text style={styles.professionalName} numberOfLines={1}>
+              {professional.name}
+            </Text>
             <Text style={styles.professionalCrm}>CRM {formatCrm(professional)}</Text>
           </View>
           <Pressable
@@ -157,7 +176,7 @@ export default function HomeScreen({
           {hasPatients && (
             <TextInput
               accessibilityLabel="Buscar paciente"
-              placeholder="Buscar por nome ou número da ficha"
+              placeholder="Buscar por nome, ficha ou CPF"
               placeholderTextColor={theme.placeholder}
               value={query}
               onChangeText={setQuery}
@@ -191,6 +210,9 @@ export default function HomeScreen({
         </View>
 
         {loadFailed && <FeedbackMessage kind="error" message={LOAD_FAILED_MESSAGE} />}
+        {searchesByCpf && cpfSearchFailed && (
+          <FeedbackMessage kind="error" message={CPF_SEARCH_FAILED_MESSAGE} />
+        )}
 
         <View style={styles.listCard}>
           {loading && !hasPatients ? (

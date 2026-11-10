@@ -67,6 +67,11 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
   WHERE a.id_profissional = ?
   GROUP BY p.id`;
 
+const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE a.id_profissional = ?`;
+
 const INSERT_PATIENT = `INSERT INTO paciente
   (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -100,7 +105,8 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  * atendimento (2026-0001, 2026-0002...). O paciente que volta mantém a ficha.
  *
  * Também lista os pacientes que um profissional atendeu, para a tela inicial
- * (#77). A consulta não lê o CPF.
+ * (#77). Essa consulta não lê o CPF: ele só é decifrado por
+ * `listAttendedPatientCpfs`, quando a busca da tela inicial pede (#99).
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -172,6 +178,22 @@ export function createAttendanceRepository(
         lastStartedAt: row.ultimo_inicio,
         lastState: row.ultimo_estado,
       }));
+    },
+
+    async listAttendedPatientCpfs(
+      professionalId: number,
+    ): Promise<{ patientId: number; cpf: string }[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<{ id: number; cpf_cifrado: string }>(
+        LIST_ATTENDED_PATIENT_CPFS,
+        [professionalId],
+      );
+      return Promise.all(
+        rows.map(async (row) => ({
+          patientId: row.id,
+          cpf: await protector.decrypt(row.cpf_cifrado),
+        })),
+      );
     },
 
     async createAttendance({

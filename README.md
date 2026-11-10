@@ -32,29 +32,31 @@ aplicativo/projeto-unieuro/
 
 ## Rodando localmente
 
-Requer Node.js 22 (a mesma versão usada no CI) e npm. Os comandos abaixo são executados na pasta do aplicativo:
+Requer Node.js 22, npm, Android SDK e JDK 17 (as versões de Node e Java usadas no CI). Os comandos abaixo são executados na pasta do aplicativo:
 
 ``` bash
 cd aplicativo/projeto-unieuro
 npm install
-npm start
+npm run android
 ```
 
-O `npm start` sobe o servidor de desenvolvimento do Expo (Metro) e mostra um QR code com as opções para abrir o app.
+O `npm run android` gera o projeto nativo, compila, instala e abre o aplicativo num emulador ativo ou aparelho conectado por USB. Na primeira compilação, o Gradle baixa as dependências nativas. Nas seguintes, ele reaproveita o cache.
 
 ### Abrindo no tablet ou celular
 
-1. Instale o [Expo Go](https://expo.dev/go) no aparelho Android. A versão do Expo Go precisa suportar o SDK 57.
-2. Conecte o aparelho na mesma rede do computador.
-3. Leia o QR code exibido no terminal pelo Expo Go.
+O banco usa SQLCipher, que não está incluído no Expo Go. É necessário instalar um build nativo do MED. Abrir este projeto no Expo Go apresenta uma mensagem de SQLCipher indisponível e bloqueia o acesso ao banco.
 
-Se a rede bloquear a conexão entre os dispositivos, por exemplo no Wi-Fi da universidade, use o túnel:
+Para testar por USB, habilite a depuração USB do Android, conecte o aparelho e execute `npm run android`. Depois da primeira instalação, para trabalhar apenas no código JavaScript, basta iniciar o Metro:
 
 ``` bash
-npx expo start --tunnel
+npm start
 ```
 
-O aparelho precisa de rede só durante o desenvolvimento, para falar com o Metro. O APK gerado pelo EAS funciona sem internet.
+O aparelho precisa de conexão com o Metro só durante o desenvolvimento. O APK de entrega funciona sem internet. Mudanças em plugins ou dependências nativas exigem recompilar com `npm run android`.
+
+O plugin `plugins/with-gradle-jdk.js` fixa o daemon do Gradle no JDK 17 a cada prebuild. Uma seleção local do JDK 25 em `gradle-daemon-jvm.properties` prevalece sobre `JAVA_HOME`; nesse ambiente, seus avisos de acesso nativo fizeram a etapa Prefab do SQLCipher/OpenSSL falhar. Instale o JDK 17; no Android Studio, selecione-o em *Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK*.
+
+Um `med.db` antigo, sem cifra, não é convertido automaticamente. Nesta versão, que contém apenas dados de teste, o app orienta reinstalar e avisa que os dados locais serão apagados. Se um banco cifrado perder sua chave, o app orienta procurar suporte e não gera uma chave substituta.
 
 ### Executar por plataforma
 
@@ -64,9 +66,9 @@ npm run ios
 npm run web
 ```
 
-- Android: abre o app num emulador ativo ou num dispositivo conectado por USB.
+- Android: compila e abre o app num emulador ativo ou num dispositivo conectado por USB.
 - iOS: requer macOS com Xcode. O produto é entregue só para Android.
-- Web: abre o app no navegador, útil para conferir telas. O banco SQLite tem limitações na web, então teste os fluxos com dados num aparelho ou emulador.
+- Web: não suporta o banco cifrado desta versão; valide os fluxos num Android com build nativo.
 
 ## Gerando o APK
 

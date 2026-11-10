@@ -19,7 +19,8 @@ export const TAREFAS: readonly Tarefa[] = [
   {
     numero: 1,
     titulo: 'Desenhe um relógio',
-    instrucao: 'Desenhe o círculo, coloque todos os números e marque onze horas e dez minutos.',
+    instrucao:
+      'Desenhe o círculo de um relógio, coloque todos os números dentro dele e desenhe os ponteiros marcando onze horas e dez minutos.',
     icone: 'clock-outline',
   },
   {

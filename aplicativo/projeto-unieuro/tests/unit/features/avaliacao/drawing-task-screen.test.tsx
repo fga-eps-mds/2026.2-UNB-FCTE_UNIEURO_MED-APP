@@ -3,8 +3,12 @@ import { useRouter } from 'expo-router';
 import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { REGISTRO_APAGAR, TITULO_APAGAR } from '@/features/avaliacao/apagar-desenho-dialog';
 import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
-import DrawingTaskScreen from '@/features/avaliacao/drawing-task-screen';
+import DrawingTaskScreen, {
+  FALHA_AO_SALVAR,
+  type DrawingTaskScreenProps,
+} from '@/features/avaliacao/drawing-task-screen';
 import { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 import type { ParametroDeRota } from '@/features/avaliacao/tarefas';
 
@@ -38,7 +42,9 @@ function renderizarTela(opcoes: Opcoes = {}) {
     professional: profissional,
     ...opcoes,
   };
-  const onConfirmar = jest.fn();
+  const onConfirmar = jest.fn<Promise<void>, Parameters<DrawingTaskScreenProps['onConfirmar']>>(
+    async () => {},
+  );
 
   render(
     <SessionProvider initialProfessional={professional}>
@@ -153,6 +159,19 @@ describe('Cenário: passar para a próxima tarefa', () => {
     expect(onConfirmar).toHaveBeenCalledTimes(1);
   });
 
+  it('não grava duas vezes com o segundo toque enquanto a gravação ainda está em andamento', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    onConfirmar.mockReturnValue(new Promise<undefined>(() => {}));
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+    await user.press(botaoConfirmar());
+
+    expect(onConfirmar).toHaveBeenCalledTimes(1);
+    expect(botaoConfirmar()).toBeDisabled();
+  });
+
   it('deixa de aceitar traço novo depois de confirmar', async () => {
     const user = userEvent.setup();
     renderizarTela();
@@ -172,6 +191,59 @@ describe('Cenário: passar para a próxima tarefa', () => {
 
     expect(useRouter().replace).not.toHaveBeenCalled();
     expect(useRouter().push).not.toHaveBeenCalled();
+  });
+});
+
+describe('Cenário: tudo ou nada', () => {
+  async function confirmarComFalha() {
+    const user = userEvent.setup();
+    const resultado = renderizarTela();
+    resultado.onConfirmar.mockRejectedValueOnce(new Error('disco cheio'));
+    await desenharNoQuadro([
+      [10, 10],
+      [60, 40],
+    ]);
+    await user.press(botaoConfirmar());
+    return { ...resultado, user };
+  }
+
+  it('avisa o profissional quando a gravação falha', async () => {
+    await confirmarComFalha();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(FALHA_AO_SALVAR);
+  });
+
+  it('mantém o desenho na tela e libera o quadro e o "Confirmar" para tentar de novo', async () => {
+    const { onConfirmar } = await confirmarComFalha();
+
+    expect(botaoConfirmar()).toBeEnabled();
+    expect(screen.getByLabelText('Área de desenho: desenhe um relógio')).toBeEnabled();
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+  });
+
+  it('entrega o mesmo desenho na nova tentativa e tira o aviso', async () => {
+    const { onConfirmar, user } = await confirmarComFalha();
+
+    await user.press(botaoConfirmar());
+
+    expect(onConfirmar).toHaveBeenCalledTimes(2);
+    const [, primeiro] = onConfirmar.mock.calls[0];
+    const [, segundo] = onConfirmar.mock.calls[1];
+    expect(segundo.eventos).toEqual(primeiro.eventos);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(botaoConfirmar()).toBeDisabled();
+  });
+
+  it('não mostra aviso quando a gravação dá certo', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(FALHA_AO_SALVAR)).toBeNull();
   });
 });
 
@@ -301,7 +373,9 @@ describe('o que a tela mostra ao paciente', () => {
     expect(screen.getByText('Tarefa 1 de 3')).toBeOnTheScreen();
     expect(screen.getByText(HELP_MESSAGE)).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Desenhe um relógio' })).toBeOnTheScreen();
-    expect(screen.getByText('Com todos os números, marcando 11h10.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Círculo, todos os números e ponteiros em onze e dez.'),
+    ).toBeOnTheScreen();
   });
 
   it('mostra o progresso e o lembrete do cubo', () => {
@@ -370,4 +444,129 @@ describe('tela sem avaliação em andamento', () => {
       expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
     },
   );
+});
+
+// História #23: confirmar ou refazer o desenho antes de avançar.
+const botaoDesfazer = () => screen.getByRole('button', { name: 'Desfazer' });
+const botaoApagarTudo = () => screen.getByRole('button', { name: 'Apagar tudo' });
+
+describe('Cenário: desfazer o último traço', () => {
+  it('deixa "Desfazer" e "Apagar tudo" desabilitados antes do primeiro traço', () => {
+    renderizarTela();
+
+    expect(botaoDesfazer()).toBeDisabled();
+    expect(botaoApagarTudo()).toBeDisabled();
+  });
+
+  it('tira da tela só o último traço e registra o desfazer nos dados da coleta', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([
+      [10, 10],
+      [20, 20],
+    ]);
+    await desenharNoQuadro([
+      [50, 50],
+      [60, 60],
+    ]);
+
+    await user.press(botaoDesfazer());
+    await user.press(botaoConfirmar());
+
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.tracos[0].map(({ x, y }: { x: number; y: number }) => [x, y])).toEqual([
+      [10, 10],
+      [20, 20],
+    ]);
+    expect(registro.eventos.filter((e: { tipo: string }) => e.tipo === 'desfazer')).toHaveLength(1);
+  });
+
+  it('desabilita o "Confirmar" de novo quando o desfazer tira o único traço', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoDesfazer());
+
+    expect(botaoConfirmar()).toBeDisabled();
+    expect(botaoDesfazer()).toBeDisabled();
+  });
+});
+
+describe('Cenário: refazer o desenho', () => {
+  it('pede confirmação antes de apagar, avisando que o apagamento fica registrado', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+
+    expect(screen.getByRole('header', { name: TITULO_APAGAR })).toBeOnTheScreen();
+    expect(screen.getByText(REGISTRO_APAGAR)).toBeOnTheScreen();
+  });
+
+  it('não apaga nada quando o paciente cancela', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR })).toBeNull();
+    await user.press(botaoConfirmar());
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.eventos.some((e: { tipo: string }) => e.tipo === 'limpar')).toBe(false);
+  });
+
+  it('esvazia o quadro ao confirmar o apagamento, sem os traços descartados no resultado', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+    await desenharNoQuadro([[30, 30]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Apagar' }));
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR })).toBeNull();
+    expect(botaoConfirmar()).toBeDisabled();
+
+    await desenharNoQuadro([[70, 70]]);
+    await user.press(botaoConfirmar());
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+    expect(registro.tracos[0][0]).toMatchObject({ x: 70, y: 70 });
+  });
+
+  it('registra a limpeza nos dados da coleta, com o horário', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoApagarTudo());
+    await user.press(screen.getByRole('button', { name: 'Apagar' }));
+    await desenharNoQuadro([[40, 40]]);
+    await user.press(botaoConfirmar());
+
+    const [, registro] = onConfirmar.mock.calls[0];
+    const limpar = registro.eventos.find((e: { tipo: string }) => e.tipo === 'limpar');
+    expect(limpar).toBeDefined();
+    expect(typeof limpar?.instante).toBe('number');
+    expect(limpar?.instante).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('Cenário: confirmar e avançar', () => {
+  it('não deixa desfazer nem apagar depois de confirmar', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+
+    expect(botaoDesfazer()).toBeDisabled();
+    expect(botaoApagarTudo()).toBeDisabled();
+  });
 });
