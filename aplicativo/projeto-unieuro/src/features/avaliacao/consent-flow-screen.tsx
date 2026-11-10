@@ -18,6 +18,8 @@ import { gerarImagemDesenho } from '@/features/captura/imagem-desenho';
 
 export const MENSAGEM_FALHA_DECISAO =
   'Não foi possível registrar a decisão. Nada foi perdido: tente de novo.';
+export const MENSAGEM_CPF_IGUAL_PACIENTE =
+  'O CPF do responsável não pode ser igual ao do paciente.';
 
 type PacienteDoTermo = { nome: string; ficha: string };
 
@@ -90,15 +92,22 @@ export default function ConsentFlowScreen({
 
   async function decidir(registrar: () => Promise<ResultadoDecisao>, aoRegistrar: () => void) {
     setAviso(null);
+    let resultado: ResultadoDecisao;
     try {
-      const resultado = await registrar();
-      if (resultado.sucesso) return aoRegistrar();
-      if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
-      throw new Error(`Decisão do termo não registrada: ${resultado.motivo}.`);
+      resultado = await registrar();
     } catch (error_) {
       setAviso(MENSAGEM_FALHA_DECISAO);
       throw error_;
     }
+    if (resultado.sucesso) return aoRegistrar();
+    if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
+    // O erro libera os botões para corrigir e tentar de novo, sem mudar de tela.
+    setAviso(
+      resultado.motivo === 'cpf_responsavel_igual_paciente'
+        ? MENSAGEM_CPF_IGUAL_PACIENTE
+        : MENSAGEM_FALHA_DECISAO,
+    );
+    throw new Error(`Decisão do termo não registrada: ${resultado.motivo}.`);
   }
 
   return (

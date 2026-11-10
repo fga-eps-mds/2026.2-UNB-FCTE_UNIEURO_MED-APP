@@ -284,6 +284,21 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
     expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
+  it('com o CPF do próprio paciente, avisa e não grava nada', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    fireEvent.changeText(campoCpf(), '529.982.247-25');
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    expect(
+      await screen.findByText('O CPF do responsável não pode ser igual ao do paciente.'),
+    ).toBeOnTheScreen();
+    expect(await consentimentoDe(atendimentoId)).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('aguardando_consentimento');
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
   it('com CPF inválido, o aceite não é concluído e nada é gravado', async () => {
     const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
     const user = await prepararAceiteDoResponsavel(atendimentoId);

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { getAttendancePatient, registerConsentDecision } from '@/features/avaliacao/composition';
 import ConsentFlowScreen, {
+  MENSAGEM_CPF_IGUAL_PACIENTE,
   MENSAGEM_FALHA_DECISAO,
 } from '@/features/avaliacao/consent-flow-screen';
 import { TERMO_TCLE } from '@/features/avaliacao/termo-tcle';
@@ -259,6 +260,22 @@ describe('Cenário: aceite', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_FALHA_DECISAO);
     expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('avisa que o CPF do responsável não pode ser o do paciente e deixa corrigir', async () => {
+    jest
+      .mocked(registerConsentDecision)
+      .mockResolvedValue({ sucesso: false, motivo: 'cpf_responsavel_igual_paciente' });
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '529.982.247-25');
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_CPF_IGUAL_PACIENTE);
+    expect(useRouter().replace).not.toHaveBeenCalled();
+    expect(botaoAssinar()).toBeEnabled();
   });
 
   it('não grava nada sem assinatura', async () => {
