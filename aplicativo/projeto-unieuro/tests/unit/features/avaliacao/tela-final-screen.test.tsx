@@ -1,4 +1,4 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 import { BackHandler } from 'react-native';
 
@@ -100,7 +100,7 @@ describe('TelaFinalScreen', () => {
 
     await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
-    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    await waitFor(() => expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu'));
   });
 
   it.each([
@@ -158,7 +158,7 @@ describe('TelaFinalScreen', () => {
     expect(useRouter().dismissTo).not.toHaveBeenCalled();
 
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
-    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    await waitFor(() => expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu'));
   });
 
   it('volta ao login quando não há profissional logado', () => {
