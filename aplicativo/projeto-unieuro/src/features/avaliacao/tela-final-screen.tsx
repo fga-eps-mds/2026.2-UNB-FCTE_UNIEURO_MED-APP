@@ -27,7 +27,8 @@ type TelaFinalScreenProps = {
  * Tela final do paciente (#11). Mostra só o agradecimento, sem escore, faixa ou
  * resultado. Para sair dela, o profissional confirma os quatro primeiros
  * dígitos do CPF: o paciente não chega à área profissional nem ao resultado.
- * O voltar do Android não sai da tela, como nas tarefas.
+ * O voltar do Android não sai da tela, como nas tarefas, e a tela é sempre clara,
+ * como as outras do paciente.
  */
 export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreenProps>) {
   const router = useRouter();
