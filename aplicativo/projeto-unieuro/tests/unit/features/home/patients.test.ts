@@ -1,5 +1,6 @@
 import {
   countExams,
+  cpfDigitsOf,
   describeTotals,
   filterPatients,
   formatDate,
@@ -67,6 +68,48 @@ describe('busca de paciente', () => {
 
   it('devolve lista vazia quando nada corresponde', () => {
     expect(filterPatients(lista, 'Helena')).toEqual([]);
+  });
+});
+
+describe('busca pelo CPF', () => {
+  const cpfs = new Map([
+    [1, '12345678909'],
+    [2, '98765432100'],
+  ]);
+
+  it.each([
+    ['123', [1]],
+    ['123.456', [1]],
+    ['123.456.789-09', [1]],
+    ['12345678909', [1]],
+    [' 987 ', [2]],
+  ])('encontra pelos primeiros dígitos "%s"', (busca, ids) => {
+    expect(filterPatients(lista, busca, cpfs).map((p) => p.id)).toEqual(ids);
+  });
+
+  it('não encontra por dígitos do meio do CPF', () => {
+    expect(filterPatients(lista, '456', cpfs)).toEqual([]);
+  });
+
+  it('não compara o CPF quando a busca tem letras', () => {
+    expect(filterPatients(lista, 'José 123', cpfs)).toEqual([]);
+  });
+
+  it('busca só pelo nome e pela ficha enquanto os CPFs não foram lidos', () => {
+    expect(filterPatients(lista, '123')).toEqual([]);
+  });
+});
+
+describe('dígitos de CPF na busca', () => {
+  it.each([
+    ['123.456.789-09', '12345678909'],
+    [' 123 ', '123'],
+    ['José', null],
+    ['12a', null],
+    ['.-', null],
+    ['', null],
+  ])('"%s" vira %p', (busca, digitos) => {
+    expect(cpfDigitsOf(busca)).toBe(digitos);
   });
 });
 

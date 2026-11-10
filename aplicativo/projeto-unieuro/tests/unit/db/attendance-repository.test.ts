@@ -463,6 +463,35 @@ describe('pacientes atendidos pelo profissional', () => {
 
     expect(patient.lastState).toBe('cancelada');
   });
+
+  it('devolve o CPF decifrado de cada paciente uma vez, mesmo com vários atendimentos', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    await repository.createAttendance({
+      patient: { id: patientId },
+      professionalId,
+      startedAt: '2026-10-13T09:10:00.000Z',
+    });
+
+    await expect(repository.listAttendedPatientCpfs(professionalId)).resolves.toEqual([
+      { patientId, cpf: PATIENT_CPF },
+    ]);
+  });
+
+  it('não devolve o CPF dos pacientes atendidos só por outro profissional', async () => {
+    const otherId = await insertOtherProfessional();
+    await repository.createAttendance({
+      patient: newPatient({ name: 'Maria das Dores', cpf: OTHER_CPF }),
+      professionalId: otherId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(repository.listAttendedPatientCpfs(professionalId)).resolves.toEqual([]);
+  });
 });
 
 describe('paciente do atendimento', () => {

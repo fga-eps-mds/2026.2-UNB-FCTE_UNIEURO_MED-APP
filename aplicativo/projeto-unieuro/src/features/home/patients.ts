@@ -37,8 +37,15 @@ export type AttendedPatient = {
   lastState: string;
 };
 
+/** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
+export type PatientCpf = {
+  patientId: number;
+  cpf: string;
+};
+
 export type PatientListRepository = {
   listAttendedPatients(professionalId: number): Promise<AttendedPatient[]>;
+  listAttendedPatientCpfs(professionalId: number): Promise<PatientCpf[]>;
 };
 
 // Estados da avaliação que encerram o exame, conforme o diagrama de estados do
@@ -88,16 +95,38 @@ export function sortByLastExam(patients: readonly PatientSummary[]): PatientSumm
   });
 }
 
-/** Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, ou pelo número da ficha. */
+const CPF_QUERY = /^[\d.\-\s]+$/;
+
+/**
+ * Dígitos de CPF digitados na busca, com ou sem pontuação, ou `null` quando o
+ * texto tem letras e não pode ser um CPF.
+ */
+export function cpfDigitsOf(query: string): string | null {
+  const trimmed = query.trim();
+  if (!CPF_QUERY.test(trimmed)) return null;
+  return trimmed.replace(/\D/g, '') || null;
+}
+
+/**
+ * Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, pelo número
+ * da ficha ou pelos primeiros dígitos do CPF. O CPF é comparado pelo começo, e
+ * não por qualquer trecho, como a equipe combinou na #99.
+ */
 export function filterPatients(
   patients: readonly PatientSummary[],
   query: string,
+  cpfs: ReadonlyMap<number, string> = new Map(),
 ): PatientSummary[] {
   const term = normalize(query);
   if (!term) return [...patients];
+  const cpfDigits = cpfDigitsOf(query);
+  const matchesCpf = (patient: PatientSummary) =>
+    cpfDigits !== null && (cpfs.get(patient.id)?.startsWith(cpfDigits) ?? false);
   return patients.filter(
     (patient) =>
-      normalize(patient.name).includes(term) || normalize(patient.recordNumber).includes(term),
+      normalize(patient.name).includes(term) ||
+      normalize(patient.recordNumber).includes(term) ||
+      matchesCpf(patient),
   );
 }
 

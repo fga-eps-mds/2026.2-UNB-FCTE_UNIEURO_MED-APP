@@ -1,4 +1,4 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import ConsentRoute from '@/app/tcle';
@@ -25,7 +25,8 @@ jest.mock('@/features/avaliacao/composition', () => {
   );
   const regra = jest.requireActual('@/features/avaliacao/consentimento');
   const abrir = () => Promise.resolve(mockTablet.database);
-  const consentimento = createConsentRepository(abrir);
+  const { cpfProtector: protetor } = jest.requireActual('../test-support/tablet');
+  const consentimento = createConsentRepository(abrir, protetor);
   const atendimentos = criarAtendimentos(abrir);
 
   return {
@@ -47,6 +48,9 @@ type LinhaConsentimento = {
   assinado_por: string;
   assinatura_png: Uint8Array | null;
   data_hora: string;
+  autoriza_imagens_pesquisa: number | null;
+  autoriza_dados_pesquisa_futura: number | null;
+  cpf_responsavel_cifrado: string | null;
 };
 
 async function criarAtendimento(nome: string, cpf: string) {
@@ -174,12 +178,56 @@ describe('Cenário: aceite do termo', () => {
     const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
     const user = await abrirTermo(atendimentoId);
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     medirQuadro(520, 160, 'Área de assinatura');
     await desenharNoQuadro([
       [20, 80],
       [160, 100],
     ]);
 
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    const consentimento = await consentimentoDe(atendimentoId);
+    expect(consentimento).toMatchObject({
+      aceito: 1,
+      versao_tcle: TERMO_TCLE.versao,
+      assinado_por: 'responsavel_legal',
+      autoriza_imagens_pesquisa: 1,
+      autoriza_dados_pesquisa_futura: 1,
+    });
+    expect(Array.from(consentimento!.assinatura_png!)).toEqual(Array.from(ASSINATURA_PNG));
+    expect(await estadoDe(atendimentoId)).toBe('em_andamento');
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/instrucao',
+      params: { atendimento: String(atendimentoId), tarefa: '1' },
+    });
+  });
+});
+
+describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
+  const CPF_RESPONSAVEL = '11144477735';
+  const campoCpf = () => screen.getByLabelText('CPF do responsável legal');
+
+  async function prepararAceiteDoResponsavel(atendimentoId: number) {
+    const user = await abrirTermo(atendimentoId);
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    medirQuadro(520, 160, 'Área de assinatura');
+    await desenharNoQuadro([
+      [20, 80],
+      [160, 100],
+    ]);
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
+    return user;
+  }
+
+  it('grava o CPF do responsável cifrado, junto da versão, assinatura, data e hora', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    fireEvent.changeText(campoCpf(), '111.444.777-35');
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
 
     const consentimento = await consentimentoDe(atendimentoId);
@@ -189,10 +237,111 @@ describe('Cenário: aceite do termo', () => {
       assinado_por: 'responsavel_legal',
     });
     expect(Array.from(consentimento!.assinatura_png!)).toEqual(Array.from(ASSINATURA_PNG));
+    expect(Math.abs(Date.parse(consentimento!.data_hora) - Date.now())).toBeLessThan(60_000);
     expect(await estadoDe(atendimentoId)).toBe('em_andamento');
-    expect(useRouter().replace).toHaveBeenCalledWith({
-      pathname: '/instrucao',
-      params: { atendimento: String(atendimentoId), tarefa: '1' },
-    });
+    await expect(cpfProtector.decrypt(consentimento!.cpf_responsavel_cifrado!)).resolves.toBe(
+      CPF_RESPONSAVEL,
+    );
+  });
+
+  it('não deixa o CPF em texto em nenhuma coluna do banco', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    fireEvent.changeText(campoCpf(), CPF_RESPONSAVEL);
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    const linhas = await mockTablet.database.getAllAsync<Record<string, unknown>>(
+      'SELECT * FROM consentimento',
+    );
+    expect(JSON.stringify(linhas)).not.toContain(CPF_RESPONSAVEL);
+    expect(linhas[0].cpf_responsavel_cifrado).toMatch(/^aes-gcm\$1\$/);
+  });
+
+  it('o CPF continua gravado depois de reabrir o banco, como no tablet sem internet', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+    fireEvent.changeText(campoCpf(), CPF_RESPONSAVEL);
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    await mockTablet.reabrir();
+
+    const consentimento = await consentimentoDe(atendimentoId);
+    await expect(cpfProtector.decrypt(consentimento!.cpf_responsavel_cifrado!)).resolves.toBe(
+      CPF_RESPONSAVEL,
+    );
+  });
+
+  it('sem CPF, o aceite não é concluído e nada é gravado', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    expect(screen.getByRole('button', { name: 'Assinar e iniciar' })).toBeDisabled();
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    expect(await consentimentoDe(atendimentoId)).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('aguardando_consentimento');
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('com o CPF do próprio paciente, avisa e não grava nada', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    fireEvent.changeText(campoCpf(), '529.982.247-25');
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    expect(
+      await screen.findByText('O CPF do responsável não pode ser igual ao do paciente.'),
+    ).toBeOnTheScreen();
+    expect(await consentimentoDe(atendimentoId)).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('aguardando_consentimento');
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('com CPF inválido, o aceite não é concluído e nada é gravado', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await prepararAceiteDoResponsavel(atendimentoId);
+
+    fireEvent.changeText(campoCpf(), '111.444.777-36');
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    expect(screen.getByText('Informe um CPF válido.')).toBeOnTheScreen();
+    expect(await consentimentoDe(atendimentoId)).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('aguardando_consentimento');
+  });
+
+  it('o aceite pelo paciente não mostra o campo e não grava CPF de responsável', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await abrirTermo(atendimentoId);
+    medirQuadro(520, 160, 'Área de assinatura');
+    await desenharNoQuadro([
+      [20, 80],
+      [160, 100],
+    ]);
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
+
+    expect(screen.queryByLabelText('CPF do responsável legal')).toBeNull();
+    await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+
+    const consentimento = await consentimentoDe(atendimentoId);
+    expect(consentimento).toMatchObject({ aceito: 1, assinado_por: 'paciente' });
+    expect(consentimento!.cpf_responsavel_cifrado).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('em_andamento');
+  });
+
+  it('a recusa pelo responsável legal não exige nem grava o CPF', async () => {
+    const atendimentoId = await criarAtendimento('José Alves Martins', '52998224725');
+    const user = await abrirTermo(atendimentoId);
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+
+    await user.press(screen.getByRole('button', { name: 'Recusar' }));
+    await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+
+    const consentimento = await consentimentoDe(atendimentoId);
+    expect(consentimento).toMatchObject({ aceito: 0, assinado_por: 'responsavel_legal' });
+    expect(consentimento!.cpf_responsavel_cifrado).toBeNull();
+    expect(await estadoDe(atendimentoId)).toBe('cancelada');
   });
 });

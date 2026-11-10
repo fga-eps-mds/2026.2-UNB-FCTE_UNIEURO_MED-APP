@@ -1,9 +1,10 @@
-import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { getAttendancePatient, registerConsentDecision } from '@/features/avaliacao/composition';
 import ConsentFlowScreen, {
+  MENSAGEM_CPF_IGUAL_PACIENTE,
   MENSAGEM_FALHA_DECISAO,
 } from '@/features/avaliacao/consent-flow-screen';
 import { TERMO_TCLE } from '@/features/avaliacao/termo-tcle';
@@ -57,6 +58,8 @@ async function renderizar(atendimento: string | undefined = '12') {
 
 async function assinar() {
   medirQuadro(520, 160, ROTULO_QUADRO);
+  fireEvent.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+  fireEvent.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
   await desenharNoQuadro([
     [20, 80],
     [90, 40],
@@ -168,6 +171,9 @@ describe('Cenário: aceite', () => {
       atendimentoId: 12,
       versaoTermo: TERMO_TCLE.versao,
       quemAssina: 'paciente',
+      cpfResponsavel: null,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
       aceito: true,
       assinaturaPng: PNG,
     });
@@ -177,16 +183,99 @@ describe('Cenário: aceite', () => {
     });
   });
 
-  it('grava o responsável legal quando é ele quem assina', async () => {
+  it('grava o responsável legal e o CPF dele quando é ele quem assina', async () => {
     const user = await renderizar();
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     await assinar();
 
     await user.press(botaoAssinar());
 
+    expect(registerConsentDecision).toHaveBeenCalledWith({
+      atendimentoId: 12,
+      versaoTermo: TERMO_TCLE.versao,
+      quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
+      aceito: true,
+      assinaturaPng: PNG,
+    });
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/instrucao',
+      params: { atendimento: '12', tarefa: '1' },
+    });
+  });
+
+  it('não grava o aceite do responsável legal sem o CPF', async () => {
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    await assinar();
+
+    expect(botaoAssinar()).toBeDisabled();
+    await user.press(botaoAssinar());
+
+    expect(registerConsentDecision).not.toHaveBeenCalled();
+    expect(gerarImagemDesenho).not.toHaveBeenCalled();
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('não grava o aceite do responsável legal com CPF inválido', async () => {
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-36');
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByText('Informe um CPF válido.')).toBeOnTheScreen();
+    expect(registerConsentDecision).not.toHaveBeenCalled();
+  });
+
+  it('o aceite do paciente não pede nem envia CPF de responsável', async () => {
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '11144477735');
+    await user.press(screen.getByRole('radio', { name: 'Paciente' }));
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.queryByLabelText('CPF do responsável legal')).toBeNull();
     expect(registerConsentDecision).toHaveBeenCalledWith(
-      expect.objectContaining({ quemAssina: 'responsavel_legal', aceito: true }),
+      expect.objectContaining({ quemAssina: 'paciente', cpfResponsavel: null }),
     );
+  });
+
+  it('trata o CPF do responsável recusado pela regra como falha, sem navegar', async () => {
+    jest
+      .mocked(registerConsentDecision)
+      .mockResolvedValue({ sucesso: false, motivo: 'cpf_responsavel_invalido' });
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '11144477735');
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_FALHA_DECISAO);
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('avisa que o CPF do responsável não pode ser o do paciente e deixa corrigir', async () => {
+    jest
+      .mocked(registerConsentDecision)
+      .mockResolvedValue({ sucesso: false, motivo: 'cpf_responsavel_igual_paciente' });
+    const user = await renderizar();
+    await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '529.982.247-25');
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_CPF_IGUAL_PACIENTE);
+    expect(useRouter().replace).not.toHaveBeenCalled();
+    expect(botaoAssinar()).toBeEnabled();
   });
 
   it('não grava nada sem assinatura', async () => {
@@ -229,6 +318,8 @@ describe('Cenário: recusa', () => {
       atendimentoId: 12,
       versaoTermo: TERMO_TCLE.versao,
       quemAssina: 'paciente',
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
       aceito: false,
     });
     expect(gerarImagemDesenho).not.toHaveBeenCalled();
@@ -303,6 +394,19 @@ describe('Cenário: falha ao registrar', () => {
     jest
       .mocked(registerConsentDecision)
       .mockResolvedValue({ sucesso: false, motivo: 'atendimento_invalido' });
+    const user = await renderizar();
+    await assinar();
+
+    await user.press(botaoAssinar());
+
+    expect(screen.getByRole('alert')).toHaveTextContent(MENSAGEM_FALHA_DECISAO);
+    expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('trata autorizações inválidas como falha, sem navegar', async () => {
+    jest
+      .mocked(registerConsentDecision)
+      .mockResolvedValue({ sucesso: false, motivo: 'autorizacoes_invalidas' });
     const user = await renderizar();
     await assinar();
 

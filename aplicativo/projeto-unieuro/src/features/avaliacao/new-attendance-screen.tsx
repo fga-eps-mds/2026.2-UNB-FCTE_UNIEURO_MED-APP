@@ -38,6 +38,7 @@ import {
   type SessionProfessional,
 } from '@/features/auth/session';
 import { formatCpfInput } from '@/features/shared/cpf';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import { useTheme } from '@/hooks/use-theme';
 
 type TextField = Exclude<PatientField, 'sex'>;
@@ -66,6 +67,7 @@ const identificationFields: TextFieldConfig[] = [
     name: 'name',
     label: 'Nome completo',
     placeholder: 'Nome do paciente',
+    maxLength: MAX_NAME_LENGTH,
     autoCapitalize: 'words',
   },
   {

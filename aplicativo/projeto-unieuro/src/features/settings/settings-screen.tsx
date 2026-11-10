@@ -48,7 +48,9 @@ export default function SettingsScreen({ repository }: SettingsScreenProps) {
           <Text style={styles.backText}>‹ Início</Text>
         </Pressable>
         <View style={styles.accountText}>
-          <Text style={styles.professionalName}>{professional.name}</Text>
+          <Text style={styles.professionalName} numberOfLines={1}>
+            {professional.name}
+          </Text>
           <Text style={styles.label}>CRM {formatCrm(professional)}</Text>
         </View>
       </View>

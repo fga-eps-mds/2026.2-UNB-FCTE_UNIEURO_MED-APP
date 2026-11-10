@@ -16,11 +16,42 @@ describe('layout da tela do termo', () => {
     expect(getTermoLayout(320).margem).toBe(16);
   });
 
+  it('dá ao termo espaço mínimo e deixa as colunas encolherem em paisagem', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.colunaTermo.minHeight).toBe(200);
+    expect(styles.colunaTermoLateral.minWidth).toBe(0);
+    expect(styles.painelLateral.minWidth).toBe(0);
+    expect(styles.painel.maxHeight).toBe('60%');
+  });
+
+  it('mantém as duas opções de quem assina juntas, lado a lado', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.quemAssinaOpcoes.flexDirection).toBe('row');
+    expect(styles.opcaoQuemAssina.flexShrink).toBe(1);
+  });
+
+  it('deixa o campo de CPF do responsável legível: letra de 20, altura de toque de 56 e borda de erro', () => {
+    const styles = createTermoStyles(Colors.light);
+
+    expect(styles.campoCpfEntrada.fontSize).toBe(20);
+    expect(styles.campoCpfEntrada.minHeight).toBeGreaterThanOrEqual(56);
+    expect(styles.campoCpfRotulo.fontSize).toBeGreaterThanOrEqual(16);
+    expect(styles.campoCpfEntradaInvalida.borderColor).toBe(Colors.light.error);
+    expect(styles.campoCpfEntradaFoco.borderColor).toBe(Colors.light.primary);
+  });
+
   it('usa letra de pelo menos 16 e corpo do termo de 20', () => {
     const styles = createTermoStyles(Colors.dark);
 
     expect(styles.paragrafo.fontSize).toBe(20);
     expect(styles.avisoRolagem.fontSize).toBeGreaterThanOrEqual(16);
     expect(styles.versao.fontSize).toBeGreaterThanOrEqual(16);
+    expect(styles.ajudaEscolhaConsentimento.fontSize).toBeGreaterThanOrEqual(16);
+  });
+
+  it('deixa o nome do paciente encolher no cabeçalho, sem passar da tela', () => {
+    expect(createTermoStyles(Colors.light).paciente.flexShrink).toBe(1);
   });
 });

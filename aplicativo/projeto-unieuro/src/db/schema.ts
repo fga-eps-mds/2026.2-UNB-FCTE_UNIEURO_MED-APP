@@ -5,8 +5,10 @@
  * `feat/database`), copiado para cá porque o Expo não executa o script Python
  * que cria o banco. A versão 2 troca o CPF em texto puro por CPF cifrado e índice
  * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
- * desativação da conta, a versão 5 guarda a decisão do TCLE e a versão 6 cria as
- * tarefas de desenho, o desenho e o traçado. Nenhuma delas existe ainda no
+ * desativação da conta, a versão 5 guarda a decisão do TCLE, a versão 6 cria as
+ * tarefas de desenho, o desenho e o traçado, a versão 7 guarda as autorizações dos
+ * itens 9 e 10 do TCLE e a versão 8 guarda o CPF cifrado do responsável legal.
+ * Nenhuma delas existe ainda no
  * `schema.sql` do MED-IA: as
  * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
  * atualizado.
@@ -193,6 +195,39 @@ END;
 `;
 
 /**
+ * Versão 7: registra escolhas separadas de autorização para imagens desta pesquisa
+ * e uso futuro de dados. Valores nulos preservam registros feitos em versões
+ * anteriores ou decisões de recusa sem que os itens fossem respondidos.
+ */
+const SCHEMA_V7 = `
+ALTER TABLE consentimento ADD COLUMN autoriza_imagens_pesquisa INTEGER
+    CHECK (autoriza_imagens_pesquisa IS NULL OR autoriza_imagens_pesquisa IN (0, 1));
+ALTER TABLE consentimento ADD COLUMN autoriza_dados_pesquisa_futura INTEGER
+    CHECK (autoriza_dados_pesquisa_futura IS NULL OR autoriza_dados_pesquisa_futura IN (0, 1));
+`;
+
+/**
+ * Versão 8: CPF do responsável legal que assinou o TCLE (#21, correção da
+ * validação do PO). Segue o padrão de identificadores sensíveis do aplicativo: o
+ * banco guarda só a cifra (AES-GCM, `cpfProtector`), nunca o CPF em texto. Não há
+ * índice de busca, porque nenhuma consulta procura consentimento pelo CPF do
+ * responsável. A coluna é nula para o paciente, para a recusa e para os
+ * consentimentos gravados antes desta versão. Só o aceite pelo responsável legal
+ * pode ter valor: o `CHECK` barra o CPF de responsável em qualquer outro registro.
+ */
+const SCHEMA_V8 = `
+ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado TEXT
+    CHECK (
+      cpf_responsavel_cifrado IS NULL
+      OR (
+        assinado_por = 'responsavel_legal'
+        AND aceito = 1
+        AND length(trim(cpf_responsavel_cifrado)) > 0
+      )
+    );
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -205,7 +240,8 @@ export type MigrationStep =
  * cria a versão 1, a posição 1 leva à versão 2 (CPF protegido), a posição 2 à
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
- * (tarefas, desenho e traçado), e assim por diante. Para mudar o esquema,
+ * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
+ * a posição 7 à versão 8 (CPF do responsável legal), e assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -216,6 +252,8 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V4,
   SCHEMA_V5,
   SCHEMA_V6,
+  SCHEMA_V7,
+  SCHEMA_V8,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

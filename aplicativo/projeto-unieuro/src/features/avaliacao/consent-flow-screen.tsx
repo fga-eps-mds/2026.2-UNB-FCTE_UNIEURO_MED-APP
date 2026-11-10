@@ -18,6 +18,8 @@ import { gerarImagemDesenho } from '@/features/captura/imagem-desenho';
 
 export const MENSAGEM_FALHA_DECISAO =
   'Não foi possível registrar a decisão. Nada foi perdido: tente de novo.';
+export const MENSAGEM_CPF_IGUAL_PACIENTE =
+  'O CPF do responsável não pode ser igual ao do paciente.';
 
 type PacienteDoTermo = { nome: string; ficha: string };
 
@@ -38,7 +40,8 @@ function exigirContexto(contexto: ContextoDecisao | undefined) {
 /**
  * Termo de consentimento do atendimento (#21). O termo só aparece enquanto a
  * avaliação aguarda o consentimento, com o nome e a ficha do paciente no
- * cabeçalho. O aceite grava a assinatura em PNG e abre a instrução da primeira
+ * cabeçalho. O aceite grava a assinatura em PNG (e, se quem assina é o responsável
+ * legal, o CPF dele, cifrado) e abre a instrução da primeira
  * tarefa; a recusa grava sem assinatura e volta ao início. Uma falha ao gravar
  * avisa e libera a tela para outra tentativa, sem mudar de tela.
  */
@@ -89,28 +92,44 @@ export default function ConsentFlowScreen({
 
   async function decidir(registrar: () => Promise<ResultadoDecisao>, aoRegistrar: () => void) {
     setAviso(null);
+    let resultado: ResultadoDecisao;
     try {
-      const resultado = await registrar();
-      if (resultado.sucesso) return aoRegistrar();
-      if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
-      throw new Error('Atendimento inválido ao registrar a decisão do termo.');
+      resultado = await registrar();
     } catch (error_) {
       setAviso(MENSAGEM_FALHA_DECISAO);
       throw error_;
     }
+    if (resultado.sucesso) return aoRegistrar();
+    if (resultado.motivo === 'decisao_ja_registrada') return irParaInstrucao();
+    // O erro libera os botões para corrigir e tentar de novo, sem mudar de tela.
+    setAviso(
+      resultado.motivo === 'cpf_responsavel_igual_paciente'
+        ? MENSAGEM_CPF_IGUAL_PACIENTE
+        : MENSAGEM_FALHA_DECISAO,
+    );
+    throw new Error(`Decisão do termo não registrada: ${resultado.motivo}.`);
   }
 
   return (
     <DecisaoTermoProvider
       aviso={aviso}
       onAssinar={(assinatura, contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const {
+          quemAssina,
+          cpfResponsavel,
+          versaoTermo,
+          autorizaImagensPesquisa,
+          autorizaDadosPesquisaFutura,
+        } = exigirContexto(contexto);
         return decidir(
           () =>
             registerConsentDecision({
               atendimentoId,
               versaoTermo,
               quemAssina,
+              cpfResponsavel,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
               aceito: true,
               assinaturaPng: gerarImagemDesenho(assinatura.tracos, assinatura.dimensoes),
             }),
@@ -118,9 +137,18 @@ export default function ConsentFlowScreen({
         );
       }}
       onRecusar={(contexto) => {
-        const { quemAssina, versaoTermo } = exigirContexto(contexto);
+        const { quemAssina, versaoTermo, autorizaImagensPesquisa, autorizaDadosPesquisaFutura } =
+          exigirContexto(contexto);
         return decidir(
-          () => registerConsentDecision({ atendimentoId, versaoTermo, quemAssina, aceito: false }),
+          () =>
+            registerConsentDecision({
+              atendimentoId,
+              versaoTermo,
+              quemAssina,
+              autorizaImagensPesquisa,
+              autorizaDadosPesquisaFutura,
+              aceito: false,
+            }),
           () => router.dismissTo('/menu'),
         );
       }}>

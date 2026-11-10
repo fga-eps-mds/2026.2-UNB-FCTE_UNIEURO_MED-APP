@@ -178,4 +178,12 @@ describe('SettingsScreen', () => {
       ).toBeOnTheScreen();
     });
   });
+
+  it('corta em uma linha o nome longo do profissional no topo', () => {
+    const nome =
+      'Ana Carolina de Souza Albuquerque Figueiredo Cavalcanti Montenegro Vasconcelos Bittencourt Guimaraes';
+    renderTela({ ...profissional, name: nome });
+
+    expect(screen.getAllByText(nome).some((texto) => texto.props.numberOfLines === 1)).toBe(true);
+  });
 });

@@ -36,14 +36,21 @@
         }
       ],
       "expo-font",
-      "expo-sqlite",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
       [
         "expo-secure-store",
         {
           "configureAndroidBackup": false
         }
       ],
-      "./plugins/with-data-extraction-rules"
+      "./plugins/with-data-extraction-rules",
+      "./plugins/with-gradle-jdk",
+      "./plugins/with-release-signing"
     ],
     "experiments": {
       "typedRoutes": true,

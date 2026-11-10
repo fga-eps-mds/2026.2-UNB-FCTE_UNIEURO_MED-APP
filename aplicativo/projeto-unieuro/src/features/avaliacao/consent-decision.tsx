@@ -38,6 +38,7 @@ type DecisaoContexto = {
   styles: DecisaoStyles;
   temTraco: boolean;
   quadro: ReturnType<typeof useRegistroTracado>['quadro'];
+  limpar: ReturnType<typeof useRegistroTracado>['limpar'];
   ocupado: boolean;
   aviso: string | null;
   confirmandoRecusa: boolean;
@@ -48,6 +49,10 @@ type DecisaoContexto = {
 
 const CONVITE = 'Assine aqui com a caneta';
 const DICA_ASSINAR = 'Assine na área acima para continuar';
+const DICA_AUTORIZACAO = 'Escolha Sim ou Não para os dois itens de uso de dados antes de continuar';
+const DICA_SEM_IMAGENS =
+  'A autorização para uso das imagens é necessária para participar desta pesquisa';
+const DICA_CPF = 'Informe um CPF válido do responsável legal para continuar';
 
 const DecisaoReact = createContext<DecisaoContexto | null>(null);
 
@@ -109,6 +114,7 @@ export function DecisaoTermoProvider({
       styles,
       temTraco,
       quadro,
+      limpar: registro.limpar,
       ocupado,
       aviso,
       confirmandoRecusa: recusa !== null,
@@ -116,7 +122,18 @@ export function DecisaoTermoProvider({
       assinar,
       pedirRecusa,
     }),
-    [styles, temTraco, quadro, ocupado, aviso, recusa, podeAssinar, assinar, pedirRecusa],
+    [
+      styles,
+      temTraco,
+      quadro,
+      registro.limpar,
+      ocupado,
+      aviso,
+      recusa,
+      podeAssinar,
+      assinar,
+      pedirRecusa,
+    ],
   );
 
   return (
@@ -139,22 +156,42 @@ export function DecisaoTermoProvider({
 
 /** A área de assinatura. Na tela do termo, fica dentro do cartão da declaração. */
 export function AreaAssinatura() {
-  const { styles, quadro, temTraco, ocupado } = useDecisao();
+  const { styles, quadro, temTraco, ocupado, limpar } = useDecisao();
 
   return (
     <View style={styles.areaAssinatura}>
-      <QuadroDesenho
-        {...quadro}
-        rotulo="Área de assinatura"
-        dica="Assine com a caneta ou com o dedo"
-        desabilitado={ocupado}
-        estiloMoldura={styles.molduraAssinatura}
-      />
-      {!temTraco && (
-        <View pointerEvents="none" style={styles.convite}>
-          <Text style={styles.conviteTexto}>{CONVITE}</Text>
-        </View>
-      )}
+      <View style={styles.quadroAssinatura}>
+        <QuadroDesenho
+          {...quadro}
+          rotulo="Área de assinatura"
+          dica="Assine com a caneta ou com o dedo"
+          desabilitado={ocupado}
+          estiloMoldura={styles.molduraAssinatura}
+        />
+        {!temTraco && (
+          <View pointerEvents="none" style={styles.convite}>
+            <Text style={styles.conviteTexto}>{CONVITE}</Text>
+          </View>
+        )}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !temTraco || ocupado }}
+        disabled={!temTraco || ocupado}
+        onPress={limpar}
+        style={({ pressed }) => [
+          styles.botaoLimpar,
+          pressed && styles.botaoPressionado,
+          (!temTraco || ocupado) && styles.botaoLimparDesabilitado,
+        ]}>
+        <Text
+          style={[
+            styles.botaoLimparTexto,
+            (!temTraco || ocupado) && styles.botaoLimparTextoDesabilitado,
+          ]}>
+          Apagar assinatura
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -171,9 +208,36 @@ export function AvisoDecisao() {
   );
 }
 
+type DicaDoBotao = {
+  temTraco: boolean;
+  contexto?: ContextoDecisao;
+  escolhasCompletas: boolean;
+  cpfCompleto: boolean;
+};
+
+/** Explica ao leitor de tela o primeiro requisito que ainda falta para assinar. */
+function dicaDoBotao({ temTraco, contexto, escolhasCompletas, cpfCompleto }: DicaDoBotao) {
+  if (!temTraco) return DICA_ASSINAR;
+  if (contexto?.autorizaImagensPesquisa === false) return DICA_SEM_IMAGENS;
+  if (!escolhasCompletas) return DICA_AUTORIZACAO;
+  if (!cpfCompleto) return DICA_CPF;
+  return undefined;
+}
+
 /** "Recusar" e "Assinar e iniciar". Na tela do termo, ficam abaixo do cartão. */
 export function BotoesDecisao({ contexto }: Readonly<{ contexto?: ContextoDecisao }>) {
   const { styles, temTraco, ocupado, podeAssinar, assinar, pedirRecusa } = useDecisao();
+  const escolhasCompletas =
+    contexto === undefined ||
+    (contexto.autorizaImagensPesquisa !== null &&
+      contexto.autorizaDadosPesquisaFutura !== null &&
+      contexto.autorizaImagensPesquisa);
+  // O responsável legal só assina com o CPF válido; o paciente não informa CPF.
+  const cpfCompleto =
+    contexto === undefined ||
+    contexto.quemAssina !== 'responsavel_legal' ||
+    contexto.cpfResponsavel !== null;
+  const podeConcluirAssinatura = podeAssinar && escolhasCompletas && cpfCompleto;
 
   return (
     <View style={styles.botoes}>
@@ -191,19 +255,19 @@ export function BotoesDecisao({ contexto }: Readonly<{ contexto?: ContextoDecisa
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ disabled: !podeAssinar }}
-        accessibilityHint={temTraco ? undefined : DICA_ASSINAR}
-        disabled={!podeAssinar}
+        accessibilityState={{ disabled: !podeConcluirAssinatura }}
+        accessibilityHint={dicaDoBotao({ temTraco, contexto, escolhasCompletas, cpfCompleto })}
+        disabled={!podeConcluirAssinatura}
         onPress={() => assinar(contexto)}
         style={({ pressed }) => [
           styles.botaoPrincipal,
           pressed && styles.botaoPrincipalPressionado,
-          !podeAssinar && styles.botaoPrincipalDesabilitado,
+          !podeConcluirAssinatura && styles.botaoPrincipalDesabilitado,
         ]}>
         <Text
           style={[
             styles.botaoPrincipalTexto,
-            !podeAssinar && styles.botaoPrincipalTextoDesabilitado,
+            !podeConcluirAssinatura && styles.botaoPrincipalTextoDesabilitado,
           ]}>
           Assinar e iniciar
         </Text>

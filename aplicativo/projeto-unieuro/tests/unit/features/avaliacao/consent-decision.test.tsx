@@ -24,10 +24,18 @@ const ASSINATURA = [
 ] as const;
 
 const botaoAssinar = () => screen.getByRole('button', { name: 'Assinar e iniciar' });
+const autorizarUsoPesquisa = () => {
+  for (const label of ['Uso das imagens: Sim', 'Uso futuro: Sim']) {
+    const radio = screen.queryByRole('radio', { name: label });
+    if (radio) fireEvent.press(radio);
+  }
+};
 const botaoRecusar = () => screen.getByRole('button', { name: 'Recusar' });
+const botaoLimpar = () => screen.getByRole('button', { name: 'Apagar assinatura' });
 
 async function assinar() {
   medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+  autorizarUsoPesquisa();
   await desenharNoQuadro(ASSINATURA);
 }
 
@@ -75,6 +83,12 @@ describe('Cenário: assinar sem ter assinado', () => {
     expect(screen.queryByText('Assine aqui com a caneta')).toBeNull();
   });
 
+  it('mantém apagar assinatura desabilitado sem traços', () => {
+    renderizar();
+
+    expect(botaoLimpar()).toBeDisabled();
+  });
+
   it('deixa o "Recusar" disponível sem assinatura', () => {
     renderizar();
 
@@ -89,6 +103,32 @@ describe('Cenário: assinar e iniciar', () => {
     await assinar();
 
     expect(botaoAssinar()).toBeEnabled();
+  });
+
+  it('apaga os traços e exige uma nova assinatura antes de continuar', async () => {
+    const { user, onAssinar } = renderizar();
+    await assinar();
+    expect(botaoLimpar()).toBeEnabled();
+
+    await user.press(botaoLimpar());
+
+    expect(screen.getByText('Assine aqui com a caneta')).toBeOnTheScreen();
+    expect(botaoAssinar()).toBeDisabled();
+    expect(botaoLimpar()).toBeDisabled();
+
+    await assinar();
+    await user.press(botaoAssinar());
+
+    expect(onAssinar).toHaveBeenCalledTimes(1);
+    expect(onAssinar.mock.calls[0][0].tracos).toHaveLength(1);
+    expect(
+      onAssinar.mock.calls[0][0].tracos[0].map(({ x, y }: { x: number; y: number }) => [x, y]),
+    ).toEqual(
+      expect.arrayContaining([
+        [20, 80],
+        [240, 50],
+      ]),
+    );
   });
 
   it('entrega à ação os traços e o tamanho da área de assinatura', async () => {
@@ -151,6 +191,7 @@ describe('Cenário: assinar e iniciar', () => {
 
     expect(botaoAssinar()).toBeDisabled();
     expect(botaoRecusar()).toBeDisabled();
+    expect(botaoLimpar()).toBeDisabled();
     expect(screen.getByLabelText(ROTULO_QUADRO)).toBeDisabled();
     concluir();
   });
@@ -319,12 +360,19 @@ describe('Encaixe na tela do termo', () => {
     const { aoAssinar } = renderizarTela();
 
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     await assinar();
     await user.press(botaoAssinar());
 
     expect(aoAssinar).toHaveBeenCalledTimes(1);
     const [contexto, assinatura] = aoAssinar.mock.calls[0];
-    expect(contexto).toEqual({ quemAssina: 'responsavel_legal', versaoTermo: TERMO_TCLE.versao });
+    expect(contexto).toEqual({
+      quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
+      versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
+    });
     expect(assinatura.dimensoes).toEqual({ largura: LARGURA, altura: ALTURA });
     expect(assinatura.tracos).toHaveLength(1);
   });
@@ -338,7 +386,10 @@ describe('Encaixe na tela do termo', () => {
 
     expect(aoAssinar.mock.calls[0][0]).toEqual({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
     });
   });
 
@@ -351,7 +402,10 @@ describe('Encaixe na tela do termo', () => {
 
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
     });
   });
 });
@@ -390,18 +444,132 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
     expect(botaoAssinar()).toBeDisabled();
   });
 
+  it('exige resposta explícita e autorização para imagens antes de habilitar o aceite', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+    await desenharNoQuadro(ASSINATURA);
+    expect(botaoAssinar()).toBeDisabled();
+
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Não' }));
+    await user.press(screen.getByRole('radio', { name: 'Uso futuro: Não' }));
+    expect(botaoAssinar()).toBeDisabled();
+
+    await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+    expect(botaoAssinar()).toBeEnabled();
+  });
+
+  describe('CPF obrigatório do responsável legal', () => {
+    const campoCpf = () => screen.getByLabelText('CPF do responsável legal');
+
+    async function prepararResponsavel() {
+      const user = userEvent.setup();
+      const telas = renderizarTela();
+      medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
+      await desenharNoQuadro(ASSINATURA);
+      await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
+      await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
+      await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+      return { user, ...telas };
+    }
+
+    it('com o CPF vazio, não deixa concluir o aceite e explica o que falta', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      expect(botaoAssinar()).toBeDisabled();
+      expect(botaoAssinar()).toHaveProp(
+        'accessibilityHint',
+        'Informe um CPF válido do responsável legal para continuar',
+      );
+      await user.press(botaoAssinar());
+
+      expect(aoAssinar).not.toHaveBeenCalled();
+    });
+
+    it('com o CPF inválido, não deixa concluir o aceite', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      fireEvent.changeText(campoCpf(), '111.444.777-36');
+      await user.press(botaoAssinar());
+
+      expect(botaoAssinar()).toBeDisabled();
+      expect(aoAssinar).not.toHaveBeenCalled();
+    });
+
+    it('com o CPF válido, habilita o aceite e entrega o CPF na decisão', async () => {
+      const { user, aoAssinar } = await prepararResponsavel();
+
+      fireEvent.changeText(campoCpf(), '111.444.777-35');
+      await user.press(botaoAssinar());
+
+      expect(botaoAssinar().props.accessibilityHint).toBeUndefined();
+      expect(aoAssinar).toHaveBeenCalledTimes(1);
+      expect(aoAssinar.mock.calls[0][1]).toMatchObject({ cpfResponsavel: '11144477735' });
+    });
+
+    it('volta a bloquear o aceite se o CPF for apagado', async () => {
+      await prepararResponsavel();
+      fireEvent.changeText(campoCpf(), '111.444.777-35');
+      expect(botaoAssinar()).toBeEnabled();
+
+      fireEvent.changeText(campoCpf(), '');
+
+      expect(botaoAssinar()).toBeDisabled();
+    });
+
+    it('o paciente conclui o aceite sem CPF', async () => {
+      const user = userEvent.setup();
+      const { aoAssinar } = renderizarTela();
+      await assinar();
+
+      expect(screen.queryByLabelText('CPF do responsável legal')).toBeNull();
+      expect(botaoAssinar()).toBeEnabled();
+      await user.press(botaoAssinar());
+
+      expect(aoAssinar).toHaveBeenCalledTimes(1);
+      expect(aoAssinar.mock.calls[0][1]).toMatchObject({ cpfResponsavel: null });
+    });
+
+    it('a recusa não exige o CPF do responsável', async () => {
+      const user = userEvent.setup();
+      const { aoRecusar } = renderizarTela();
+      await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+
+      await user.press(botaoRecusar());
+      await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+
+      expect(aoRecusar).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('aplica fundo pêssego e contorno primário à escolha marcada', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+
+    const simImagens = screen.getByRole('radio', { name: 'Uso das imagens: Sim' });
+    await user.press(simImagens);
+    expect(simImagens).toHaveStyle({ borderColor: '#9A3412', backgroundColor: '#FFE8D6' });
+  });
+
   it('entrega a assinatura com quem assina e a versão do termo', async () => {
     const user = userEvent.setup();
     const { aoAssinar } = renderizarTela();
 
     await user.press(screen.getByRole('radio', { name: 'Responsável legal' }));
+    fireEvent.changeText(screen.getByLabelText('CPF do responsável legal'), '111.444.777-35');
     await assinar();
     await user.press(botaoAssinar());
 
     expect(aoAssinar).toHaveBeenCalledTimes(1);
     const [assinatura, contexto] = aoAssinar.mock.calls[0];
     expect(assinatura.tracos).toHaveLength(1);
-    expect(contexto).toEqual({ quemAssina: 'responsavel_legal', versaoTermo: TERMO_TCLE.versao });
+    expect(contexto).toEqual({
+      quemAssina: 'responsavel_legal',
+      cpfResponsavel: '11144477735',
+      versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: true,
+      autorizaDadosPesquisaFutura: true,
+    });
   });
 
   it('entrega a recusa com quem assina e a versão do termo', async () => {
@@ -413,7 +581,10 @@ describe('Área de assinatura dentro do cartão da declaração', () => {
 
     expect(aoRecusar).toHaveBeenCalledWith({
       quemAssina: 'paciente',
+      cpfResponsavel: null,
       versaoTermo: TERMO_TCLE.versao,
+      autorizaImagensPesquisa: null,
+      autorizaDadosPesquisaFutura: null,
     });
   });
 
