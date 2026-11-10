@@ -25,6 +25,7 @@ import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createAccountFormStyles } from '@/features/settings/account-form.styles';
 import { FormField } from '@/features/settings/form-field';
 import { createSettingsStyles } from '@/features/settings/settings.styles';
+import { MAX_NAME_LENGTH } from '@/features/shared/name';
 import { useTheme } from '@/hooks/use-theme';
 
 const emptyPasswordChange: PasswordChangeInput = {
@@ -134,7 +135,9 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
           <Text style={styles.backText}>‹ Configurações</Text>
         </Pressable>
         <View style={styles.accountText}>
-          <Text style={styles.professionalName}>{professional.name}</Text>
+          <Text style={styles.professionalName} numberOfLines={1}>
+            {professional.name}
+          </Text>
           <Text style={styles.label}>CRM {formatCrm(professional)}</Text>
         </View>
       </View>
@@ -160,6 +163,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               label="NOME COMPLETO"
               autoCapitalize="words"
               autoComplete="name"
+              maxLength={MAX_NAME_LENGTH}
               value={profile.name}
               onChangeText={editProfile('name')}
               error={profileErrors.name}
@@ -177,6 +181,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="CRM"
+                containerStyle={form.rowItem}
                 keyboardType="numeric"
                 maxLength={10}
                 value={profile.crmNumber}
@@ -186,6 +191,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="UF DO CRM"
+                containerStyle={form.rowItem}
                 autoCapitalize="characters"
                 maxLength={2}
                 value={profile.crmState}
@@ -207,6 +213,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               <FormField
                 styles={form}
                 label="CONFIRME COM A SUA SENHA ATUAL"
+                containerStyle={form.rowItem}
                 secureTextEntry
                 autoComplete="current-password"
                 value={profilePassword}
@@ -282,6 +289,7 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
               onPress={savePassword}
               style={({ pressed }) => [
                 form.primaryButton,
+                form.standaloneButton,
                 (pressed || savingPassword) && styles.pressed,
               ]}>
               {savingPassword ? (

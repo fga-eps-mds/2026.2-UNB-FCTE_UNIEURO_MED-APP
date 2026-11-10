@@ -15,7 +15,7 @@ describe('TAREFAS', () => {
     [
       1,
       'Desenhe um relógio',
-      'Desenhe o círculo, coloque todos os números e marque onze horas e dez minutos.',
+      'Desenhe o círculo de um relógio, coloque todos os números dentro dele e desenhe os ponteiros marcando onze horas e dez minutos.',
     ],
     [
       2,

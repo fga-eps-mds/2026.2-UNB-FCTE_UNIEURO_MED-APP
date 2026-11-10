@@ -23,7 +23,12 @@ export function createAccountFormStyles(theme: ThemeColors) {
       marginTop: -12,
     },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-    field: { flexGrow: 1, flexBasis: 200, gap: 6 },
+    field: { gap: 6 },
+    // Só os campos lado a lado crescem para dividir a linha. No cartão, que é uma
+    // coluna, a base de 200 viraria altura e abriria buracos entre os campos.
+    rowItem: { flexGrow: 1, flexBasis: 200 },
+    // Botão sozinho no cartão: sem crescer, senão a base de 140 vira altura.
+    standaloneButton: { flexGrow: 0, flexBasis: 'auto' },
     label: {
       color: theme.textSecondary,
       fontFamily: FontFamilies.semibold,

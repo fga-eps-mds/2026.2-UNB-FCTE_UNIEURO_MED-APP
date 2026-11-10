@@ -131,6 +131,39 @@ o job `apk` compila o APK no perfil `preview` e o anexa. O rótulo do PR define 
 versão (`MAJOR RELEASE`, `MINOR RELEASE`, sem rótulo para correção, `NOT RELEASE`
 para não gerar).
 
+### Assinatura e versão do APK (#104)
+
+- A versão do APK é a da tag: `v2.1.3` vira `versionName` 2.1.3 e `versionCode` 20103
+  (MAJOR × 10000 + MINOR × 100 + PATCH, com MINOR e PATCH até 99). O `app.config.js`
+  lê `APP_VERSION`; sem ela, vale o `app.json`. A tela de configurações mostra essa versão.
+- O APK de entrega é assinado com a **chave do MED**, que fica nos segredos do
+  repositório: `MED_KEYSTORE_BASE64` (o `.jks` em base64), `MED_KEYSTORE_PASSWORD`,
+  `MED_KEY_ALIAS` e `MED_KEY_PASSWORD`. O plugin `plugins/with-release-signing.js` lê
+  essas variáveis no Gradle. Sem elas (build local), o release sai com a chave de debug.
+  O job `apk` confere, antes de anexar, que o APK não está com a chave de debug e que
+  a versão é a da tag.
+- Para criar a chave (uma vez, por quem administra os segredos):
+
+```bash
+keytool -genkeypair -v -keystore med-release.jks -alias med -keyalg RSA -keysize 2048 -validity 10000
+base64 -i med-release.jks
+```
+
+  Guarde o `.jks` e as senhas em dois lugares seguros com pessoas diferentes da equipe.
+  **Sem a chave, nenhuma versão futura instala por cima das anteriores.** Nunca versione
+  a chave (o `.gitignore` já ignora `*.jks`).
+- **APK de teste, antes da release:** em Actions, "Export de métricas", "Run workflow", na
+  branch que se quer testar, deixe `tag` em branco e preencha `versao` (por exemplo,
+  `2.0.3`). O job `apk` compila, confere a assinatura e a versão e guarda o APK como
+  artefato por 7 dias, sem criar nem alterar release. Use uma versão maior que a
+  instalada no tablet, para ele aceitar a atualização, e que ainda não tenha saído: o
+  Android não deixa instalar uma versão menor por cima. O resumo da execução mostra a
+  impressão digital do certificado; dois APKs só instalam um por cima do outro se ela
+  for igual. Não entregue esse APK ao PO nem ao cliente.
+- A primeira versão assinada com a chave do MED exige **desinstalar o aplicativo uma vez**
+  nos tablets, porque o Android não aceita outra assinatura por cima. Faça isso antes de
+  haver dados reais. Dali em diante, o APK novo instala por cima e mantém os dados.
+
 ## 7. Branches, commits e PRs
 
 - Toda branch sai da `develop` e todo PR aponta para ela. Push direto em `develop` ou

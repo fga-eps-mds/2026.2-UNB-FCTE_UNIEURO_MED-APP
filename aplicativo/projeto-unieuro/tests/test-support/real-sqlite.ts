@@ -14,10 +14,14 @@ type Statement = {
   all(...params: unknown[]): unknown[];
 };
 type RunResult = { lastInsertRowid: number | bigint; changes: number | bigint };
-type NodeDatabase = { exec(sql: string): void; prepare(sql: string): Statement; close(): void };
+export type NodeDatabase = {
+  exec(sql: string): void;
+  prepare(sql: string): Statement;
+  close(): void;
+};
 type BuiltinLoader = { getBuiltinModule(id: string): unknown };
 
-const loadBuiltin = <T>(id: string) =>
+export const loadBuiltin = <T>(id: string) =>
   (process as unknown as BuiltinLoader).getBuiltinModule(id) as T;
 
 const { DatabaseSync } = loadBuiltin<{ DatabaseSync: new (path: string) => NodeDatabase }>(
@@ -43,56 +47,72 @@ export type TempDatabase = {
   cleanup(): void;
 };
 
+/**
+ * Adapta um banco do Node ao formato do `expo-sqlite` que os repositórios usam.
+ * Serve ao `node:sqlite` e a qualquer outro módulo com a mesma forma.
+ */
+export function adaptDatabase(database: NodeDatabase): SQLiteDatabase {
+  const adapter = {
+    async execAsync(sql: string) {
+      database.exec(sql);
+    },
+    // Devolve o mesmo formato do `expo-sqlite`, que os repositórios usam para
+    // saber o id da linha inserida.
+    async runAsync(sql: string, params: unknown[] = []) {
+      const result = database.prepare(sql).run(...params) as RunResult;
+      return {
+        lastInsertRowId: Number(result.lastInsertRowid),
+        changes: Number(result.changes),
+      };
+    },
+    async getFirstAsync(sql: string, params: unknown[] = []) {
+      return database.prepare(sql).get(...params) ?? null;
+    },
+    async getAllAsync(sql: string, params: unknown[] = []) {
+      return database.prepare(sql).all(...params);
+    },
+    async withTransactionAsync(task: () => Promise<void>) {
+      database.exec('BEGIN');
+      try {
+        await task();
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    },
+    async closeAsync() {
+      database.close();
+    },
+  };
+  return adapter as unknown as SQLiteDatabase;
+}
+
+/** Lê os bytes de um arquivo, ou `null` se ele não existir. */
+export function readRawFile(file: string): Uint8Array | null {
+  return fs.existsSync(file) ? fs.readFileSync(file) : null;
+}
+
+/** Diz se o texto aparece no arquivo do banco ou no WAL ao lado dele. */
+export function rawFileContains(path: string, text: string): boolean {
+  return [path, `${path}-wal`].some((file) => {
+    const bytes = readRawFile(file);
+    return (
+      bytes !== null &&
+      Array.from(bytes, (byte) => String.fromCharCode(byte))
+        .join('')
+        .includes(text)
+    );
+  });
+}
+
 export function createTempDatabase(): TempDatabase {
   const directory = fs.mkdtempSync(`${os.tmpdir()}/med-test-`);
   const path = `${directory}/med.db`;
 
-  const open = () => {
-    const database = new DatabaseSync(path);
-    const adapter = {
-      async execAsync(sql: string) {
-        database.exec(sql);
-      },
-      // Devolve o mesmo formato do `expo-sqlite`, que os repositórios usam para
-      // saber o id da linha inserida.
-      async runAsync(sql: string, params: unknown[] = []) {
-        const result = database.prepare(sql).run(...params) as RunResult;
-        return {
-          lastInsertRowId: Number(result.lastInsertRowid),
-          changes: Number(result.changes),
-        };
-      },
-      async getFirstAsync(sql: string, params: unknown[] = []) {
-        return database.prepare(sql).get(...params) ?? null;
-      },
-      async getAllAsync(sql: string, params: unknown[] = []) {
-        return database.prepare(sql).all(...params);
-      },
-      async withTransactionAsync(task: () => Promise<void>) {
-        database.exec('BEGIN');
-        try {
-          await task();
-          database.exec('COMMIT');
-        } catch (error) {
-          database.exec('ROLLBACK');
-          throw error;
-        }
-      },
-      async closeAsync() {
-        database.close();
-      },
-    };
-    return adapter as unknown as SQLiteDatabase;
-  };
+  const open = () => adaptDatabase(new DatabaseSync(path));
 
-  const rawContains = (text: string) =>
-    [path, `${path}-wal`]
-      .filter((file) => fs.existsSync(file))
-      .some((file) =>
-        Array.from(fs.readFileSync(file), (byte) => String.fromCharCode(byte))
-          .join('')
-          .includes(text),
-      );
+  const rawContains = (text: string) => rawFileContains(path, text);
 
   return {
     path,

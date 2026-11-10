@@ -1,5 +1,6 @@
 import { hashPassword } from '@/features/auth/password';
 import { parseCpf } from '@/features/shared/cpf';
+import { NAME_TOO_LONG, isNameTooLong } from '@/features/shared/name';
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -112,6 +113,8 @@ export function validateRegistration(input: RegistrationInput): Validation {
     return invalid('Preencha todos os campos para continuar.');
   }
 
+  if (isNameTooLong(input.name)) return invalid(NAME_TOO_LONG);
+
   const email = input.email.trim().toLowerCase();
   if (!EMAIL_PATTERN.test(email)) return invalid('Informe um e-mail válido.');
 
@@ -144,6 +147,7 @@ export function collectRegistrationFieldErrors(input: RegistrationInput): Regist
   const passwordConfirmation = input.passwordConfirmation;
 
   if (!name) errors.name = 'Preencha o nome.';
+  else if (isNameTooLong(name)) errors.name = NAME_TOO_LONG;
 
   if (!email) errors.email = 'Preencha o e-mail.';
   else if (!EMAIL_PATTERN.test(email)) errors.email = 'Informe um e-mail válido.';

@@ -1,5 +1,6 @@
 import type { NewPatient, PatientErrors, PatientForm, Sex } from '@/features/avaliacao/attendance';
 import { parseCpf } from '@/features/shared/cpf';
+import { NAME_TOO_LONG, isNameTooLong } from '@/features/shared/name';
 
 export type PatientValidation =
   | { valid: true; patient: NewPatient }
@@ -46,6 +47,7 @@ export function validatePatient(form: PatientForm, today: Date): PatientValidati
 
   const name = form.name.trim();
   if (!name) errors.name = 'Preencha o nome completo.';
+  else if (isNameTooLong(name)) errors.name = NAME_TOO_LONG;
 
   const cpf = parseCpf(form.cpf);
   if (!form.cpf.trim()) errors.cpf = 'Preencha o CPF.';

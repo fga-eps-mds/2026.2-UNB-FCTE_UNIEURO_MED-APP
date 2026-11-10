@@ -365,4 +365,14 @@ describe('HomeScreen', () => {
       expect(screen.queryByLabelText(LOADING_MESSAGE)).toBeNull();
     });
   });
+
+  it('corta em uma linha o nome longo do profissional, sem esconder configurações e sair', () => {
+    const nome =
+      'Ana Carolina de Souza Albuquerque Figueiredo Cavalcanti Montenegro Vasconcelos Bittencourt Guimaraes';
+    renderTela(pacientes, { ...profissional, name: nome });
+
+    expect(screen.getByText(nome)).toHaveProp('numberOfLines', 1);
+    expect(screen.getByRole('button', { name: 'Configurações' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeOnTheScreen();
+  });
 });

@@ -60,6 +60,7 @@ export function createDrawingTaskStyles() {
       fontSize: 20,
       lineHeight: 28,
     },
+    aviso: { color: cores.error, fontFamily: FontFamilies.semibold },
     acoes: { flexDirection: 'row', gap: 16 },
     botaoAcao: {
       minWidth: 200,

@@ -5,7 +5,10 @@ import { BackHandler } from 'react-native';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { REGISTRO_APAGAR, TITULO_APAGAR } from '@/features/avaliacao/apagar-desenho-dialog';
 import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
-import DrawingTaskScreen from '@/features/avaliacao/drawing-task-screen';
+import DrawingTaskScreen, {
+  FALHA_AO_SALVAR,
+  type DrawingTaskScreenProps,
+} from '@/features/avaliacao/drawing-task-screen';
 import { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 import type { ParametroDeRota } from '@/features/avaliacao/tarefas';
 
@@ -39,7 +42,9 @@ function renderizarTela(opcoes: Opcoes = {}) {
     professional: profissional,
     ...opcoes,
   };
-  const onConfirmar = jest.fn();
+  const onConfirmar = jest.fn<Promise<void>, Parameters<DrawingTaskScreenProps['onConfirmar']>>(
+    async () => {},
+  );
 
   render(
     <SessionProvider initialProfessional={professional}>
@@ -154,6 +159,19 @@ describe('Cenário: passar para a próxima tarefa', () => {
     expect(onConfirmar).toHaveBeenCalledTimes(1);
   });
 
+  it('não grava duas vezes com o segundo toque enquanto a gravação ainda está em andamento', async () => {
+    const user = userEvent.setup();
+    const { onConfirmar } = renderizarTela();
+    onConfirmar.mockReturnValue(new Promise<undefined>(() => {}));
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+    await user.press(botaoConfirmar());
+
+    expect(onConfirmar).toHaveBeenCalledTimes(1);
+    expect(botaoConfirmar()).toBeDisabled();
+  });
+
   it('deixa de aceitar traço novo depois de confirmar', async () => {
     const user = userEvent.setup();
     renderizarTela();
@@ -173,6 +191,59 @@ describe('Cenário: passar para a próxima tarefa', () => {
 
     expect(useRouter().replace).not.toHaveBeenCalled();
     expect(useRouter().push).not.toHaveBeenCalled();
+  });
+});
+
+describe('Cenário: tudo ou nada', () => {
+  async function confirmarComFalha() {
+    const user = userEvent.setup();
+    const resultado = renderizarTela();
+    resultado.onConfirmar.mockRejectedValueOnce(new Error('disco cheio'));
+    await desenharNoQuadro([
+      [10, 10],
+      [60, 40],
+    ]);
+    await user.press(botaoConfirmar());
+    return { ...resultado, user };
+  }
+
+  it('avisa o profissional quando a gravação falha', async () => {
+    await confirmarComFalha();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(FALHA_AO_SALVAR);
+  });
+
+  it('mantém o desenho na tela e libera o quadro e o "Confirmar" para tentar de novo', async () => {
+    const { onConfirmar } = await confirmarComFalha();
+
+    expect(botaoConfirmar()).toBeEnabled();
+    expect(screen.getByLabelText('Área de desenho: desenhe um relógio')).toBeEnabled();
+    const [, registro] = onConfirmar.mock.calls[0];
+    expect(registro.tracos).toHaveLength(1);
+  });
+
+  it('entrega o mesmo desenho na nova tentativa e tira o aviso', async () => {
+    const { onConfirmar, user } = await confirmarComFalha();
+
+    await user.press(botaoConfirmar());
+
+    expect(onConfirmar).toHaveBeenCalledTimes(2);
+    const [, primeiro] = onConfirmar.mock.calls[0];
+    const [, segundo] = onConfirmar.mock.calls[1];
+    expect(segundo.eventos).toEqual(primeiro.eventos);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(botaoConfirmar()).toBeDisabled();
+  });
+
+  it('não mostra aviso quando a gravação dá certo', async () => {
+    const user = userEvent.setup();
+    renderizarTela();
+    await desenharNoQuadro([[10, 10]]);
+
+    await user.press(botaoConfirmar());
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(FALHA_AO_SALVAR)).toBeNull();
   });
 });
 
@@ -302,7 +373,9 @@ describe('o que a tela mostra ao paciente', () => {
     expect(screen.getByText('Tarefa 1 de 3')).toBeOnTheScreen();
     expect(screen.getByText(HELP_MESSAGE)).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Desenhe um relógio' })).toBeOnTheScreen();
-    expect(screen.getByText('Com todos os números, marcando 11h10.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Círculo, todos os números e ponteiros em onze e dez.'),
+    ).toBeOnTheScreen();
   });
 
   it('mostra o progresso e o lembrete do cubo', () => {
