@@ -553,8 +553,8 @@ describe('Cenário: refazer o desenho', () => {
     const [, registro] = onConfirmar.mock.calls[0];
     const limpar = registro.eventos.find((e: { tipo: string }) => e.tipo === 'limpar');
     expect(limpar).toBeDefined();
-    expect(typeof limpar.instante).toBe('number');
-    expect(limpar.instante).toBeGreaterThanOrEqual(0);
+    expect(typeof limpar?.instante).toBe('number');
+    expect(limpar?.instante).toBeGreaterThanOrEqual(0);
   });
 });
 
