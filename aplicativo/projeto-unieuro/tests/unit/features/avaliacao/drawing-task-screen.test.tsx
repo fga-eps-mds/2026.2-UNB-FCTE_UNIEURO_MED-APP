@@ -391,7 +391,9 @@ describe('o que a tela mostra ao paciente', () => {
 
     expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Ligue números e letras' })).toBeOnTheScreen();
-    expect(screen.getByText('Alterne em ordem: 1, A, 2, B… até o E.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Uma linha só, sem levantar a caneta: 1, A, 2, B… até o E.'),
+    ).toBeOnTheScreen();
     expect(screen.queryByRole('image', { name: 'Cubo para copiar' })).toBeNull();
   });
 

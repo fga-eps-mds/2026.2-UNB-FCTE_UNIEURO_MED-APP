@@ -22,7 +22,11 @@ describe('TAREFAS', () => {
       'Copie este cubo',
       'Olhe a figura que aparece ao lado e desenhe igual, do jeito que você consegue.',
     ],
-    [3, 'Ligue números e letras', 'Alterne número e letra, em ordem: 1, A, 2, B… até o E.'],
+    [
+      3,
+      'Ligue números e letras',
+      'Ligue os círculos com uma linha só, sem levantar a caneta, alternando número e letra em ordem: 1, A, 2, B… até o E.',
+    ],
   ])('a tarefa %i tem o texto combinado com o parceiro', (numero, titulo, instrucao) => {
     expect(TAREFAS[numero - 1]).toMatchObject({ numero, titulo, instrucao });
   });

@@ -16,7 +16,10 @@ export const LEMBRETES: Readonly<Record<number, Lembrete>> = {
     frase: 'Círculo, todos os números e ponteiros em onze e dez.',
   },
   2: { titulo: 'Copie o cubo', frase: 'Desenhe do jeito que você consegue.' },
-  3: { titulo: 'Ligue números e letras', frase: 'Alterne em ordem: 1, A, 2, B… até o E.' },
+  3: {
+    titulo: 'Ligue números e letras',
+    frase: 'Uma linha só, sem levantar a caneta: 1, A, 2, B… até o E.',
+  },
 };
 
 /** Só a cópia do cubo mostra uma figura de modelo ao lado do quadro. */

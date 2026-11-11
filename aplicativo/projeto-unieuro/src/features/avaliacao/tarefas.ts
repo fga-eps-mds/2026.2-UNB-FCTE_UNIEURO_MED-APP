@@ -32,7 +32,8 @@ export const TAREFAS: readonly Tarefa[] = [
   {
     numero: 3,
     titulo: 'Ligue números e letras',
-    instrucao: 'Alterne número e letra, em ordem: 1, A, 2, B… até o E.',
+    instrucao:
+      'Ligue os círculos com uma linha só, sem levantar a caneta, alternando número e letra em ordem: 1, A, 2, B… até o E.',
     icone: 'vector-polyline',
   },
 ];
