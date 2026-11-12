@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 
 import DrawingTaskScreen from '@/features/avaliacao/drawing-task-screen';
 import { TOTAL_TAREFAS, valorDoParametro } from '@/features/avaliacao/tarefas';
+import { giveUpExam } from '@/features/avaliacao/composition';
 import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
 import { confirmDrawing } from '@/features/captura/composition';
 
@@ -32,6 +33,17 @@ export default function DrawingRoute() {
     <DrawingTaskScreen
       tarefa={tarefa}
       atendimento={atendimento}
+      onDesistir={async (atual, motivo) => {
+        await giveUpExam({
+          atendimentoId: Number(valorDoParametro(atendimento)),
+          tarefa: atual.numero,
+          motivo,
+        });
+        router.replace({
+          pathname: '/exame-interrompido',
+          params: { atendimento: String(atendimento) },
+        });
+      }}
       onConfirmar={async (confirmada, registro) => {
         await confirmDrawing({
           atendimentoId: Number(valorDoParametro(atendimento)),

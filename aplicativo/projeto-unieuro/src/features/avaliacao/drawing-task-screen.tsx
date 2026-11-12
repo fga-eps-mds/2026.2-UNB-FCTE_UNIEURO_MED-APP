@@ -19,6 +19,7 @@ import {
   type ParametroDeRota,
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
+import type { MotivoDesistencia } from '@/features/avaliacao/interrupcao';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
 import { TrailCircles } from '@/features/avaliacao/trail-circles';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
@@ -35,6 +36,8 @@ export type DrawingTaskScreenProps = {
    * falhar, a tela avisa e mantém o desenho para o paciente confirmar de novo.
    */
   onConfirmar: (tarefa: Tarefa, registro: RegistroTracado) => Promise<void>;
+  /** Grava a desistência na tarefa atual (#25); o desenho em curso não é salvo. */
+  onDesistir?: (tarefa: Tarefa, motivo: MotivoDesistencia | null) => Promise<void>;
 };
 
 export const FALHA_AO_SALVAR = 'Não foi possível salvar o desenho. Toque em Confirmar de novo.';
@@ -54,6 +57,7 @@ export default function DrawingTaskScreen({
   tarefa: tarefaParam,
   atendimento,
   onConfirmar,
+  onDesistir,
 }: Readonly<DrawingTaskScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
@@ -104,7 +108,11 @@ export default function DrawingTaskScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TaskTopBar numero={tarefa.numero} cores={CORES_DA_TAREFA} />
+      <TaskTopBar
+        numero={tarefa.numero}
+        cores={CORES_DA_TAREFA}
+        onDesistir={onDesistir && ((motivo) => onDesistir(tarefa, motivo))}
+      />
 
       <View style={styles.corpo}>
         <View style={styles.ferramentas}>
