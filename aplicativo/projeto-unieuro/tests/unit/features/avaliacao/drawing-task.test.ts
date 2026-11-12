@@ -66,6 +66,13 @@ describe('lembrete de cada tarefa', () => {
     expect(LEMBRETES[3].frase).toContain('1, A, 2, B');
     expect(LEMBRETES[3].frase).toContain('até o E');
   });
+
+  it('pede nas trilhas uma linha só, sem levantar a caneta, na instrução e no lembrete', () => {
+    for (const texto of [trilhas.instrucao, LEMBRETES[3].frase]) {
+      expect(texto).toMatch(/uma linha só/i);
+      expect(texto).toMatch(/sem levantar a caneta/i);
+    }
+  });
 });
 
 describe('dica do "Confirmar"', () => {
