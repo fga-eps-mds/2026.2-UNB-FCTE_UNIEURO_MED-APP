@@ -4,33 +4,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { FontFamilies, type ThemeColors } from '@/constants/theme';
-import type { CredentialsRepository } from '@/features/auth/authentication';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
-import { confirmarProfissional } from '@/features/avaliacao/confirmacao-profissional';
+import {
+  DIGITOS_INCORRETOS,
+  confirmarProfissional,
+  type ProfessionalCpfRepository,
+} from '@/features/avaliacao/confirmacao-profissional';
 import { CORES_DA_TAREFA, FUNDO_ACOLHEDOR } from '@/features/avaliacao/drawing-task.styles';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 
 export const AGRADECIMENTO = 'Muito obrigado pela sua participação!';
 export const ORIENTACAO = 'O teste terminou. Por favor, devolva o tablet ao profissional de saúde.';
 export const BOTAO_PROFISSIONAL = 'Sou o profissional de saúde';
-export const FALHA_NA_CONFERENCIA = 'Não foi possível conferir a senha agora. Tente novamente.';
+export const FALHA_NA_CONFERENCIA = 'Não foi possível conferir os dígitos agora. Tente novamente.';
 
 type TelaFinalScreenProps = {
-  repository: CredentialsRepository;
+  repository: ProfessionalCpfRepository;
 };
 
 /**
  * Tela final do paciente (#11). Mostra só o agradecimento, sem escore, faixa ou
- * resultado. Para sair dela, o profissional confirma a própria senha: o paciente
- * não chega à área do profissional nem ao resultado. O voltar do Android não sai
- * da tela, como nas tarefas, e a tela é sempre clara, como as outras do paciente.
+ * resultado. Para sair dela, o profissional confirma os quatro primeiros
+ * dígitos do CPF: o paciente não chega à área profissional nem ao resultado.
+ * O voltar do Android não sai da tela, como nas tarefas, e a tela é sempre clara,
+ * como as outras do paciente.
  */
 export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const [confirmando, setConfirmando] = useState(false);
-  const [senha, setSenha] = useState('');
+  const [digitos, setDigitos] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [conferindo, setConferindo] = useState(false);
   useSemVoltar();
@@ -43,7 +47,7 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
 
   function cancelar() {
     setConfirmando(false);
-    setSenha('');
+    setDigitos('');
     setErro(null);
   }
 
@@ -51,13 +55,13 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
     if (!professional || conferindo) return;
     try {
       setConferindo(true);
-      const resultado = await confirmarProfissional(senha, professional, repository);
+      const resultado = await confirmarProfissional(digitos, professional.id, repository);
       if (resultado.confirmado) {
         // Volta à tela inicial que já está embaixo na pilha, sem abrir outra.
         router.dismissTo('/menu');
         return;
       }
-      setSenha('');
+      if (resultado.mensagem === DIGITOS_INCORRETOS) setDigitos('');
       setErro(resultado.mensagem);
     } catch {
       // Falha do banco: avisa e libera o botão, para o profissional não ficar preso.
@@ -84,21 +88,24 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
           </Pressable>
         ) : (
           <View style={styles.card}>
-            <Text style={styles.label} nativeID="senha-profissional">
-              Senha do profissional
+            <Text style={styles.label} nativeID="cpf-profissional">
+              Quatro primeiros dígitos do CPF
             </Text>
             <TextInput
-              accessibilityLabel="Senha do profissional"
-              accessibilityLabelledBy="senha-profissional"
+              accessibilityLabel="Quatro primeiros dígitos do CPF"
+              accessibilityLabelledBy="cpf-profissional"
               autoFocus
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={4}
               onChangeText={(texto) => {
-                setSenha(texto);
+                setDigitos(texto.replace(/\D/g, '').slice(0, 4));
                 setErro(null);
               }}
               onSubmitEditing={confirmar}
               secureTextEntry
               style={styles.input}
-              value={senha}
+              value={digitos}
             />
             {erro && <FeedbackMessage kind="error" message={erro} />}
             <View style={styles.actions}>

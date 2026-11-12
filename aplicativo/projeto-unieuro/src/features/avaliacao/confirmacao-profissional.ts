@@ -1,27 +1,36 @@
-import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
-import type { SessionProfessional } from '@/features/auth/session';
-
 export type ConfirmacaoResultado = { confirmado: true } | { confirmado: false; mensagem: string };
 
-export const SENHA_VAZIA = 'Digite a sua senha para continuar.';
-export const SENHA_INCORRETA =
-  'Senha incorreta. Só o profissional que aplicou o teste pode continuar.';
+export type ProfessionalCpfRepository = {
+  /** Lê e decifra o CPF somente durante a conferência. */
+  getCpf(professionalId: number): Promise<string | null>;
+};
+
+export const DIGITOS_VAZIOS = 'Informe os quatro primeiros dígitos do seu CPF.';
+export const DIGITOS_INCOMPLETOS = 'Informe exatamente quatro dígitos.';
+export const DIGITOS_INCORRETOS =
+  'Dígitos incorretos. Só o profissional que aplicou o teste pode continuar.';
 
 /**
- * Confere se quem está com o tablet é o profissional da sessão, pela senha dele,
- * antes de sair da tela final do paciente (#11, cenário "resultado protegido").
- * Usa a mesma conferência do login, sem outro esquema de senha.
+ * Confere se quem está com o tablet é o profissional da sessão pelos quatro
+ * primeiros dígitos do CPF. O CPF é lido do armazenamento protegido sob demanda:
+ * ele não entra na sessão nem é devolvido para a interface.
  */
 export async function confirmarProfissional(
-  senha: string,
-  profissional: SessionProfessional,
-  repository: CredentialsRepository,
+  digitos: string,
+  professionalId: number,
+  repository: ProfessionalCpfRepository,
 ): Promise<ConfirmacaoResultado> {
-  if (senha.length === 0) return { confirmado: false, mensagem: SENHA_VAZIA };
-
-  const resultado = await authenticate({ email: profissional.email, password: senha }, repository);
-  if (resultado.success && resultado.professional.id === profissional.id) {
-    return { confirmado: true };
+  if (digitos.length === 0) return { confirmado: false, mensagem: DIGITOS_VAZIOS };
+  if (!/^\d{4}$/.test(digitos)) {
+    return { confirmado: false, mensagem: DIGITOS_INCOMPLETOS };
   }
-  return { confirmado: false, mensagem: SENHA_INCORRETA };
+
+  const cpf = await repository.getCpf(professionalId);
+  if (!cpf || !/^\d{11}$/.test(cpf)) {
+    throw new Error('CPF do profissional da sessão indisponível.');
+  }
+
+  return cpf.slice(0, 4) === digitos
+    ? { confirmado: true }
+    : { confirmado: false, mensagem: DIGITOS_INCORRETOS };
 }
