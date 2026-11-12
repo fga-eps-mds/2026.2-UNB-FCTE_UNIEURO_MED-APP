@@ -7,17 +7,17 @@
  * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
  * desativação da conta, a versão 5 guarda a decisão do TCLE, a versão 6 cria as
  * tarefas de desenho, o desenho e o traçado, a versão 7 guarda as autorizações dos
- * itens 9 e 10 do TCLE, a versão 8 guarda o CPF cifrado do responsável legal e a
- * versão 9 prepara a sincronização entre tablets. Nenhuma delas existe ainda no
- * `schema.sql` do MED-IA: as duas cópias divergem a partir da versão 2 até que o
- * repositório MED-IA seja atualizado.
+ * itens 9 e 10 do TCLE e a versão 8 guarda o CPF cifrado do responsável legal.
+ * Nenhuma delas existe ainda no
+ * `schema.sql` do MED-IA: as
+ * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
+ * atualizado.
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
-import { SCHEMA_V9 } from '@/db/sync-migration';
 
 export const DATABASE_NAME = 'med.db';
 
@@ -241,8 +241,7 @@ export type MigrationStep =
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
- * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
- * (sincronização entre tablets), e assim por diante. Para mudar o esquema,
+ * a posição 7 à versão 8 (CPF do responsável legal), e assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -255,7 +254,6 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V6,
   SCHEMA_V7,
   SCHEMA_V8,
-  SCHEMA_V9,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

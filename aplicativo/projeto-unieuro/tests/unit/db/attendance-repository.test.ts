@@ -333,11 +333,6 @@ describe('Cenário: identificação mínima do paciente', () => {
       'sexo',
       'criacao',
       'last_update',
-      // Colunas da sincronização (versão 9).
-      'uuid',
-      'versao_hlc',
-      'origem_id',
-      'origem_seq',
     ]);
   });
 
