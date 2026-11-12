@@ -19,7 +19,7 @@ const CABECALHO: CabecalhoExportacao = {
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const exameConcluido = (extra: Partial<ExameExportado> = {}): ExameExportado => ({
-  id: '0b6f3c1e-2a4d-4f8b-9c3e-5d7a1b2c3d4e',
+  id: 12,
   inicio: '2026-10-06T12:00:00.000Z',
   estado: 'concluida',
   termo: {
@@ -69,7 +69,7 @@ const exameConcluido = (extra: Partial<ExameExportado> = {}): ExameExportado => 
 });
 
 const paciente = (exames: ExameExportado[]): PacienteExportado => ({
-  id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+  id: 3,
   dataNascimento: '1948-10-07',
   escolaridadeAnos: 5,
   sexo: 'masculino',
@@ -79,7 +79,7 @@ const paciente = (exames: ExameExportado[]): PacienteExportado => ({
 describe('XML da exportação (#22)', () => {
   it('arquivo válido: o XML gerado passa no exportacao-v1.xsd', async () => {
     const recusado: ExameExportado = {
-      id: '1c6f3c1e-2a4d-4f8b-9c3e-5d7a1b2c3d4f',
+      id: 13,
       inicio: '2026-10-13T12:00:00.000Z',
       estado: 'cancelada',
       termo: {
@@ -99,7 +99,7 @@ describe('XML da exportação (#22)', () => {
 
   it('o esquema recusa um arquivo sem o id do exame', async () => {
     const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO).replace(
-      / id="0b6f3c1e[^"]*"/,
+      / id="12"/,
       '',
     );
 
@@ -117,12 +117,10 @@ describe('XML da exportação (#22)', () => {
     expect(xml).toContain('<profissional crm="12345" uf="DF"/>');
   });
 
-  it('identifica o paciente só pelo uuid, com a idade no dia do exame', () => {
+  it('identifica o paciente só pelo número interno, com a idade no dia do exame', () => {
     const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
 
-    expect(xml).toContain(
-      '<paciente id="7c9e6679-7425-40de-944b-e07fc1f90ae7" escolaridadeAnos="5" sexo="masculino">',
-    );
+    expect(xml).toContain('<paciente id="3" escolaridadeAnos="5" sexo="masculino">');
     expect(xml).toContain('idadeAnos="77"');
     expect(xml).not.toContain('1948');
   });
@@ -150,7 +148,7 @@ describe('XML da exportação (#22)', () => {
     });
     const xml = gerarXmlDeExportacao([paciente([recusa])], CABECALHO);
 
-    expect(xml).toContain('<paciente id="7c9e6679-7425-40de-944b-e07fc1f90ae7">');
+    expect(xml).toContain('<paciente id="3">');
     expect(xml).not.toContain('idadeAnos');
     expect(xml).not.toContain('<tarefa');
     expect(xml).not.toContain('<resultado');
@@ -180,7 +178,9 @@ describe('paraBase64', () => {
   it('codifica imagens maiores que um bloco sem perder bytes', () => {
     const bytes = Uint8Array.from({ length: 20000 }, (_, i) => i % 256);
 
-    expect(Buffer.from(paraBase64(bytes), 'base64')).toEqual(Buffer.from(bytes));
+    const decodificado = Uint8Array.from(atob(paraBase64(bytes)), (c) => c.charCodeAt(0));
+
+    expect(decodificado).toEqual(bytes);
   });
 });
 

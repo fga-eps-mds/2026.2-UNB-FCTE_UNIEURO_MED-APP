@@ -302,14 +302,15 @@ describe('HomeScreen', () => {
   });
 
   describe('Cenário: sincronizar tablets', () => {
-    it('abre a sincronização entre tablets', async () => {
+    it('informa que a sincronização ainda não está disponível', async () => {
       const user = userEvent.setup();
       renderTela();
 
       await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(useRouter().push).toHaveBeenCalledWith('/sincronizar');
-      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+      expect(
+        screen.getByText(/sincronização entre tablets .* ainda não está disponível/),
+      ).toBeOnTheScreen();
     });
   });
 
@@ -362,6 +363,16 @@ describe('HomeScreen', () => {
       );
 
       expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeDisabled();
+    });
+
+    it('o botão "Sincronizar tablets" avisa o que ainda falta', async () => {
+      const user = userEvent.setup();
+      renderTela();
+
+      await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
+
+      expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
+      expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
     });
 
     it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
@@ -476,15 +487,17 @@ describe('HomeScreen', () => {
     it('é uma mensagem de informação, sem o alerta padrão do Android', () => {
       renderTela();
 
-      fireEvent.press(botoesDePaciente()[0]);
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(screen.getByLabelText(/^Informação\. Os exames do paciente/)).toBeOnTheScreen();
+      expect(
+        screen.getByLabelText(/^Informação\. A sincronização entre tablets/),
+      ).toBeOnTheScreen();
     });
 
     it('some sozinho depois de 4 segundos', () => {
       renderTela();
 
-      fireEvent.press(botoesDePaciente()[0]);
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
       act(() => jest.advanceTimersByTime(NOTICE_DURATION_MS - 1));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
 
@@ -499,10 +512,10 @@ describe('HomeScreen', () => {
       fireEvent.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
       await act(async () => {});
       act(() => jest.advanceTimersByTime(3000));
-      fireEvent.press(botoesDePaciente()[0]);
+      fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
       expect(screen.queryByText(/Arquivo salvo/)).toBeNull();
-      expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
+      expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
 
       act(() => jest.advanceTimersByTime(3000));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();

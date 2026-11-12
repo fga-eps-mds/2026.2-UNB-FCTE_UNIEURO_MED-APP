@@ -11,11 +11,9 @@ import type {
 
 type ExameRow = {
   id: number;
-  uuid: string;
   data_hora_inicio: string;
   estado: string;
   paciente_id: number;
-  paciente_uuid: string;
   data_nascimento: string;
   escolaridade_anos: number;
   sexo: 'feminino' | 'masculino' | null;
@@ -63,8 +61,8 @@ const filtro = (pacienteId?: number) =>
         params: (id: number): SQLiteBindValue[] => [id, pacienteId],
       };
 
-const SELECT_EXAMES = `SELECT a.id, a.uuid, a.data_hora_inicio, a.estado,
-    p.id AS paciente_id, p.uuid AS paciente_uuid, p.data_nascimento, p.escolaridade_anos, p.sexo,
+const SELECT_EXAMES = `SELECT a.id, a.data_hora_inicio, a.estado,
+    p.id AS paciente_id, p.data_nascimento, p.escolaridade_anos, p.sexo,
     c.versao_tcle, c.aceito, c.assinado_por, c.data_hora AS termo_data_hora,
     c.autoriza_imagens_pesquisa, c.autoriza_dados_pesquisa_futura
   FROM avaliacao a
@@ -109,7 +107,7 @@ const paraEvento = (row: EventoRow): EventoExportado => ({
 
 function paraExame(row: ExameRow, tarefas: TarefaExportada[]): ExameExportado {
   return {
-    id: row.uuid,
+    id: row.id,
     inicio: row.data_hora_inicio,
     estado: row.estado,
     termo:
@@ -129,7 +127,7 @@ function paraExame(row: ExameRow, tarefas: TarefaExportada[]): ExameExportado {
 
 /**
  * Leitura dos exames para o XML (#22). Não lê nome, CPF nem ficha do paciente:
- * o arquivo identifica o paciente pelo `uuid`. A ordem é a do cadastro do
+ * o arquivo identifica o paciente pelo `id` interno. A ordem é a do cadastro do
  * paciente e, dentro dele, a do início do exame.
  */
 export function createExportRepository(
@@ -179,7 +177,7 @@ export function createExportRepository(
       for (const [, linhas] of agrupar(exames, (row) => row.paciente_id)) {
         const [primeira] = linhas;
         pacientes.push({
-          id: primeira.paciente_uuid,
+          id: primeira.paciente_id,
           dataNascimento: primeira.data_nascimento,
           escolaridadeAnos: primeira.escolaridade_anos,
           sexo: primeira.sexo,

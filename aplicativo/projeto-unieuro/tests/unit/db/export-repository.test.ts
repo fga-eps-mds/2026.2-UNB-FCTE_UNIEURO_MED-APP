@@ -5,8 +5,6 @@ import { abrirTabletComAnaEBruno, type TabletComAnaEBruno } from '../../test-sup
 
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-
 let tablet: TabletComAnaEBruno;
 let ids: Awaited<ReturnType<typeof gravarExamesParaExportar>>;
 
@@ -33,11 +31,11 @@ describe('createExportRepository', () => {
     expect(pacientes.map((p) => p.dataNascimento)).toEqual(['1948-10-07', '1950-01-20']);
   });
 
-  it('usa o uuid do paciente e do exame, sem nome, CPF nem ficha', async () => {
+  it('usa o número interno do paciente e do exame, sem nome, CPF nem ficha', async () => {
     const [jose] = await repository().lerExames(tablet.anaId);
 
-    expect(jose.id).toMatch(UUID);
-    expect(jose.exames.every((exame) => UUID.test(exame.id))).toBe(true);
+    expect(jose.id).toBe(ids.jose.id);
+    expect(jose.exames.map((exame) => exame.id)).toEqual([1, 2]);
     expect(JSON.stringify(jose)).not.toMatch(/José|12345678909|2026-0001/);
   });
 

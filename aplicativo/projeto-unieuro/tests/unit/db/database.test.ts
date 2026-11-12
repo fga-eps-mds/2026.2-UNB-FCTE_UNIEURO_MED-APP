@@ -174,7 +174,7 @@ describe('esquema', () => {
   it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
     const schemaV6 = MIGRATIONS[5];
 
-    expect(SCHEMA_VERSION).toBe(9);
+    expect(SCHEMA_VERSION).toBe(8);
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
     expect(schemaV6).toContain('REFERENCES avaliacao (id)');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
@@ -192,13 +192,6 @@ describe('esquema', () => {
     const schemaV8 = MIGRATIONS[7];
     expect(schemaV8).toContain('ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado');
     expect(schemaV8).not.toMatch(/cpf_responsavel\s+TEXT/);
-  });
-
-  it('chega à versão 9 com a sincronização entre tablets da #118', () => {
-    const schemaV9 = MIGRATIONS[8];
-
-    expect(schemaV9).toContain('CREATE TABLE IF NOT EXISTS dispositivo');
-    expect(schemaV9).toContain('ALTER TABLE paciente ADD COLUMN uuid TEXT');
   });
 });
 

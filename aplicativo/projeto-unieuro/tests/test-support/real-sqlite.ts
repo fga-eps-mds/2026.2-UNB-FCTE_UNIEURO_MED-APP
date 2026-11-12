@@ -81,17 +81,6 @@ export function adaptDatabase(database: NodeDatabase): SQLiteDatabase {
         throw error;
       }
     },
-    // Há uma conexão só, então a da transação é o próprio adaptador.
-    async withExclusiveTransactionAsync(task: (txn: SQLiteDatabase) => Promise<void>) {
-      database.exec('BEGIN IMMEDIATE');
-      try {
-        await task(adapter as unknown as SQLiteDatabase);
-        database.exec('COMMIT');
-      } catch (error) {
-        database.exec('ROLLBACK');
-        throw error;
-      }
-    },
     async closeAsync() {
       database.close();
     },

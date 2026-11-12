@@ -2,7 +2,7 @@
  * XML da exportação (#22), versão 1 do esquema, descrita em `exportacao-v1.xsd`.
  *
  * O esquema ainda depende do aceite do parceiro. Esta versão segue a regra de
- * identificação pseudonimizada: o paciente aparece pelo `uuid`, sem nome, CPF,
+ * identificação pseudonimizada: o paciente aparece pelo número interno do tablet, sem nome, CPF,
  * ficha ou data de nascimento. Do paciente só vão a escolaridade, o sexo e a idade
  * no dia do exame, que são variáveis da análise.
  *
@@ -47,7 +47,8 @@ export type TermoExportado = {
 };
 
 export type ExameExportado = {
-  id: string;
+  /** Número interno do exame no tablet. */
+  id: number;
   inicio: string;
   estado: string;
   termo: TermoExportado | null;
@@ -55,7 +56,8 @@ export type ExameExportado = {
 };
 
 export type PacienteExportado = {
-  id: string;
+  /** Número interno do paciente no tablet: não é a ficha nem o CPF. */
+  id: number;
   /** AAAA-MM-DD. Só entra no cálculo da idade, nunca no arquivo. */
   dataNascimento: string;
   escolaridadeAnos: number;

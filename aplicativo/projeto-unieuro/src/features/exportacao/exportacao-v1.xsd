@@ -2,7 +2,7 @@
 <!--
   Esquema da exportação em XML do MNEMA (#22), versão 1.
 
-  Proposta para validar com o parceiro. O paciente aparece só pelo uuid, sem nome,
+  Proposta para validar com o parceiro. O paciente aparece só pelo número interno do tablet, sem nome,
   CPF, ficha ou data de nascimento. Exame sem TCLE aceito leva só a data, o estado e
   a decisão do termo. Mudança de campo obrigatório ou de significado gera a versão 2,
   com outro namespace.
@@ -19,10 +19,9 @@
     </xs:restriction>
   </xs:simpleType>
 
-  <xs:simpleType name="Uuid">
-    <xs:restriction base="xs:string">
-      <xs:pattern value="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"/>
-    </xs:restriction>
+  <!-- Número interno do tablet. Não é a ficha nem o CPF e só é único no mesmo tablet. -->
+  <xs:simpleType name="IdLocal">
+    <xs:restriction base="xs:positiveInteger"/>
   </xs:simpleType>
 
   <xs:simpleType name="Ordem">
@@ -61,7 +60,7 @@
     <xs:sequence>
       <xs:element name="exame" type="Exame" maxOccurs="unbounded"/>
     </xs:sequence>
-    <xs:attribute name="id" type="Uuid" use="required"/>
+    <xs:attribute name="id" type="IdLocal" use="required"/>
     <!-- Só quando algum exame do paciente tem o TCLE aceito. -->
     <xs:attribute name="escolaridadeAnos" type="xs:nonNegativeInteger"/>
     <xs:attribute name="sexo">
@@ -80,7 +79,7 @@
       <xs:element name="tarefa" type="Tarefa" minOccurs="0" maxOccurs="3"/>
       <xs:element name="resultado" type="Resultado" minOccurs="0"/>
     </xs:sequence>
-    <xs:attribute name="id" type="Uuid" use="required"/>
+    <xs:attribute name="id" type="IdLocal" use="required"/>
     <xs:attribute name="inicio" type="xs:dateTime" use="required"/>
     <xs:attribute name="estado" use="required">
       <xs:simpleType>

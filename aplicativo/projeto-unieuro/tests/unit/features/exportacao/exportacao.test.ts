@@ -16,13 +16,13 @@ const ana: SessionProfessional = {
 
 const AGORA = new Date(2026, 10, 12, 14, 5);
 
-const paciente = (id: string, exames: number): PacienteExportado => ({
+const paciente = (id: number, exames: number): PacienteExportado => ({
   id,
   dataNascimento: '1948-10-07',
   escolaridadeAnos: 5,
   sexo: null,
   exames: Array.from({ length: exames }, (_, i) => ({
-    id: `${id.slice(0, -1)}${i}`,
+    id: id * 10 + i,
     inicio: '2026-10-06T12:00:00.000Z',
     estado: 'aguardando_consentimento',
     termo: null,
@@ -35,10 +35,7 @@ const repositorio = (pacientes: PacienteExportado[]) =>
 
 describe('exportarExames (#22)', () => {
   it('exportar todos os exames: lê os do profissional e salva um XML com todos', async () => {
-    const repository = repositorio([
-      paciente('7c9e6679-7425-40de-944b-e07fc1f90ae7', 2),
-      paciente('1b9e6679-7425-40de-944b-e07fc1f90ae7', 1),
-    ]);
+    const repository = repositorio([paciente(1, 2), paciente(2, 1)]);
     const salvar = jest.fn(async () => true);
 
     const resultado = await exportarExames(
@@ -62,7 +59,7 @@ describe('exportarExames (#22)', () => {
   });
 
   it('exportar os exames de um paciente: lê só os desse paciente', async () => {
-    const repository = repositorio([paciente('7c9e6679-7425-40de-944b-e07fc1f90ae7', 2)]);
+    const repository = repositorio([paciente(1, 2)]);
     const salvar = jest.fn(async () => true);
 
     const resultado = await exportarExames(
@@ -95,7 +92,7 @@ describe('exportarExames (#22)', () => {
   it('quando o profissional desiste da pasta, avisa que foi cancelado', async () => {
     const resultado = await exportarExames(
       { profissional: ana, agora: AGORA, versaoAplicativo: '1.4.0' },
-      repositorio([paciente('7c9e6679-7425-40de-944b-e07fc1f90ae7', 1)]),
+      repositorio([paciente(1, 1)]),
       jest.fn(async () => false),
     );
 
