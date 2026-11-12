@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'br.unb.med'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.mednearby"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // Fixo na 19.3.0: a 19.4 e a 19.5 usam Kotlin 2.3/2.4, e o Expo SDK 57 (Kotlin
+  // 2.1.20) não compila com elas. Só atualize junto com o Kotlin do projeto.
+  implementation 'com.google.android.gms:play-services-nearby:19.3.0'
+}
