@@ -9,6 +9,8 @@ import HomeScreen, {
   NOTICE_DURATION_MS,
 } from '@/features/home/home-screen';
 import type { PatientCpf, PatientSummary } from '@/features/home/patients';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
+import { FALHA_AO_EXPORTAR, NADA_A_EXPORTAR } from '@/features/exportacao/exportar-todos-dialog';
 
 const profissional: SessionProfessional = {
   id: 1,
@@ -45,13 +47,21 @@ const pacientes: PatientSummary[] = [
   },
 ];
 
+const SALVO: ResultadoExportacao = {
+  estado: 'salvo',
+  arquivo: 'exames_2026-11-12_1430.xml',
+  pacientes: 3,
+  exames: 4,
+};
+
 function renderTela(
   patients: readonly PatientSummary[] = pacientes,
   sessao: SessionProfessional | null = profissional,
+  exportAll: jest.Mock = jest.fn(async () => SALVO),
 ) {
   return render(
     <SessionProvider initialProfessional={sessao}>
-      <HomeScreen patients={patients} />
+      <HomeScreen patients={patients} exportAll={exportAll} />
     </SessionProvider>,
   );
 }
@@ -344,18 +354,15 @@ describe('HomeScreen', () => {
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
-    it.each([['Exportar todos (XML)', /exportação em XML/]])(
-      'o botão "%s" avisa o que ainda falta',
-      async (botao, mensagem) => {
-        const user = userEvent.setup();
-        renderTela();
+    it('sem a exportação ligada, o botão "Exportar todos (XML)" fica desabilitado', () => {
+      render(
+        <SessionProvider initialProfessional={profissional}>
+          <HomeScreen patients={pacientes} />
+        </SessionProvider>,
+      );
 
-        await user.press(screen.getByRole('button', { name: botao }));
-
-        expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
-        expect(screen.getByText(mensagem)).toBeOnTheScreen();
-      },
-    );
+      expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeDisabled();
+    });
 
     it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
       const user = userEvent.setup();
@@ -367,6 +374,101 @@ describe('HomeScreen', () => {
     });
   });
 
+  describe('exportar todos os exames (#22)', () => {
+    it('confirma antes, com o total de exames e de pacientes', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+
+      expect(screen.getByRole('header', { name: 'Exportar todos os exames' })).toBeOnTheScreen();
+      expect(screen.getByText(/reúne os 4 exames dos 3 pacientes que você/)).toBeOnTheScreen();
+      expect(screen.getByText(/sem nome, CPF ou ficha/)).toBeOnTheScreen();
+      expect(exportAll).not.toHaveBeenCalled();
+    });
+
+    it('salva com o profissional da sessão e avisa o nome do arquivo', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(exportAll).toHaveBeenCalledWith(profissional);
+      expect(screen.queryByRole('header', { name: 'Exportar todos os exames' })).toBeNull();
+      expect(screen.getByText('Arquivo salvo: exames_2026-11-12_1430.xml')).toBeOnTheScreen();
+    });
+
+    it('fala no singular com um exame de um paciente', async () => {
+      const user = userEvent.setup();
+      renderTela([pacientes[1]]);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+
+      expect(screen.getByText(/reúne o 1 exame do 1 paciente que você/)).toBeOnTheScreen();
+    });
+
+    it('cancelar fecha sem exportar', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(screen.queryByRole('header', { name: 'Exportar todos os exames' })).toBeNull();
+      expect(exportAll).not.toHaveBeenCalled();
+    });
+
+    it('se o profissional desiste da pasta, o diálogo continua aberto e sem erro', async () => {
+      const user = userEvent.setup();
+      renderTela(
+        pacientes,
+        profissional,
+        jest.fn(async () => ({ estado: 'cancelado' })),
+      );
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(screen.getByRole('header', { name: 'Exportar todos os exames' })).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/^Erro\./)).toBeNull();
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+
+    it('avisa quando não há exame no banco para exportar', async () => {
+      const user = userEvent.setup();
+      renderTela(
+        pacientes,
+        profissional,
+        jest.fn(async () => ({ estado: 'vazio' })),
+      );
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(screen.getByLabelText(`Erro. ${NADA_A_EXPORTAR}`)).toBeOnTheScreen();
+    });
+
+    it('avisa quando a gravação falha e deixa tentar de novo', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('disco cheio'))
+        .mockResolvedValueOnce(SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      expect(screen.getByLabelText(`Erro. ${FALHA_AO_EXPORTAR}`)).toBeOnTheScreen();
+
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      expect(screen.getByText('Arquivo salvo: exames_2026-11-12_1430.xml')).toBeOnTheScreen();
+    });
+  });
+
   describe('aviso rápido', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
@@ -374,15 +476,15 @@ describe('HomeScreen', () => {
     it('é uma mensagem de informação, sem o alerta padrão do Android', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      fireEvent.press(botoesDePaciente()[0]);
 
-      expect(screen.getByLabelText(/^Informação\. A exportação em XML/)).toBeOnTheScreen();
+      expect(screen.getByLabelText(/^Informação\. Os exames do paciente/)).toBeOnTheScreen();
     });
 
     it('some sozinho depois de 4 segundos', () => {
       renderTela();
 
-      fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      fireEvent.press(botoesDePaciente()[0]);
       act(() => jest.advanceTimersByTime(NOTICE_DURATION_MS - 1));
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
 
@@ -390,14 +492,16 @@ describe('HomeScreen', () => {
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
-    it('troca a mensagem e reinicia a contagem a cada toque', () => {
+    it('troca a mensagem e reinicia a contagem a cada toque', async () => {
       renderTela();
 
       fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      await act(async () => {});
       act(() => jest.advanceTimersByTime(3000));
       fireEvent.press(botoesDePaciente()[0]);
 
-      expect(screen.queryByText(/exportação em XML/)).toBeNull();
+      expect(screen.queryByText(/Arquivo salvo/)).toBeNull();
       expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
 
       act(() => jest.advanceTimersByTime(3000));
