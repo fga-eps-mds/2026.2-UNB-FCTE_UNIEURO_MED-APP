@@ -59,7 +59,6 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 const PENDING = {
   export: 'A exportação em XML chega em uma próxima entrega.',
   patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
-  sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
 
 /** Tempo que o aviso rápido fica na tela, como pede o guia de identidade visual. */
@@ -202,7 +201,7 @@ export default function HomeScreen({
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              onPress={() => showNotice(PENDING.sync)}
+              onPress={() => router.push('/sincronizar')}
               style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
               <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
             </Pressable>
