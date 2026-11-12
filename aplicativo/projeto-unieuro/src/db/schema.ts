@@ -7,17 +7,17 @@
  * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
  * desativação da conta, a versão 5 guarda a decisão do TCLE, a versão 6 cria as
  * tarefas de desenho, o desenho e o traçado, a versão 7 guarda as autorizações dos
- * itens 9 e 10 do TCLE e a versão 8 guarda o CPF cifrado do responsável legal.
- * Nenhuma delas existe ainda no
- * `schema.sql` do MED-IA: as
- * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
- * atualizado.
+ * itens 9 e 10 do TCLE, a versão 8 guarda o CPF cifrado do responsável legal, a
+ * versão 9 prepara a sincronização entre tablets e a versão 10 grava a desistência
+ * do exame. Nenhuma delas existe ainda no `schema.sql` do MED-IA: as duas cópias
+ * divergem a partir da versão 2 até que o repositório MED-IA seja atualizado.
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
+import { SCHEMA_V9 } from '@/db/sync-migration';
 
 export const DATABASE_NAME = 'med.db';
 
@@ -228,12 +228,12 @@ ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado TEXT
 `;
 
 /**
- * Versão 9: desistência do exame (#25). A avaliação passa a `interrompida` e
+ * Versão 10: desistência do exame (#25). A avaliação passa a `interrompida` e
  * guarda a tarefa em que parou (1 a 3), o motivo, que é opcional, e a data e hora.
  * Os desenhos já confirmados continuam gravados, e a retomada volta o estado para
  * `em_andamento` sem apagar a última interrupção.
  */
-const SCHEMA_V9 = `
+const SCHEMA_V10 = `
 ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER
     CHECK (tarefa_interrupcao IS NULL OR tarefa_interrupcao BETWEEN 1 AND 3);
 ALTER TABLE avaliacao ADD COLUMN motivo_interrupcao TEXT
@@ -257,7 +257,8 @@ export type MigrationStep =
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
  * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
- * (desistência do exame), e assim por diante. Para mudar o esquema,
+ * (sincronização entre tablets), a posição 9 à versão 10 (desistência do exame), e
+ * assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -271,6 +272,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V7,
   SCHEMA_V8,
   SCHEMA_V9,
+  SCHEMA_V10,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

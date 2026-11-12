@@ -50,7 +50,8 @@
       ],
       "./plugins/with-data-extraction-rules",
       "./plugins/with-gradle-jdk",
-      "./plugins/with-release-signing"
+      "./plugins/with-release-signing",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
