@@ -18,6 +18,8 @@ import {
 // evitam o serrilhado ao reduzir o PNG do quadro, bem maior que a entrada do modelo.
 const AMOSTRAGEM = { filtro: FilterMode.Linear, mipmap: MipmapMode.Linear };
 
+// Sem o formato explícito, a leitura devolve o da superfície, que no Android pode vir em BGRA
+// ou com o alfa pré-multiplicado. O modelo espera os canais na ordem RGB do treino.
 const PIXELS_DA_ENTRADA = {
   width: LADO_ENTRADA,
   height: LADO_ENTRADA,
@@ -28,6 +30,7 @@ const PIXELS_DA_ENTRADA = {
 function lerPixels(reduzida: SkImage): Uint8Array {
   try {
     const pixels = reduzida.readPixels(0, 0, PIXELS_DA_ENTRADA);
+    // O Skia devolve Float32Array nos formatos de ponto flutuante, e a conversão lê bytes.
     if (!(pixels instanceof Uint8Array)) {
       throw new Error('Não foi possível ler os pixels do desenho reduzido.');
     }
@@ -45,6 +48,8 @@ function reduzirParaEntrada(imagem: SkImage): Uint8Array {
   try {
     const area = areaNoQuadrado(imagem.width(), imagem.height());
     const folha = superficie.getCanvas();
+    // A faixa que sobra no quadrado recebe a cor do papel da captura, para não aparecer como
+    // borda no desenho que o modelo recebe.
     folha.drawColor(Skia.Color(COR_FUNDO));
     folha.drawImageRectOptions(
       imagem,
