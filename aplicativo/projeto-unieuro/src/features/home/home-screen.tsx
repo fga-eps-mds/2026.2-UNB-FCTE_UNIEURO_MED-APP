@@ -12,7 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { FeedbackMessage } from '@/features/auth/feedback-message';
-import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
+import {
+  formatCrm,
+  returnToLogin,
+  useSession,
+  type SessionProfessional,
+} from '@/features/auth/session';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
+import { ExportarTodosDialog } from '@/features/exportacao/exportar-todos-dialog';
 import {
   createHomeStyles,
   WIDE_LAYOUT_MIN_WIDTH,
@@ -42,6 +49,8 @@ type HomeScreenProps = {
   loading?: boolean;
   /** Lê os CPFs dos pacientes da lista, quando a busca tem dígitos de CPF. */
   loadPatientCpfs?: () => Promise<PatientCpf[]>;
+  /** Gera o XML com todos os exames do profissional e salva onde ele escolher (#22). */
+  exportAll?: (professional: SessionProfessional) => Promise<ResultadoExportacao>;
 };
 
 const NO_PATIENT_CPFS = () => Promise.resolve([]);
@@ -57,7 +66,6 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
 const PENDING = {
-  export: 'A exportação em XML chega em uma próxima entrega.',
   patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
@@ -74,6 +82,7 @@ export default function HomeScreen({
   loadFailed = false,
   loading = false,
   loadPatientCpfs = NO_PATIENT_CPFS,
+  exportAll,
 }: HomeScreenProps) {
   const router = useRouter();
   const { professional, signOut } = useSession();
@@ -83,6 +92,7 @@ export default function HomeScreen({
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const isWide = (measuredWidth || windowWidth) >= WIDE_LAYOUT_MIN_WIDTH;
   const [query, setQuery] = useState('');
+  const [exporting, setExporting] = useState(false);
   // O id muda a cada toque, para o aviso reiniciar a contagem mesmo quando o
   // texto se repete.
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
@@ -109,7 +119,9 @@ export default function HomeScreen({
   );
   const ordered = useMemo(() => sortByLastExam(patients), [patients]);
   const visible = useMemo(() => filterPatients(ordered, query, cpfs), [ordered, query, cpfs]);
-  const hasExams = countExams(patients) > 0;
+  const examCount = countExams(patients);
+  const hasExams = examCount > 0;
+  const canExport = hasExams && exportAll !== undefined;
   const hasPatients = patients.length > 0;
 
   if (!professional) return null;
@@ -188,15 +200,15 @@ export default function HomeScreen({
           <View style={styles.toolbarActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: !hasExams }}
-              disabled={!hasExams}
-              onPress={() => showNotice(PENDING.export)}
+              accessibilityState={{ disabled: !canExport }}
+              disabled={!canExport}
+              onPress={() => setExporting(true)}
               style={({ pressed }) => [
                 styles.outlineButton,
-                !hasExams && styles.disabledButton,
+                !canExport && styles.disabledButton,
                 pressed && styles.pressed,
               ]}>
-              <Text style={[styles.outlineButtonText, !hasExams && styles.disabledButtonText]}>
+              <Text style={[styles.outlineButtonText, !canExport && styles.disabledButtonText]}>
                 Exportar todos (XML)
               </Text>
             </Pressable>
@@ -243,6 +255,20 @@ export default function HomeScreen({
           )}
         </View>
       </View>
+
+      {exportAll && (
+        <ExportarTodosDialog
+          visible={exporting}
+          pacientes={patients.length}
+          exames={examCount}
+          exportar={() => exportAll(professional)}
+          onCancelar={() => setExporting(false)}
+          onSalvo={(arquivo) => {
+            setExporting(false);
+            showNotice(`Arquivo salvo: ${arquivo}`);
+          }}
+        />
+      )}
 
       {notice && (
         <View pointerEvents="none" style={styles.noticePosition} testID="aviso-rapido">
