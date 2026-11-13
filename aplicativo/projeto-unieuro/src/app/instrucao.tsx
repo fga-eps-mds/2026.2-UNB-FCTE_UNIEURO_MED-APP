@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 import InstructionScreen from '@/features/avaliacao/instruction-screen';
+import { valorDoParametro } from '@/features/avaliacao/tarefas';
+import { giveUpExam } from '@/features/avaliacao/composition';
 import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
 
 // Instrução de cada desenho (#8). O toque em "Começar" segue para a área de
@@ -26,6 +28,17 @@ export default function InstructionRoute() {
     <InstructionScreen
       tarefa={tarefa}
       atendimento={atendimento}
+      onDesistir={async (atual, motivo) => {
+        await giveUpExam({
+          atendimentoId: Number(valorDoParametro(atendimento)),
+          tarefa: atual.numero,
+          motivo,
+        });
+        router.replace({
+          pathname: '/exame-interrompido',
+          params: { atendimento: String(atendimento) },
+        });
+      }}
       onStart={(escolhida) =>
         router.replace({
           pathname: '/desenho',

@@ -228,6 +228,21 @@ ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado TEXT
 `;
 
 /**
+ * Versão 9: desistência do exame (#25). A avaliação passa a `interrompida` e
+ * guarda a tarefa em que parou (1 a 3), o motivo, que é opcional, e a data e hora.
+ * Os desenhos já confirmados continuam gravados, e a retomada volta o estado para
+ * `em_andamento` sem apagar a última interrupção.
+ */
+const SCHEMA_V9 = `
+ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER
+    CHECK (tarefa_interrupcao IS NULL OR tarefa_interrupcao BETWEEN 1 AND 3);
+ALTER TABLE avaliacao ADD COLUMN motivo_interrupcao TEXT
+    CHECK (motivo_interrupcao IS NULL
+        OR motivo_interrupcao IN ('cansaco', 'nao_quis_continuar', 'mal_estar', 'outro'));
+ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT;
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -241,7 +256,8 @@ export type MigrationStep =
  * versão 3 (paciente e atendimento), a posição 3 à versão 4 (desativação da
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
- * a posição 7 à versão 8 (CPF do responsável legal), e assim por diante. Para mudar o esquema,
+ * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
+ * (desistência do exame), e assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -254,6 +270,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V6,
   SCHEMA_V7,
   SCHEMA_V8,
+  SCHEMA_V9,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
