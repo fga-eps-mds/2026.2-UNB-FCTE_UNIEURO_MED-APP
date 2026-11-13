@@ -1,9 +1,15 @@
+import { isBase64 } from '@/db/base64';
 import { parseHlc } from '@/db/hlc';
+import { FINAL_ATTENDANCE_STATES } from '@/db/sync-migration';
 import type {
+  FinalAttendanceState,
   SyncAlias,
   SyncAttendance,
+  SyncConsent,
   SyncPatient,
   SyncProfessional,
+  SyncTask,
+  SyncTraceEvent,
   VersionVector,
 } from '@/db/sync-repository';
 
@@ -52,16 +58,14 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RECORD_NUMBER_PATTERN = /^\d{4}-\d+$/;
 const SEXES = ['feminino', 'masculino'];
-// Mesmos estados do CHECK da tabela `avaliacao`.
-const ATTENDANCE_STATES = [
-  'aguardando_consentimento',
-  'em_andamento',
-  'processando_resultado',
-  'erro_inferencia',
-  'concluida',
-  'cancelada',
-  'interrompida',
-];
+// Só os estados finais viajam: os outros ainda podem mudar no tablet de origem.
+const ATTENDANCE_STATES: readonly string[] = FINAL_ATTENDANCE_STATES;
+const SIGNERS = ['paciente', 'responsavel_legal'];
+// Mesmas regras dos CHECK das tabelas `tarefa` e `evento_tracado`.
+const TASK_ORDER: Record<string, number> = { relogio: 1, cubo: 2, trilhas: 3 };
+const POINT_EVENTS = ['inicio', 'ponto'];
+const ACTION_EVENTS = ['desfazer', 'limpar'];
+const POINTERS = ['caneta', 'dedo', 'mouse', 'desconhecido'];
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -69,6 +73,12 @@ const isText = (value: unknown): value is string => typeof value === 'string';
 const isFilled = (value: unknown): value is string => isText(value) && value.trim().length > 0;
 const isCount = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 0;
+const isNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+const isFlag = (value: unknown): value is number => value === 0 || value === 1;
+const isOptionalFlag = (value: unknown) => value === null || isFlag(value);
+const isOptionalNumber = (value: unknown) => value === null || isNumber(value);
+const isOptionalFilled = (value: unknown) => value === null || isFilled(value);
 const matches = (value: unknown, pattern: RegExp): value is string =>
   isText(value) && pattern.test(value);
 
@@ -220,6 +230,8 @@ export function validatePatient(value: unknown): SyncPatient | null {
     (value.sexo === null || SEXES.includes(value.sexo as string)) &&
     isText(value.criacao) &&
     isText(value.last_update) &&
+    isFlag(value.ativo) &&
+    isOptionalFilled(value.exclusao) &&
     hasStamp(value);
   if (!valid) return null;
 
@@ -233,21 +245,132 @@ export function validatePatient(value: unknown): SyncPatient | null {
     sexo: value.sexo as SyncPatient['sexo'],
     criacao: value.criacao as string,
     last_update: value.last_update as string,
+    ativo: value.ativo as number,
+    exclusao: value.exclusao as string | null,
     versao_hlc: value.versao_hlc as string,
     origem_id: value.origem_id as string,
     origem_seq: value.origem_seq as number,
   };
 }
 
+/** Mesmas regras do CHECK da tabela `consentimento`. */
+function validateConsent(value: unknown): SyncConsent | null {
+  if (!isObject(value)) return null;
+  const accepted = value.aceito === 1;
+  const valid =
+    isFilled(value.versao_tcle) &&
+    isFlag(value.aceito) &&
+    SIGNERS.includes(value.assinado_por as string) &&
+    (accepted ? isBase64(value.assinatura_png) : value.assinatura_png === null) &&
+    isFilled(value.data_hora) &&
+    isOptionalFlag(value.autoriza_imagens_pesquisa) &&
+    isOptionalFlag(value.autoriza_dados_pesquisa_futura) &&
+    (value.cpf_responsavel === null ||
+      (accepted &&
+        value.assinado_por === 'responsavel_legal' &&
+        matches(value.cpf_responsavel, CPF_PATTERN)));
+  if (!valid) return null;
+
+  return {
+    versao_tcle: value.versao_tcle as string,
+    aceito: value.aceito as number,
+    assinado_por: value.assinado_por as string,
+    assinatura_png: value.assinatura_png as string | null,
+    data_hora: value.data_hora as string,
+    autoriza_imagens_pesquisa: value.autoriza_imagens_pesquisa as number | null,
+    autoriza_dados_pesquisa_futura: value.autoriza_dados_pesquisa_futura as number | null,
+    cpf_responsavel: value.cpf_responsavel as string | null,
+  };
+}
+
+/** Ponto e início têm posição e ponteiro; desfazer e limpar não têm nada disso. */
+function isTraceEvent(value: unknown): value is SyncTraceEvent {
+  if (!Array.isArray(value) || value.length !== 9) return false;
+  const [ordem, tipo, ponteiro, x, y, instante, pressao, inclinacaoX, inclinacaoY] = value;
+  const common = isCount(ordem) && ordem >= 1 && isCount(instante);
+  if (POINT_EVENTS.includes(tipo)) {
+    return (
+      common &&
+      POINTERS.includes(ponteiro) &&
+      isNumber(x) &&
+      isNumber(y) &&
+      (pressao === null || (isNumber(pressao) && pressao >= 0)) &&
+      isOptionalNumber(inclinacaoX) &&
+      isOptionalNumber(inclinacaoY)
+    );
+  }
+  return (
+    common &&
+    ACTION_EVENTS.includes(tipo) &&
+    [ponteiro, x, y, pressao, inclinacaoX, inclinacaoY].every((field) => field === null)
+  );
+}
+
+const increasing = (orders: number[]) =>
+  orders.every((order, i) => i === 0 || order > orders[i - 1]);
+
+function validateTask(value: unknown): SyncTask | null {
+  if (!isObject(value)) return null;
+  const drawing = value.desenho;
+  const validDrawing =
+    drawing === null ||
+    (isObject(drawing) &&
+      isBase64(drawing.imagem_final) &&
+      isFilled(drawing.data_hora_confirmacao));
+  const valid =
+    TASK_ORDER[value.tipo as string] !== undefined &&
+    TASK_ORDER[value.tipo as string] === value.ordem &&
+    isNumber(value.largura) &&
+    value.largura > 0 &&
+    isNumber(value.altura) &&
+    value.altura > 0 &&
+    isFilled(value.data_hora_inicio) &&
+    isOptionalFilled(value.data_hora_termino) &&
+    validDrawing &&
+    Array.isArray(value.eventos) &&
+    value.eventos.every(isTraceEvent) &&
+    increasing(value.eventos.map((event: SyncTraceEvent) => event[0]));
+  if (!valid) return null;
+
+  const desenho = drawing as Record<string, unknown> | null;
+  return {
+    tipo: value.tipo as string,
+    ordem: value.ordem as number,
+    largura: value.largura as number,
+    altura: value.altura as number,
+    data_hora_inicio: value.data_hora_inicio as string,
+    data_hora_termino: value.data_hora_termino as string | null,
+    desenho: desenho
+      ? {
+          imagem_final: desenho.imagem_final as string,
+          data_hora_confirmacao: desenho.data_hora_confirmacao as string,
+        }
+      : null,
+    eventos: (value.eventos as SyncTraceEvent[]).map((event) => [...event] as SyncTraceEvent),
+  };
+}
+
+/**
+ * A avaliação só vale inteira: se o consentimento ou qualquer tarefa for
+ * inválido, ela toda é recusada.
+ */
 export function validateAttendance(value: unknown): SyncAttendance | null {
   if (!isObject(value)) return null;
+  const consent = value.consentimento === null ? null : validateConsent(value.consentimento);
+  const tasks = Array.isArray(value.tarefas) ? value.tarefas.map(validateTask) : null;
   const valid =
     isUuid(value.uuid) &&
     isUuid(value.profissional_uuid) &&
     isUuid(value.paciente_uuid) &&
     isFilled(value.data_hora_inicio) &&
     ATTENDANCE_STATES.includes(value.estado as string) &&
+    isFlag(value.ativo) &&
+    isOptionalFilled(value.exclusao) &&
     isText(value.last_update) &&
+    (value.consentimento === null || consent !== null) &&
+    tasks !== null &&
+    tasks.every((task) => task !== null) &&
+    increasing(tasks.map((task) => task!.ordem)) &&
     hasStamp(value);
   if (!valid) return null;
 
@@ -256,8 +379,12 @@ export function validateAttendance(value: unknown): SyncAttendance | null {
     profissional_uuid: value.profissional_uuid as string,
     paciente_uuid: value.paciente_uuid as string,
     data_hora_inicio: value.data_hora_inicio as string,
-    estado: value.estado as string,
+    estado: value.estado as FinalAttendanceState,
+    ativo: value.ativo as number,
+    exclusao: value.exclusao as string | null,
     last_update: value.last_update as string,
+    consentimento: consent,
+    tarefas: tasks as SyncTask[],
     versao_hlc: value.versao_hlc as string,
     origem_id: value.origem_id as string,
     origem_seq: value.origem_seq as number,

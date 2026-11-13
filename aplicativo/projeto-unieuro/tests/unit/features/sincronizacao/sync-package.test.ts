@@ -1,5 +1,11 @@
 import { formatHlc } from '@/db/hlc';
-import type { SyncAttendance, SyncPatient, SyncProfessional } from '@/db/sync-repository';
+import type {
+  SyncAttendance,
+  SyncConsent,
+  SyncPatient,
+  SyncProfessional,
+  SyncTask,
+} from '@/db/sync-repository';
 import {
   buildPackage,
   countRecords,
@@ -51,7 +57,41 @@ function patient(overrides: Partial<SyncPatient> = {}): SyncPatient {
     sexo: 'masculino',
     criacao: '2026-10-09T14:32:00.000Z',
     last_update: '2026-10-09T14:32:00.000Z',
+    ativo: 1,
+    exclusao: null,
     ...stamp(2),
+    ...overrides,
+  };
+}
+
+function consent(overrides: Partial<SyncConsent> = {}): SyncConsent {
+  return {
+    versao_tcle: 'tcle-2026-10',
+    aceito: 1,
+    assinado_por: 'responsavel_legal',
+    assinatura_png: 'iVBORw==',
+    data_hora: '2026-10-09T14:35:00.000Z',
+    autoriza_imagens_pesquisa: 1,
+    autoriza_dados_pesquisa_futura: null,
+    cpf_responsavel: '39053344705',
+    ...overrides,
+  };
+}
+
+function task(overrides: Partial<SyncTask> = {}): SyncTask {
+  return {
+    tipo: 'relogio',
+    ordem: 1,
+    largura: 800,
+    altura: 600,
+    data_hora_inicio: '2026-10-09T14:40:00.000Z',
+    data_hora_termino: '2026-10-09T14:42:00.000Z',
+    desenho: { imagem_final: 'iVBORw==', data_hora_confirmacao: '2026-10-09T14:42:00.000Z' },
+    eventos: [
+      [1, 'inicio', 'caneta', 10, 20, 0, 0.6, 12, -3],
+      [2, 'ponto', 'caneta', 11, 21, 16, null, null, null],
+      [3, 'desfazer', null, null, null, 900, null, null, null],
+    ],
     ...overrides,
   };
 }
@@ -62,8 +102,12 @@ function attendance(overrides: Partial<SyncAttendance> = {}): SyncAttendance {
     profissional_uuid: PROFESSIONAL_UUID,
     paciente_uuid: PATIENT_UUID,
     data_hora_inicio: '2026-10-09T14:32:00.000Z',
-    estado: 'aguardando_consentimento',
+    estado: 'concluida',
+    ativo: 1,
+    exclusao: null,
     last_update: '2026-10-09T14:32:00.000Z',
+    consentimento: consent(),
+    tarefas: [task(), task({ tipo: 'cubo', ordem: 2, desenho: null, eventos: [] })],
     ...stamp(3),
     ...overrides,
   };
@@ -202,17 +246,63 @@ describe('validatePatient', () => {
     ['com escolaridade negativa', { ...patient(), escolaridade_anos: -1 }],
     ['com sexo fora das opções', { ...patient(), sexo: 'outro' }],
     ['sem origem', { ...patient(), origem_id: undefined }],
+    ['com situação inválida', { ...patient(), ativo: 2 }],
+    ['sem a data da exclusão', { ...patient(), exclusao: undefined }],
+    ['com a data da exclusão vazia', { ...patient(), exclusao: '' }],
   ])('recusa um registro %s', (_case, value) => {
     expect(validatePatient(value)).toBeNull();
+  });
+
+  it('aceita o paciente excluído com a data da exclusão', () => {
+    const excluido = patient({ ativo: 0, exclusao: '2026-11-11T09:00:00.000Z' });
+
+    expect(validatePatient(excluido)).toEqual(excluido);
   });
 });
 
 describe('validateAttendance', () => {
-  it('aceita qualquer estado do atendimento', () => {
-    for (const estado of ['aguardando_consentimento', 'em_andamento', 'concluida', 'cancelada']) {
-      expect(validateAttendance(attendance({ estado }))).toEqual(attendance({ estado }));
+  it('aceita a avaliação finalizada inteira e devolve só os campos conhecidos', () => {
+    for (const estado of ['concluida', 'interrompida', 'cancelada'] as const) {
+      expect(validateAttendance({ ...attendance({ estado }), extra: 'x' })).toEqual(
+        attendance({ estado }),
+      );
     }
   });
+
+  it('aceita a recusa do TCLE, sem assinatura, e a avaliação sem consentimento', () => {
+    const recusa = attendance({
+      estado: 'cancelada',
+      consentimento: consent({
+        aceito: 0,
+        assinado_por: 'paciente',
+        assinatura_png: null,
+        cpf_responsavel: null,
+      }),
+      tarefas: [],
+    });
+
+    expect(validateAttendance(recusa)).toEqual(recusa);
+    expect(validateAttendance(attendance({ consentimento: null }))).toEqual(
+      attendance({ consentimento: null }),
+    );
+  });
+
+  it.each(['aguardando_consentimento', 'em_andamento', 'processando_resultado', 'erro_inferencia'])(
+    'recusa a avaliação %s, que ainda pode mudar',
+    (estado) => {
+      expect(validateAttendance({ ...attendance(), estado })).toBeNull();
+    },
+  );
+
+  const withConsent = (overrides: Record<string, unknown>) => ({
+    ...attendance(),
+    consentimento: { ...consent(), ...overrides },
+  });
+  const withTask = (overrides: Record<string, unknown>) => ({
+    ...attendance(),
+    tarefas: [{ ...task(), ...overrides }],
+  });
+  const withEvent = (event: unknown[]) => withTask({ eventos: [event] });
 
   it.each([
     ['que não é objeto', []],
@@ -221,7 +311,48 @@ describe('validateAttendance', () => {
     ['sem início', { ...attendance(), data_hora_inicio: '' }],
     ['com estado desconhecido', { ...attendance(), estado: 'apagado' }],
     ['com contador inválido', { ...attendance(), origem_seq: 1.5 }],
-  ])('recusa um registro %s', (_case, value) => {
+    ['com situação inválida', { ...attendance(), ativo: '1' }],
+    ['sem a data da exclusão', { ...attendance(), exclusao: undefined }],
+    ['sem a lista de tarefas', { ...attendance(), tarefas: undefined }],
+    [
+      'com tarefas fora de ordem',
+      { ...attendance(), tarefas: [task({ tipo: 'cubo', ordem: 2 }), task()] },
+    ],
+    ['com tarefa repetida', { ...attendance(), tarefas: [task(), task()] }],
+    ['com consentimento que não é objeto', { ...attendance(), consentimento: 'sim' }],
+    ['com consentimento sem versão do termo', withConsent({ versao_tcle: ' ' })],
+    ['com aceite sem assinatura', withConsent({ assinatura_png: null })],
+    ['com assinatura fora do base64', withConsent({ assinatura_png: 'não é base64' })],
+    ['com recusa com assinatura', withConsent({ aceito: 0, cpf_responsavel: null })],
+    ['com quem assina desconhecido', withConsent({ assinado_por: 'vizinho' })],
+    ['com autorização inválida', withConsent({ autoriza_imagens_pesquisa: true })],
+    ['com CPF do responsável num aceite do paciente', withConsent({ assinado_por: 'paciente' })],
+    ['com CPF do responsável com máscara', withConsent({ cpf_responsavel: '390.533.447-05' })],
+    ['com consentimento sem data', withConsent({ data_hora: undefined })],
+    ['com tarefa que não é objeto', { ...attendance(), tarefas: [null] }],
+    ['com tarefa na ordem de outra', withTask({ ordem: 2 })],
+    ['com tarefa de tipo desconhecido', withTask({ tipo: 'casa' })],
+    ['com quadro sem largura', withTask({ largura: 0 })],
+    ['com quadro sem altura', withTask({ altura: Number.NaN })],
+    ['com tarefa sem início', withTask({ data_hora_inicio: '' })],
+    ['com término vazio', withTask({ data_hora_termino: ' ' })],
+    ['com desenho sem imagem', withTask({ desenho: { data_hora_confirmacao: 'x' } })],
+    ['com desenho sem confirmação', withTask({ desenho: { imagem_final: 'iVBORw==' } })],
+    ['com eventos fora de uma lista', withTask({ eventos: {} })],
+    ['com eventos fora de ordem', withTask({ eventos: [...task().eventos].reverse() })],
+    ['com evento incompleto', withEvent([1, 'ponto', 'caneta', 1, 2, 0])],
+    [
+      'com evento de tipo desconhecido',
+      withEvent([1, 'rabisco', null, null, null, 0, null, null, null]),
+    ],
+    ['com ponto sem ponteiro', withEvent([1, 'ponto', 'pé', 1, 2, 0, null, null, null])],
+    ['com ponto sem posição', withEvent([1, 'inicio', 'dedo', null, 2, 0, null, null, null])],
+    ['com pressão negativa', withEvent([1, 'ponto', 'caneta', 1, 2, 0, -1, null, null])],
+    ['com inclinação que não é número', withEvent([1, 'ponto', 'caneta', 1, 2, 0, 1, 'x', null])],
+    ['com desfazer com posição', withEvent([1, 'desfazer', null, 1, 2, 0, null, null, null])],
+    ['com evento de ordem zero', withEvent([0, 'limpar', null, null, null, 0, null, null, null])],
+    ['com instante negativo', withEvent([1, 'limpar', null, null, null, -5, null, null, null])],
+  ])('recusa a avaliação inteira %s', (_case, value) => {
     expect(validateAttendance(value)).toBeNull();
   });
 });

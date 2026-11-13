@@ -1,10 +1,12 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
+import type { SQLiteBindValue, SQLiteDatabase } from 'expo-sqlite';
 
 import { formatRecordNumber } from '@/db/attendance-repository';
+import { base64ToBytes, bytesToBase64 } from '@/db/base64';
 import { getLocalDeviceId, observeRemoteHlc } from '@/db/change-tracking';
 import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
 import { getDatabase } from '@/db/database';
+import { FINAL_ATTENDANCE_STATES } from '@/db/sync-migration';
 
 /** Último contador recebido de cada tablet. */
 export type VersionVector = Record<string, number>;
@@ -42,16 +44,76 @@ export type SyncPatient = ChangeStamp & {
   sexo: 'feminino' | 'masculino' | null;
   criacao: string;
   last_update: string;
+  /** Exclusão lógica: 0 com a data em `exclusao`. */
+  ativo: number;
+  exclusao: string | null;
 };
 
-/** Tabela `avaliacao`, com profissional e paciente pelo `uuid`. */
-export type SyncAttendance = ChangeStamp & {
+export type FinalAttendanceState = (typeof FINAL_ATTENDANCE_STATES)[number];
+
+/** Linha da tabela `avaliacao`, com profissional e paciente pelo `uuid`. */
+export type SyncAttendanceHeader = ChangeStamp & {
   uuid: string;
   profissional_uuid: string;
   paciente_uuid: string;
   data_hora_inicio: string;
   estado: string;
+  ativo: number;
+  exclusao: string | null;
   last_update: string;
+};
+
+/**
+ * Consentimento da avaliação. A assinatura vai em base64. O CPF do responsável
+ * vai em texto, como os outros CPFs do pacote, e é cifrado de novo por quem recebe.
+ */
+export type SyncConsent = {
+  versao_tcle: string;
+  aceito: number;
+  assinado_por: string;
+  assinatura_png: string | null;
+  data_hora: string;
+  autoriza_imagens_pesquisa: number | null;
+  autoriza_dados_pesquisa_futura: number | null;
+  cpf_responsavel: string | null;
+};
+
+/**
+ * Evento do traçado em lista, para o pacote ficar menor: ordem, tipo, ponteiro,
+ * x, y, instante, pressão, inclinação x e inclinação y.
+ */
+export type SyncTraceEvent = [
+  ordem: number,
+  tipo: string,
+  ponteiro: string | null,
+  coord_x: number | null,
+  coord_y: number | null,
+  instante: number,
+  pressao: number | null,
+  inclinacao_x: number | null,
+  inclinacao_y: number | null,
+];
+
+export type SyncTask = {
+  tipo: string;
+  ordem: number;
+  largura: number;
+  altura: number;
+  data_hora_inicio: string;
+  data_hora_termino: string | null;
+  /** Imagem final em base64. */
+  desenho: { imagem_final: string; data_hora_confirmacao: string } | null;
+  eventos: SyncTraceEvent[];
+};
+
+/**
+ * Avaliação finalizada, inteira: as tabelas ligadas a ela vão dentro e se ligam
+ * pela avaliação e pela ordem da tarefa, sem `uuid` próprio.
+ */
+export type SyncAttendance = Omit<SyncAttendanceHeader, 'estado'> & {
+  estado: FinalAttendanceState;
+  consentimento: SyncConsent | null;
+  tarefas: SyncTask[];
 };
 
 export type Local<T> = T & { id: number };
@@ -88,13 +150,57 @@ const SELECT_PROFESSIONAL = `SELECT id, uuid, nome, email, crm_numero, uf_crm, c
   criacao, last_update, ativo, desativacao, ${STAMP_COLUMNS} FROM profissional`;
 
 const SELECT_PATIENT = `SELECT id, uuid, nome, cpf_cifrado, numero_ficha, data_nascimento,
-  escolaridade_anos, sexo, criacao, last_update, ${STAMP_COLUMNS} FROM paciente`;
+  escolaridade_anos, sexo, criacao, last_update, ativo, exclusao, ${STAMP_COLUMNS} FROM paciente`;
 
 const SELECT_ATTENDANCE = `SELECT a.id, a.uuid, p.uuid AS profissional_uuid, pa.uuid AS paciente_uuid,
-  a.data_hora_inicio, a.estado, a.last_update, a.versao_hlc, a.origem_id, a.origem_seq
+  a.data_hora_inicio, a.estado, a.ativo, a.exclusao, a.last_update, a.versao_hlc, a.origem_id,
+  a.origem_seq
   FROM avaliacao a
   JOIN profissional p ON p.id = a.id_profissional
   JOIN paciente pa ON pa.id = a.id_paciente`;
+
+const FINAL_STATES = FINAL_ATTENDANCE_STATES.map(() => '?').join(', ');
+
+const EVENT_COLUMNS = `ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao, inclinacao_x,
+  inclinacao_y`;
+
+// Mesmo lote de `drawing-repository.ts`: 90 eventos × 10 colunas, abaixo de 999 parâmetros.
+const EVENTS_PER_INSERT = 90;
+
+type ConsentRow = Omit<SyncConsent, 'assinatura_png' | 'cpf_responsavel'> & {
+  assinatura_png: Uint8Array | null;
+  cpf_responsavel_cifrado: string | null;
+};
+
+type TaskRow = Omit<SyncTask, 'desenho' | 'eventos'> & {
+  id: number;
+  imagem_final: Uint8Array | null;
+  data_hora_confirmacao: string | null;
+};
+
+type EventRow = {
+  ordem: number;
+  tipo: string;
+  ponteiro: string | null;
+  coord_x: number | null;
+  coord_y: number | null;
+  instante: number;
+  pressao: number | null;
+  inclinacao_x: number | null;
+  inclinacao_y: number | null;
+};
+
+const toTraceEvent = (row: EventRow): SyncTraceEvent => [
+  row.ordem,
+  row.tipo,
+  row.ponteiro,
+  row.coord_x,
+  row.coord_y,
+  row.instante,
+  row.pressao,
+  row.inclinacao_x,
+  row.inclinacao_y,
+];
 
 /** Busca pelo `uuid`, seguindo o alias se houver. */
 const byUuid = (table: IdentityTable) =>
@@ -135,6 +241,100 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
   };
 
   const withoutId = <T extends { id: number }>({ id: _id, ...record }: T) => record;
+
+  async function readConsent(attendanceId: number): Promise<SyncConsent | null> {
+    const row = await database.getFirstAsync<ConsentRow>(
+      `SELECT versao_tcle, aceito, assinado_por, assinatura_png, data_hora, autoriza_imagens_pesquisa,
+         autoriza_dados_pesquisa_futura, cpf_responsavel_cifrado
+       FROM consentimento WHERE id_avaliacao = ?`,
+      [attendanceId],
+    );
+    if (!row) return null;
+    const { assinatura_png, cpf_responsavel_cifrado, ...consent } = row;
+    return {
+      ...consent,
+      assinatura_png: assinatura_png ? bytesToBase64(assinatura_png) : null,
+      cpf_responsavel: cpf_responsavel_cifrado
+        ? await protector.decrypt(cpf_responsavel_cifrado)
+        : null,
+    };
+  }
+
+  async function readTasks(attendanceId: number): Promise<SyncTask[]> {
+    const rows = await database.getAllAsync<TaskRow>(
+      `SELECT t.id, t.tipo, t.ordem, t.largura, t.altura, t.data_hora_inicio, t.data_hora_termino,
+         d.imagem_final, d.data_hora_confirmacao
+       FROM tarefa t LEFT JOIN desenho d ON d.id_tarefa = t.id
+       WHERE t.id_avaliacao = ? ORDER BY t.ordem`,
+      [attendanceId],
+    );
+    return Promise.all(
+      rows.map(async ({ id, imagem_final, data_hora_confirmacao, ...task }) => {
+        const events = await database.getAllAsync<EventRow>(
+          `SELECT ${EVENT_COLUMNS} FROM evento_tracado WHERE id_tarefa = ? ORDER BY ordem`,
+          [id],
+        );
+        return {
+          ...task,
+          desenho:
+            imagem_final && data_hora_confirmacao
+              ? { imagem_final: bytesToBase64(imagem_final), data_hora_confirmacao }
+              : null,
+          eventos: events.map(toTraceEvent),
+        };
+      }),
+    );
+  }
+
+  async function insertConsent(attendanceId: number, consent: SyncConsent) {
+    await database.runAsync(
+      `INSERT INTO consentimento (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png,
+         data_hora, autoriza_imagens_pesquisa, autoriza_dados_pesquisa_futura, cpf_responsavel_cifrado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        attendanceId,
+        consent.versao_tcle,
+        consent.aceito,
+        consent.assinado_por,
+        consent.assinatura_png === null ? null : base64ToBytes(consent.assinatura_png),
+        consent.data_hora,
+        consent.autoriza_imagens_pesquisa,
+        consent.autoriza_dados_pesquisa_futura,
+        consent.cpf_responsavel === null ? null : await protector.encrypt(consent.cpf_responsavel),
+      ],
+    );
+  }
+
+  async function insertTask(attendanceId: number, task: SyncTask) {
+    const { lastInsertRowId: taskId } = await database.runAsync(
+      `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio,
+         data_hora_termino)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        attendanceId,
+        task.tipo,
+        task.ordem,
+        task.largura,
+        task.altura,
+        task.data_hora_inicio,
+        task.data_hora_termino,
+      ],
+    );
+    for (let start = 0; start < task.eventos.length; start += EVENTS_PER_INSERT) {
+      const batch = task.eventos.slice(start, start + EVENTS_PER_INSERT);
+      await database.runAsync(
+        `INSERT INTO evento_tracado (id_tarefa, ${EVENT_COLUMNS})
+         VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+        batch.flatMap((event): SQLiteBindValue[] => [taskId, ...event]),
+      );
+    }
+    if (task.desenho) {
+      await database.runAsync(
+        'INSERT INTO desenho (id_tarefa, imagem_final, data_hora_confirmacao) VALUES (?, ?, ?)',
+        [taskId, base64ToBytes(task.desenho.imagem_final), task.desenho.data_hora_confirmacao],
+      );
+    }
+  }
 
   return {
     getLocalDeviceId: () => getLocalDeviceId(database),
@@ -214,13 +414,15 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
     /** Grava a versão vencedora. A criação fica com a data mais antiga. */
     async updateProfessional(localId: number, record: SyncProfessional): Promise<void> {
       await database.runAsync(
-        `UPDATE profissional SET nome = ?, email = ?, senha_hash = ?, ativo = ?, desativacao = ?,
-           last_update = ?, criacao = min(criacao, ?), versao_hlc = ?, origem_id = ?,
-           origem_seq = ?
+        `UPDATE profissional SET nome = ?, email = ?, crm_numero = ?, uf_crm = ?, senha_hash = ?,
+           ativo = ?, desativacao = ?, last_update = ?, criacao = min(criacao, ?), versao_hlc = ?,
+           origem_id = ?, origem_seq = ?
          WHERE id = ?`,
         [
           record.nome,
           record.email,
+          record.crm_numero,
+          record.uf_crm,
           record.senha_hash,
           record.ativo,
           record.desativacao,
@@ -279,8 +481,8 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
     async insertPatient(record: SyncPatient, recordNumber: string): Promise<void> {
       await database.runAsync(
         `INSERT INTO paciente (uuid, nome, cpf_cifrado, cpf_indice, numero_ficha, data_nascimento,
-           escolaridade_anos, sexo, criacao, last_update, ${STAMP_COLUMNS})
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           escolaridade_anos, sexo, criacao, last_update, ativo, exclusao, ${STAMP_COLUMNS})
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           record.uuid,
           record.nome,
@@ -292,6 +494,8 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
           record.sexo,
           record.criacao,
           record.last_update,
+          record.ativo,
+          record.exclusao,
           record.versao_hlc,
           record.origem_id,
           record.origem_seq,
@@ -303,13 +507,16 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
     async updatePatient(localId: number, record: SyncPatient): Promise<void> {
       await database.runAsync(
         `UPDATE paciente SET nome = ?, data_nascimento = ?, escolaridade_anos = ?, sexo = ?,
-           last_update = ?, criacao = min(criacao, ?), versao_hlc = ?, origem_id = ?, origem_seq = ?
+           ativo = ?, exclusao = ?, last_update = ?, criacao = min(criacao, ?), versao_hlc = ?,
+           origem_id = ?, origem_seq = ?
          WHERE id = ?`,
         [
           record.nome,
           record.data_nascimento,
           record.escolaridade_anos,
           record.sexo,
+          record.ativo,
+          record.exclusao,
           record.last_update,
           record.criacao,
           record.versao_hlc,
@@ -320,58 +527,81 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
       );
     },
 
+    /** Gravação local, como `deactivateProfessional`: o gatilho dá a marca nova. */
+    async deletePatient(localId: number, now: string, deletedAt: string): Promise<void> {
+      await database.runAsync(
+        'UPDATE paciente SET ativo = 0, exclusao = ?, last_update = ? WHERE id = ?',
+        [deletedAt, now, localId],
+      );
+    },
+
     // Atendimentos
 
+    /** Só as finalizadas, inteiras. As outras ainda podem mudar e ficam neste tablet. */
     async listAttendances(): Promise<SyncAttendance[]> {
-      const rows = await database.getAllAsync<Local<SyncAttendance>>(
-        `${SELECT_ATTENDANCE} ORDER BY a.origem_id, a.origem_seq`,
+      const rows = await database.getAllAsync<Local<SyncAttendanceHeader>>(
+        `${SELECT_ATTENDANCE} WHERE a.estado IN (${FINAL_STATES})
+         ORDER BY a.origem_id, a.origem_seq`,
+        [...FINAL_ATTENDANCE_STATES],
       );
-      return rows.map(withoutId);
+      return Promise.all(
+        rows.map(async ({ id, ...attendance }) => ({
+          ...attendance,
+          estado: attendance.estado as FinalAttendanceState,
+          consentimento: await readConsent(id),
+          tarefas: await readTasks(id),
+        })),
+      );
     },
 
     findAttendanceByUuid: (uuid: string) =>
-      database.getFirstAsync<Local<SyncAttendance>>(`${SELECT_ATTENDANCE} WHERE a.uuid = ?`, [
+      database.getFirstAsync<Local<SyncAttendanceHeader>>(`${SELECT_ATTENDANCE} WHERE a.uuid = ?`, [
         uuid,
       ]),
 
+    /**
+     * Grava a avaliação e as tabelas ligadas a ela. Rode dentro da transação do
+     * pacote: se uma parte falhar, nada fica. Enquanto grava, a avaliação fica com
+     * `recebimento_pendente = 1`, que os gatilhos da finalizada deixam passar.
+     */
     async insertAttendance(
       record: SyncAttendance,
       professionalId: number,
       patientId: number,
     ): Promise<void> {
-      await database.runAsync(
-        `INSERT INTO avaliacao (uuid, id_profissional, id_paciente, data_hora_inicio, estado,
-           last_update, ${STAMP_COLUMNS})
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      const { lastInsertRowId: attendanceId } = await database.runAsync(
+        `INSERT INTO avaliacao (uuid, id_profissional, id_paciente, data_hora_inicio, estado, ativo,
+           exclusao, last_update, recebimento_pendente, ${STAMP_COLUMNS})
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
         [
           record.uuid,
           professionalId,
           patientId,
           record.data_hora_inicio,
           record.estado,
+          record.ativo,
+          record.exclusao,
           record.last_update,
           record.versao_hlc,
           record.origem_id,
           record.origem_seq,
         ],
       );
+      if (record.consentimento) await insertConsent(attendanceId, record.consentimento);
+      for (const task of record.tarefas) await insertTask(attendanceId, task);
+      await database.runAsync('UPDATE avaliacao SET recebimento_pendente = 0 WHERE id = ?', [
+        attendanceId,
+      ]);
     },
 
-    async updateAttendance(
-      localId: number,
-      record: SyncAttendance,
-      professionalId: number,
-      patientId: number,
-    ): Promise<void> {
+    /** Exclusão feita em outro tablet, com a marca de lá. */
+    async deleteAttendance(localId: number, record: SyncAttendance): Promise<void> {
       await database.runAsync(
-        `UPDATE avaliacao SET id_profissional = ?, id_paciente = ?, data_hora_inicio = ?, estado = ?,
-           last_update = ?, versao_hlc = ?, origem_id = ?, origem_seq = ?
+        `UPDATE avaliacao SET ativo = 0, exclusao = ?, last_update = ?, versao_hlc = ?, origem_id = ?,
+           origem_seq = ?
          WHERE id = ?`,
         [
-          professionalId,
-          patientId,
-          record.data_hora_inicio,
-          record.estado,
+          record.exclusao ?? record.last_update,
           record.last_update,
           record.versao_hlc,
           record.origem_id,

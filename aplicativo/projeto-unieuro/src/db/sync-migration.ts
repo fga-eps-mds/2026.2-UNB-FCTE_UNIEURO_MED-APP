@@ -13,10 +13,23 @@
  * sincronização. Gravação que já vem marcada de outro tablet não é remarcada.
  *
  * DELETE é bloqueado: um registro apagado voltaria na próxima sincronização.
- * Use exclusão lógica (`ativo`).
+ * Use exclusão lógica: `ativo = 0` e a data em `desativacao` (profissional) ou
+ * `exclusao` (paciente e avaliação). A exclusão é uma alteração comum e viaja.
+ *
+ * A avaliação viaja inteira e só depois de finalizada (concluída, interrompida ou
+ * cancelada). Consentimento, tarefas, desenhos e traçado vão junto dela e não têm
+ * marca própria. Finalizada, ela não muda mais, nem as tabelas ligadas a ela: só a
+ * exclusão lógica continua possível. Por isso o fluxo que conclui a avaliação
+ * precisa gravar os desenhos antes de mudar o estado. `recebimento_pendente` só é
+ * 1 enquanto a sincronização grava uma avaliação recebida e as tabelas dela.
  *
  * Se uma migração futura recriar uma destas tabelas, recrie também os gatilhos.
  */
+
+/** Estados em que a avaliação viaja e não muda mais. */
+export const FINAL_ATTENDANCE_STATES = ['concluida', 'interrompida', 'cancelada'] as const;
+
+const FINAL_STATES_SQL = FINAL_ATTENDANCE_STATES.map((state) => `'${state}'`).join(', ');
 
 /** UUID v4 gerado em SQL. */
 const SQL_UUID = `(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
@@ -88,6 +101,65 @@ ALTER TABLE ${table} ADD COLUMN uuid TEXT;
 ALTER TABLE ${table} ADD COLUMN versao_hlc TEXT;
 ALTER TABLE ${table} ADD COLUMN origem_id TEXT;
 ALTER TABLE ${table} ADD COLUMN origem_seq INTEGER;
+`;
+
+const addLogicalDeletion = (table: string) => `
+ALTER TABLE ${table} ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1 CHECK (ativo IN (0, 1));
+ALTER TABLE ${table} ADD COLUMN exclusao TEXT;
+`;
+
+/** Avaliação finalizada e já gravada por inteiro. */
+const isClosed = (alias: string) =>
+  `${alias}.estado IN (${FINAL_STATES_SQL}) AND ${alias}.recebimento_pendente = 0`;
+
+const closedAttendance = (idColumn: string) =>
+  `EXISTS (SELECT 1 FROM avaliacao a WHERE a.id = ${idColumn} AND ${isClosed('a')})`;
+
+const closedAttendanceOfTask = (taskColumn: string) => `EXISTS (
+    SELECT 1 FROM tarefa t JOIN avaliacao a ON a.id = t.id_avaliacao
+    WHERE t.id = ${taskColumn} AND ${isClosed('a')})`;
+
+/** Recusa a gravação em `table` quando `when` diz que a avaliação já foi finalizada. */
+const lockTrigger = (table: string, event: 'INSERT' | 'UPDATE' | 'DELETE', when: string) => `
+CREATE TRIGGER IF NOT EXISTS ${table}_${event.toLowerCase()}_avaliacao_finalizada
+BEFORE ${event} ON ${table}
+WHEN ${when}
+BEGIN
+    SELECT RAISE(ABORT, '${table} de avaliacao finalizada nao pode mudar');
+END;
+`;
+
+const FINALIZED_ATTENDANCE_LOCK = `
+CREATE TRIGGER IF NOT EXISTS avaliacao_finalizada_imutavel
+BEFORE UPDATE OF id_profissional, id_paciente, data_hora_inicio, estado ON avaliacao
+WHEN ${isClosed('OLD')} AND (
+    NEW.id_profissional IS NOT OLD.id_profissional OR NEW.id_paciente IS NOT OLD.id_paciente
+    OR NEW.data_hora_inicio IS NOT OLD.data_hora_inicio OR NEW.estado IS NOT OLD.estado)
+BEGIN
+    SELECT RAISE(ABORT, 'avaliacao finalizada nao pode mudar');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_recebimento_nao_reabre
+BEFORE UPDATE OF recebimento_pendente ON avaliacao
+WHEN OLD.recebimento_pendente = 0 AND NEW.recebimento_pendente = 1
+BEGIN
+    SELECT RAISE(ABORT, 'avaliacao finalizada nao pode mudar');
+END;
+
+-- O consentimento pode entrar numa avaliação já cancelada: a recusa do TCLE muda o
+-- estado e grava a decisão na mesma transação. A chave única impede um segundo.
+${lockTrigger('consentimento', 'UPDATE', closedAttendance('OLD.id_avaliacao'))}
+${lockTrigger('consentimento', 'DELETE', closedAttendance('OLD.id_avaliacao'))}
+
+${lockTrigger('tarefa', 'INSERT', closedAttendance('NEW.id_avaliacao'))}
+${lockTrigger('tarefa', 'UPDATE', `${closedAttendance('OLD.id_avaliacao')} OR ${closedAttendance('NEW.id_avaliacao')}`)}
+${lockTrigger('tarefa', 'DELETE', closedAttendance('OLD.id_avaliacao'))}
+
+${lockTrigger('desenho', 'INSERT', closedAttendanceOfTask('NEW.id_tarefa'))}
+${lockTrigger('desenho', 'UPDATE', `${closedAttendanceOfTask('OLD.id_tarefa')} OR ${closedAttendanceOfTask('NEW.id_tarefa')}`)}
+${lockTrigger('desenho', 'DELETE', closedAttendanceOfTask('OLD.id_tarefa'))}
+
+${lockTrigger('evento_tracado', 'INSERT', closedAttendanceOfTask('NEW.id_tarefa'))}
 `;
 
 // Registros antigos viram gravações deste tablet. O contador é único para as três tabelas.
@@ -170,6 +242,11 @@ ${addSyncColumns('profissional')}
 ${addSyncColumns('paciente')}
 ${addSyncColumns('avaliacao')}
 
+${addLogicalDeletion('paciente')}
+${addLogicalDeletion('avaliacao')}
+ALTER TABLE avaliacao ADD COLUMN recebimento_pendente INTEGER NOT NULL DEFAULT 0
+    CHECK (recebimento_pendente IN (0, 1));
+
 ${stampExisting('profissional', 'last_update', '0')}
 ${stampExisting('paciente', 'last_update', MAX_PROFESSIONAL)}
 ${stampExisting('avaliacao', 'last_update', `${MAX_PROFESSIONAL} + ${MAX_PATIENT}`)}
@@ -193,6 +270,22 @@ ${syncTriggers('profissional', [
   'desativacao',
   'criacao',
 ])}
-${syncTriggers('paciente', ['nome', 'data_nascimento', 'escolaridade_anos', 'sexo', 'criacao'])}
-${syncTriggers('avaliacao', ['id_profissional', 'id_paciente', 'data_hora_inicio', 'estado'])}
+${syncTriggers('paciente', [
+  'nome',
+  'data_nascimento',
+  'escolaridade_anos',
+  'sexo',
+  'ativo',
+  'exclusao',
+  'criacao',
+])}
+${syncTriggers('avaliacao', [
+  'id_profissional',
+  'id_paciente',
+  'data_hora_inicio',
+  'estado',
+  'ativo',
+  'exclusao',
+])}
+${FINALIZED_ATTENDANCE_LOCK}
 `;

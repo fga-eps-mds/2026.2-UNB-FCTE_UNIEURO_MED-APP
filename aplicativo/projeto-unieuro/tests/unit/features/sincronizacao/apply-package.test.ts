@@ -1,7 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { createAttendanceRepository } from '@/db/attendance-repository';
+import { createConsentRepository } from '@/db/consent-repository';
 import { createCpfProtector } from '@/db/cpf-protection';
+import { createDrawingRepository } from '@/db/drawing-repository';
 import { migrate } from '@/db/database';
 import { formatHlc } from '@/db/hlc';
 import { createProfessionalRepository } from '@/db/professional-repository';
@@ -51,7 +53,10 @@ beforeEach(async () => {
     createdAt: '2026-09-26T13:00:00.000Z',
   });
   const saved = await professionals.findByEmail('ana.souza@unieuro.com.br');
-  await createAttendanceRepository(async () => database, protector).createAttendance({
+  const { attendanceId } = await createAttendanceRepository(
+    async () => database,
+    protector,
+  ).createAttendance({
     patient: {
       name: 'José Alves Martins',
       cpf: '52998224725',
@@ -62,6 +67,27 @@ beforeEach(async () => {
     professionalId: saved!.id,
     startedAt: '2026-10-09T14:32:00.000Z',
   });
+  // Só a avaliação finalizada viaja.
+  await createConsentRepository(async () => database, protector).salvarDecisao({
+    atendimentoId: attendanceId,
+    versaoTermo: 'tcle-2026-10',
+    quemAssina: 'paciente',
+    aceito: true,
+    assinaturaPng: new Uint8Array([1, 2, 3]),
+    decididoEm: '2026-10-09T14:35:00.000Z',
+  });
+  await createDrawingRepository(async () => database).salvarDesenho({
+    atendimentoId: attendanceId,
+    ordem: 1,
+    tipo: 'relogio',
+    largura: 800,
+    altura: 600,
+    iniciadoEm: '2026-10-09T14:40:00.000Z',
+    confirmadoEm: '2026-10-09T14:42:00.000Z',
+    eventos: [{ tipo: 'inicio', ordem: 1, instante: 0, x: 1, y: 2, ponteiro: 'dedo' }],
+    imagemPng: new Uint8Array([4, 5, 6]),
+  });
+  await database.runAsync("UPDATE avaliacao SET estado = 'concluida'");
   operations = await createSyncRepository(async () => database, protector).direct();
   [ana] = await operations.listProfessionals();
   [jose] = await operations.listPatients();
@@ -141,15 +167,58 @@ describe('registros inválidos', () => {
 });
 
 describe('profissional', () => {
-  it('mesmo uuid com outro CRM vai para a quarentena', async () => {
+  it('mesmo uuid com o CRM corrigido é uma edição comum', async () => {
     const summary = await apply({
-      profissionais: [{ ...ana, crm_numero: '99999', ...fromOther(1, FUTURE) }],
+      profissionais: [{ ...ana, crm_numero: '99999', uf_crm: 'GO', ...fromOther(1, FUTURE) }],
+    });
+
+    expect(summary).toMatchObject({ quarantined: 0, professionals: { updated: 1 } });
+    expect((await operations.listProfessionals())[0]).toMatchObject({
+      crm_numero: '99999',
+      uf_crm: 'GO',
+    });
+  });
+
+  it('mesmo uuid com outro CPF vai para a quarentena', async () => {
+    const summary = await apply({
+      profissionais: [{ ...ana, cpf: '52998224725', ...fromOther(1, FUTURE) }],
     });
 
     expect(summary.quarantined).toBe(1);
     expect(await conflicts()).toEqual([
       expect.objectContaining({ motivo: 'identidade_divergente', tabela: 'profissional' }),
     ]);
+  });
+
+  it('CRM corrigido que já é de outro profissional daqui vai para a quarentena', async () => {
+    await createProfessionalRepository(async () => database, protector).insert({
+      name: 'Bruno Lima',
+      email: 'bruno@unieuro.com.br',
+      crmNumber: '54321',
+      crmState: 'GO',
+      cpf: '52998224725',
+      passwordHash: 'hash',
+      createdAt: '2026-09-26T13:00:00.000Z',
+    });
+
+    const summary = await apply({
+      profissionais: [{ ...ana, crm_numero: '54321', uf_crm: 'GO', ...fromOther(1, FUTURE) }],
+    });
+
+    expect(summary).toMatchObject({ quarantined: 1, professionals: { updated: 0 } });
+    const [entry] = await conflicts();
+    expect(entry).toMatchObject({ motivo: 'crm_em_uso' });
+    expect(entry.dados).not.toContain(ana.cpf);
+    expect((await operations.findProfessionalByUuid(ana.uuid))!.crm_numero).toBe('12345');
+  });
+
+  it('CRM de outro profissional numa versão mais antiga não muda nada', async () => {
+    const summary = await apply({
+      profissionais: [{ ...ana, crm_numero: '99999', ...fromOther(1, PAST) }],
+    });
+
+    expect(summary).toMatchObject({ quarantined: 0, conflicts: 1 });
+    expect((await operations.listProfessionals())[0].crm_numero).toBe('12345');
   });
 
   it('versão mais nova desativada desativa aqui, com a data da desativação', async () => {
@@ -264,25 +333,128 @@ describe('paciente', () => {
     expect(summary.conflicts).toBe(1);
     expect((await operations.listPatients())[0].escolaridade_anos).toBe(5);
   });
+
+  it('exclusão mais nova exclui aqui, com a data de quem excluiu', async () => {
+    const summary = await apply({
+      pacientes: [{ ...jose, ativo: 0, exclusao: DESATIVADA_EM, ...fromOther(1, FUTURE) }],
+    });
+
+    expect(summary.patients.updated).toBe(1);
+    expect((await operations.listPatients())[0]).toMatchObject({
+      ativo: 0,
+      exclusao: DESATIVADA_EM,
+      origem_id: OTHER,
+    });
+  });
+
+  it('exclusão mais antiga também exclui, como gravação nova deste tablet', async () => {
+    const local = await operations.getLocalDeviceId();
+
+    const summary = await apply({
+      pacientes: [{ ...jose, ativo: 0, exclusao: DESATIVADA_EM, ...fromOther(1, PAST) }],
+    });
+
+    expect(summary.patients.updated).toBe(1);
+    expect((await operations.listPatients())[0]).toMatchObject({
+      ativo: 0,
+      exclusao: DESATIVADA_EM,
+      origem_id: local,
+    });
+  });
+
+  it('versão mais nova ativa não traz de volta o paciente excluído aqui', async () => {
+    await database.runAsync('UPDATE paciente SET ativo = 0, exclusao = ?', [DESATIVADA_EM]);
+    [jose] = await operations.listPatients();
+
+    await apply({
+      pacientes: [
+        { ...jose, ativo: 1, exclusao: null, escolaridade_anos: 12, ...fromOther(1, FUTURE) },
+      ],
+    });
+
+    expect((await operations.listPatients())[0]).toMatchObject({
+      escolaridade_anos: 12,
+      ativo: 0,
+      exclusao: DESATIVADA_EM,
+    });
+  });
+
+  it('exclusão sem data recebe a data da sincronização', async () => {
+    await apply({ pacientes: [{ ...jose, ativo: 0, exclusao: null, ...fromOther(1, PAST) }] });
+
+    expect((await operations.listPatients())[0]).toMatchObject({
+      ativo: 0,
+      exclusao: NOW.toISOString(),
+    });
+  });
 });
 
 describe('atendimento', () => {
-  it('mudança de estado mais nova é aplicada', async () => {
+  const NEW_UUID = '44444444-4444-4444-8444-444444444444';
+  const count = (table: string) =>
+    database
+      .getFirstAsync<{ total: number }>(`SELECT count(*) AS total FROM ${table}`)
+      .then((row) => row!.total);
+
+  it('avaliação nova entra com o consentimento, as tarefas, o desenho e o traçado', async () => {
     const summary = await apply({
-      avaliacoes: [{ ...attendance, estado: 'concluida', ...fromOther(1, FUTURE) }],
+      avaliacoes: [{ ...attendance, uuid: NEW_UUID, ...fromOther(1, FUTURE) }],
     });
 
-    expect(summary.attendances.updated).toBe(1);
+    expect(summary.attendances.inserted).toBe(1);
+    const copy = (await operations.listAttendances()).find((row) => row.uuid === NEW_UUID);
+    expect(copy).toEqual({ ...attendance, uuid: NEW_UUID, ...fromOther(1, FUTURE) });
+    await expect(count('desenho')).resolves.toBe(2);
+    await expect(count('evento_tracado')).resolves.toBe(2);
+  });
+
+  it('avaliação que já existe aqui não muda, e outra versão dela fica para análise', async () => {
+    const summary = await apply({
+      avaliacoes: [{ ...attendance, estado: 'interrompida', ...fromOther(1, FUTURE) }],
+    });
+
+    expect(summary).toMatchObject({ quarantined: 1, attendances: { updated: 0 } });
+    expect(await conflicts()).toEqual([
+      expect.objectContaining({ tabela: 'avaliacao', motivo: 'avaliacao_finalizada' }),
+    ]);
     expect((await operations.listAttendances())[0].estado).toBe('concluida');
   });
 
-  it('mudança de estado mais antiga não muda nada e fica registrada', async () => {
+  it('a mesma avaliação recebida de novo não muda nada', async () => {
+    const summary = await apply({ avaliacoes: [{ ...attendance, ...fromOther(1, FUTURE) }] });
+
+    expect(summary).toMatchObject({ quarantined: 0, attendances: { inserted: 0, updated: 0 } });
+    expect(await conflicts()).toEqual([]);
+  });
+
+  it('a exclusão da avaliação é aplicada com a marca de quem excluiu', async () => {
     const summary = await apply({
-      avaliacoes: [{ ...attendance, estado: 'cancelada', ...fromOther(1, PAST) }],
+      avaliacoes: [{ ...attendance, ativo: 0, exclusao: DESATIVADA_EM, ...fromOther(1, FUTURE) }],
     });
 
-    expect(summary).toMatchObject({ conflicts: 1, attendances: { updated: 0 } });
-    expect((await operations.listAttendances())[0].estado).toBe('aguardando_consentimento');
+    expect(summary.attendances.updated).toBe(1);
+    expect((await operations.listAttendances())[0]).toMatchObject({
+      ativo: 0,
+      exclusao: DESATIVADA_EM,
+      origem_id: OTHER,
+    });
+  });
+
+  it('a exclusão sem data fica com a data da última alteração', async () => {
+    await apply({
+      avaliacoes: [{ ...attendance, ativo: 0, exclusao: null, ...fromOther(1, FUTURE) }],
+    });
+
+    expect((await operations.listAttendances())[0].exclusao).toBe(attendance.last_update);
+  });
+
+  it('a versão ativa não desfaz a exclusão feita aqui', async () => {
+    await database.runAsync('UPDATE avaliacao SET ativo = 0, exclusao = ?', [DESATIVADA_EM]);
+
+    const summary = await apply({ avaliacoes: [{ ...attendance, ...fromOther(1, FUTURE) }] });
+
+    expect(summary.attendances.updated).toBe(0);
+    expect((await operations.listAttendances())[0].ativo).toBe(0);
   });
 
   it('o profissional ou o paciente que viajam pelo uuid antigo são encontrados pelo alias', async () => {
@@ -290,14 +462,7 @@ describe('atendimento', () => {
     await operations.unify('paciente', 1, jose.uuid, old);
 
     const summary = await apply({
-      avaliacoes: [
-        {
-          ...attendance,
-          uuid: '44444444-4444-4444-8444-444444444444',
-          paciente_uuid: old,
-          ...fromOther(1, FUTURE),
-        },
-      ],
+      avaliacoes: [{ ...attendance, uuid: NEW_UUID, paciente_uuid: old, ...fromOther(1, FUTURE) }],
     });
 
     expect(summary.attendances.inserted).toBe(1);

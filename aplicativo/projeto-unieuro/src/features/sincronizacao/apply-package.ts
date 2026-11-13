@@ -73,10 +73,12 @@ const origin = (record: Partial<Versioned>) => ({
 
 const PROFESSIONAL: Spec<SyncProfessional> = {
   table: 'profissional',
-  fields: ['nome', 'email', 'senha_hash', 'ativo', 'desativacao'],
+  fields: ['nome', 'email', 'crm_numero', 'uf_crm', 'senha_hash', 'ativo', 'desativacao'],
   losingData: (record) => ({
     nome: record.nome,
     email: record.email,
+    crm_numero: record.crm_numero,
+    uf_crm: record.uf_crm,
     ativo: record.ativo,
     desativacao: record.desativacao,
     last_update: record.last_update,
@@ -86,22 +88,50 @@ const PROFESSIONAL: Spec<SyncProfessional> = {
 
 const PATIENT: Spec<SyncPatient> = {
   table: 'paciente',
-  fields: ['nome', 'data_nascimento', 'escolaridade_anos', 'sexo'],
+  fields: ['nome', 'data_nascimento', 'escolaridade_anos', 'sexo', 'ativo', 'exclusao'],
   losingData: (record) => ({ last_update: record.last_update, ...origin(record) }),
 };
 
-const ATTENDANCE: Spec<SyncAttendance> = {
-  table: 'avaliacao',
-  fields: ['profissional_uuid', 'paciente_uuid', 'data_hora_inicio', 'estado'],
-  losingData: (record) => ({
-    estado: record.estado,
-    last_update: record.last_update,
-    ...origin(record),
-  }),
-};
+const ATTENDANCE_TABLE = 'avaliacao';
+
+// O que não muda depois de finalizada. A exclusão lógica fica de fora.
+const FINAL_ATTENDANCE_FIELDS = [
+  'profissional_uuid',
+  'paciente_uuid',
+  'data_hora_inicio',
+  'estado',
+] as const;
 
 const sameContent = <T extends Versioned>(spec: Spec<T>, a: T, b: T) =>
   spec.fields.every((field) => a[field] === b[field]);
+
+/**
+ * A exclusão lógica (ou a desativação do profissional) vence sempre: senão, uma
+ * edição feita em outro tablet traria o registro de volta. Se a versão vencedora
+ * está ativa, a exclusão é gravada de novo aqui, como alteração deste tablet, com a
+ * data de quem excluiu. Sem data (banco antigo), vale a hora da sincronização.
+ */
+async function keepDeletion<T extends Versioned & { ativo: number }>(
+  context: Context,
+  winner: 'local' | 'incoming' | 'equal',
+  local: Local<T>,
+  incoming: T,
+  deletedAt: (record: T) => string | null,
+  markDeleted: (localId: number, now: string, deletedAt: string) => Promise<void>,
+): Promise<boolean> {
+  const resultActive = winner === 'incoming' ? incoming.ativo : local.ativo;
+  const deletedSomewhere = local.ativo === 0 || incoming.ativo === 0;
+  if (!deletedSomewhere || resultActive !== 1) return false;
+
+  await context.operations.observeRemoteHlc(incoming.versao_hlc, context.now.getTime());
+  const now = context.now.toISOString();
+  await markDeleted(
+    local.id,
+    now,
+    (local.ativo === 0 ? deletedAt(local) : deletedAt(incoming)) ?? now,
+  );
+  return true;
+}
 
 // Recusa só este registro. Guarda ids técnicos e, do profissional, o CRM.
 async function quarantine(context: Context, table: string, value: unknown, reason: string) {
@@ -212,11 +242,20 @@ async function applyProfessionalVersion(
 ) {
   const { operations, summary } = context;
 
+  // E-mail e CRM são únicos: a edição não pode tomar os de outro profissional daqui.
   const incomingIsNewer = compareHlc(incoming.versao_hlc, local.versao_hlc) > 0;
   if (incomingIsNewer && incoming.email.toLowerCase() !== local.email.toLowerCase()) {
     const owner = await operations.findProfessionalByEmail(incoming.email);
     if (owner && owner.id !== local.id) {
       await quarantine(context, PROFESSIONAL.table, incoming, 'email_em_uso');
+      return;
+    }
+  }
+  const crmChanged = incoming.crm_numero !== local.crm_numero || incoming.uf_crm !== local.uf_crm;
+  if (incomingIsNewer && crmChanged) {
+    const owner = await operations.findProfessionalByCrm(incoming.crm_numero, incoming.uf_crm);
+    if (owner && owner.id !== local.id) {
+      await quarantine(context, PROFESSIONAL.table, incoming, 'crm_em_uso');
       return;
     }
   }
@@ -227,15 +266,15 @@ async function applyProfessionalVersion(
     summary.professionals.updated += 1;
   }
 
-  const resultActive = winner === 'incoming' ? incoming.ativo : local.ativo;
-  const deactivatedSomewhere = local.ativo === 0 || incoming.ativo === 0;
-  if (deactivatedSomewhere && resultActive === 1) {
-    await operations.observeRemoteHlc(incoming.versao_hlc, context.now.getTime());
-    const now = context.now.toISOString();
-    const deactivatedAt = (local.ativo === 0 ? local.desativacao : incoming.desativacao) ?? now;
-    await operations.deactivateProfessional(local.id, now, deactivatedAt);
-    if (winner !== 'incoming') summary.professionals.updated += 1;
-  }
+  const deactivated = await keepDeletion(
+    context,
+    winner,
+    local,
+    incoming,
+    (record) => record.desativacao,
+    operations.deactivateProfessional,
+  );
+  if (deactivated && winner !== 'incoming') summary.professionals.updated += 1;
 }
 
 /**
@@ -274,11 +313,9 @@ async function applyProfessional(context: Context, incoming: SyncProfessional) {
     return;
   }
 
-  const sameIdentity =
-    local.crm_numero === incoming.crm_numero &&
-    local.uf_crm === incoming.uf_crm &&
-    local.cpf === incoming.cpf;
-  if (!sameIdentity) {
+  // O uuid já diz que é o mesmo cadastro. CRM e UF podem ser corrigidos nas
+  // configurações e viajam como edição; o CPF não muda, então outro CPF é erro.
+  if (local.cpf !== incoming.cpf) {
     await quarantine(context, PROFESSIONAL.table, incoming, 'identidade_divergente');
     return;
   }
@@ -292,9 +329,22 @@ async function applyPatientVersion(
   local: Local<SyncPatient>,
   incoming: SyncPatient,
 ) {
-  if ((await newestVersion(context, PATIENT, local, incoming)) !== 'incoming') return;
-  await context.operations.updatePatient(local.id, incoming);
-  context.summary.patients.updated += 1;
+  const { operations, summary } = context;
+  const winner = await newestVersion(context, PATIENT, local, incoming);
+  if (winner === 'incoming') {
+    await operations.updatePatient(local.id, incoming);
+    summary.patients.updated += 1;
+  }
+
+  const deleted = await keepDeletion(
+    context,
+    winner,
+    local,
+    incoming,
+    (record) => record.exclusao,
+    operations.deletePatient,
+  );
+  if (deleted && winner !== 'incoming') summary.patients.updated += 1;
 }
 
 /**
@@ -334,15 +384,19 @@ async function applyPatient(context: Context, incoming: SyncPatient) {
 // Atendimento
 
 /**
- * Profissional e paciente vêm pelo uuid. Se algum não existir aqui, o atendimento
- * vai para a quarentena.
+ * Só chegam avaliações finalizadas, inteiras. Profissional e paciente vêm pelo
+ * uuid; se algum não existir aqui, a avaliação vai para a quarentena.
+ *
+ * A avaliação que já existe aqui não muda: só a exclusão lógica é aplicada. Uma
+ * versão com outro conteúdo não deveria existir, porque só o tablet de origem
+ * finaliza a avaliação. Se chegar, fica para análise.
  */
 async function applyAttendance(context: Context, received: SyncAttendance) {
   const { operations, summary } = context;
   const professional = await operations.findProfessionalByUuid(received.profissional_uuid);
   const patient = await operations.findPatientByUuid(received.paciente_uuid);
   if (!professional || !patient) {
-    await quarantine(context, ATTENDANCE.table, received, 'referencia_desconhecida');
+    await quarantine(context, ATTENDANCE_TABLE, received, 'referencia_desconhecida');
     return;
   }
 
@@ -358,9 +412,14 @@ async function applyAttendance(context: Context, received: SyncAttendance) {
     return;
   }
 
-  if ((await newestVersion(context, ATTENDANCE, local, incoming)) !== 'incoming') return;
-  await operations.updateAttendance(local.id, incoming, professional.id, patient.id);
-  summary.attendances.updated += 1;
+  if (!FINAL_ATTENDANCE_FIELDS.every((field) => local[field] === incoming[field])) {
+    await quarantine(context, ATTENDANCE_TABLE, incoming, 'avaliacao_finalizada');
+    return;
+  }
+  if (local.ativo === 1 && incoming.ativo === 0) {
+    await operations.deleteAttendance(local.id, incoming);
+    summary.attendances.updated += 1;
+  }
 }
 
 /**
@@ -415,7 +474,7 @@ export async function applyPackage(
     applyProfessional,
   );
   await applyAll(PATIENT.table, syncPackage.pacientes, validatePatient, applyPatient);
-  await applyAll(ATTENDANCE.table, syncPackage.avaliacoes, validateAttendance, applyAttendance);
+  await applyAll(ATTENDANCE_TABLE, syncPackage.avaliacoes, validateAttendance, applyAttendance);
 
   await operations.mergeVector(received);
   if (newestHlc) await operations.observeRemoteHlc(newestHlc, now.getTime());

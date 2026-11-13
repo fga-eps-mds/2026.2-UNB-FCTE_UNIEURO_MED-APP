@@ -62,6 +62,11 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
   pendente: não copie esse padrão.
 - Banco: SQLite via `expo-sqlite`. As migrations ficam em `src/db/schema.ts`, na
   lista `MIGRATIONS`. Nunca edite uma migration já publicada; crie uma nova.
+- Sincronização (#118, migration 9): `profissional`, `paciente` e `avaliacao` não
+  aceitam `DELETE`. Para excluir, use a exclusão lógica (`ativo = 0` com a data em
+  `desativacao` ou `exclusao`). A avaliação finalizada (`concluida`, `interrompida` ou
+  `cancelada`) não muda mais, nem o consentimento, as tarefas, os desenhos e o traçado
+  dela: grave os desenhos antes de mudar o estado para o final.
 - Os repositórios recebem por injeção a função que abre o banco
   (`createProfessionalRepository(open)`), o que permite testá-los com banco real.
 

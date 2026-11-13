@@ -338,6 +338,9 @@ describe('Cenário: identificação mínima do paciente', () => {
       'versao_hlc',
       'origem_id',
       'origem_seq',
+      // Exclusão lógica, que a sincronização leva aos outros tablets (versão 9).
+      'ativo',
+      'exclusao',
     ]);
   });
 

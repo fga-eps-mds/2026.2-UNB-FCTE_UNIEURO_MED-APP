@@ -4,11 +4,14 @@ import { verifyPassword } from '@/features/auth/password';
 import {
   abrirTabletSincronizavel,
   alterar,
+  ASSINATURA,
   atender,
   cadastrar,
+  CPF_DO_RESPONSAVEL,
   enviarDireto,
   enviarPorArquivo,
   estado,
+  finalizar,
   type TabletSincronizavel,
 } from '../test-support/sincronizacao';
 import { ANA, BRUNO, CPF_DA_ANA, CPF_DO_BRUNO, SENHA_DE_TESTE } from '../test-support/tablet';
@@ -490,20 +493,6 @@ describe('pacientes e atendimentos', () => {
     expect(await estado(tabletB)).toEqual(await estado(tabletA));
   });
 
-  it('a mudança de estado do atendimento chega ao outro tablet', async () => {
-    const [tabletA, tabletB] = await tablets(2);
-    const id = await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
-    await enviarDireto(tabletA, tabletB);
-
-    await alterar(tabletA, 'avaliacao', { estado: 'em_andamento' }, 'id = ?', [id]);
-    const result = await enviarDireto(tabletA, tabletB);
-
-    expect(result).toMatchObject({ summary: { attendances: { updated: 1, inserted: 0 } } });
-    expect((await estado(tabletB)).atendimentos).toEqual([
-      expect.objectContaining({ estado: 'em_andamento' }),
-    ]);
-  });
-
   it('edição concorrente do paciente guarda a versão perdedora sem dado que identifique o paciente', async () => {
     const [tabletA, tabletB] = await tablets(2);
     await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
@@ -543,6 +532,279 @@ describe('pacientes e atendimentos', () => {
     });
     expect(await conflitos(tabletB)).toEqual([
       expect.objectContaining({ tabela: 'avaliacao', motivo: 'referencia_desconhecida' }),
+    ]);
+  });
+});
+
+describe('avaliação só vai inteira', () => {
+  const total = (tablet: TabletSincronizavel, tabela: string) =>
+    tablet.database
+      .getFirstAsync<{ total: number }>(`SELECT count(*) AS total FROM ${tabela}`)
+      .then((row) => row!.total);
+
+  it('a avaliação concluída chega com o consentimento, as tarefas, os desenhos e o traçado', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+
+    const result = await enviarPorArquivo(tabletA, tabletB);
+
+    expect(result).toMatchObject({ ok: true, summary: { attendances: { inserted: 1 } } });
+    const stateB = await estado(tabletB);
+    expect(stateB).toEqual(await estado(tabletA));
+    expect(stateB.consentimentos).toEqual([
+      expect.objectContaining({ aceito: 1, assinatura_png: ASSINATURA }),
+    ]);
+    expect(stateB.tarefas.map((tarefa) => (tarefa as { tipo: string }).tipo)).toEqual([
+      'relogio',
+      'cubo',
+      'trilhas',
+    ]);
+    expect(stateB.eventos).toHaveLength(9);
+  });
+
+  it.each(['em_andamento', 'aberta'] as const)(
+    'a avaliação %s não sai do tablet, porque ainda pode mudar',
+    async (desfecho) => {
+      const [tabletA, tabletB] = await tablets(2);
+      await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE, { desfecho });
+
+      const result = await enviarDireto(tabletA, tabletB);
+
+      expect(result).toMatchObject({ ok: true, summary: { patients: { inserted: 1 } } });
+      for (const tabela of ['avaliacao', 'consentimento', 'tarefa', 'evento_tracado']) {
+        await expect(total(tabletB, tabela)).resolves.toBe(0);
+      }
+    },
+  );
+
+  it('a avaliação que termina depois vai inteira na troca seguinte', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    const ana = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    const id = await atender(tabletA, ana, JOSE, { desfecho: 'em_andamento' });
+    await enviarDireto(tabletA, tabletB);
+
+    await finalizar(tabletA, id);
+    const result = await enviarDireto(tabletA, tabletB);
+
+    expect(result).toMatchObject({ summary: { attendances: { inserted: 1 } } });
+    expect(await estado(tabletB)).toEqual(await estado(tabletA));
+    await expect(total(tabletB, 'desenho')).resolves.toBe(3);
+  });
+
+  it('a avaliação interrompida e a cancelada também viajam, com o que tiverem', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    const ana = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await atender(tabletA, ana, JOSE, { desfecho: 'interrompida' });
+    await atender(tabletA, ana, MARIA, { desfecho: 'cancelada' });
+
+    await enviarDireto(tabletA, tabletB);
+
+    const stateB = await estado(tabletB);
+    expect(stateB).toEqual(await estado(tabletA));
+    expect(stateB.atendimentos.map((row) => (row as { estado: string }).estado).sort()).toEqual([
+      'cancelada',
+      'interrompida',
+    ]);
+    expect(stateB.consentimentos).toEqual(
+      expect.arrayContaining([expect.objectContaining({ aceito: 0, assinatura_png: null })]),
+    );
+    expect(stateB.tarefas).toHaveLength(1);
+  });
+
+  it('o CPF do responsável legal chega cifrado com a chave do tablet que recebe', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE, {
+      peloResponsavel: true,
+    });
+
+    await enviarPorArquivo(tabletA, tabletB);
+
+    const cifra = (tablet: TabletSincronizavel) =>
+      tablet.database
+        .getFirstAsync<{ cpf: string }>('SELECT cpf_responsavel_cifrado AS cpf FROM consentimento')
+        .then((row) => row!.cpf);
+    const [cifraA, cifraB] = [await cifra(tabletA), await cifra(tabletB)];
+    expect(cifraB).not.toBe(cifraA);
+    await expect(tabletB.protector.decrypt(cifraB)).resolves.toBe(CPF_DO_RESPONSAVEL);
+    await tabletB.encerrar();
+    const visivel = tabletB.temp.rawContains(CPF_DO_RESPONSAVEL);
+    await tabletB.reabrir();
+    expect(visivel).toBe(false);
+  });
+
+  it('a avaliação recebida não muda mais, nem por um pacote com outra versão dela', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    await enviarDireto(tabletA, tabletB);
+    const before = await estado(tabletB);
+
+    await expect(
+      tabletB.database.runAsync("UPDATE avaliacao SET estado = 'interrompida'"),
+    ).rejects.toThrow(/avaliacao finalizada nao pode mudar/);
+    await expect(tabletB.database.runAsync('UPDATE tarefa SET largura = 1')).rejects.toThrow(
+      /nao pode mudar/,
+    );
+
+    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const [avaliacao] = pacote.avaliacoes;
+    const result = await tabletB.sync.applyPackageJson(
+      JSON.stringify({
+        ...pacote,
+        profissionais: [],
+        pacientes: [],
+        avaliacoes: [{ ...avaliacao, estado: 'interrompida', origem_seq: 999 }],
+      }),
+    );
+
+    expect(result).toMatchObject({ ok: true, summary: { quarantined: 1 } });
+    expect(await conflitos(tabletB)).toEqual([
+      expect.objectContaining({ tabela: 'avaliacao', motivo: 'avaliacao_finalizada' }),
+    ]);
+    expect(await estado(tabletB)).toEqual(before);
+  });
+
+  it('a avaliação com uma parte inválida não entra, e o resto do pacote entra', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    pacote.avaliacoes[0].tarefas[2].eventos[0][1] = 'rabisco';
+
+    const result = await tabletB.sync.applyPackageJson(JSON.stringify(pacote));
+
+    expect(result).toMatchObject({
+      ok: true,
+      summary: { professionals: { inserted: 1 }, patients: { inserted: 1 }, quarantined: 1 },
+    });
+    for (const tabela of ['avaliacao', 'consentimento', 'tarefa', 'desenho', 'evento_tracado']) {
+      await expect(total(tabletB, tabela)).resolves.toBe(0);
+    }
+  });
+});
+
+describe('exclusão lógica', () => {
+  const EXCLUIDO_EM = '2026-11-11T09:00:00.000Z';
+
+  it('o paciente excluído em um tablet fica excluído no outro, com a data', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    await enviarDireto(tabletA, tabletB);
+
+    await alterar(tabletA, 'paciente', { ativo: 0, exclusao: EXCLUIDO_EM }, 'nome = ?', [
+      JOSE.name,
+    ]);
+    const result = await enviarDireto(tabletA, tabletB);
+
+    expect(result).toMatchObject({ summary: { patients: { updated: 1 } } });
+    expect((await estado(tabletB)).pacientes).toEqual([
+      expect.objectContaining({ ativo: 0, exclusao: EXCLUIDO_EM }),
+    ]);
+    expect(await estado(tabletB)).toEqual(await estado(tabletA));
+  });
+
+  it('uma edição feita depois em outro tablet não traz de volta o paciente excluído', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    await enviarDireto(tabletA, tabletB);
+
+    const where = ['nome = ?', [JOSE.name]] as const;
+    await alterar(tabletA, 'paciente', { ativo: 0, exclusao: EXCLUIDO_EM }, ...where, Date.now());
+    await alterar(tabletB, 'paciente', { escolaridade_anos: 11 }, ...where, Date.now() + 5_000);
+    await enviarDireto(tabletA, tabletB);
+    await enviarDireto(tabletB, tabletA);
+
+    const stateA = await estado(tabletA);
+    expect(stateA.pacientes).toEqual([
+      expect.objectContaining({ ativo: 0, exclusao: EXCLUIDO_EM, escolaridade_anos: 11 }),
+    ]);
+    expect(await estado(tabletB)).toEqual(stateA);
+  });
+
+  it('a avaliação excluída chega excluída ao outro tablet, sem perder o que ela tinha', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    const id = await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    await enviarDireto(tabletA, tabletB);
+
+    await alterar(tabletA, 'avaliacao', { ativo: 0, exclusao: EXCLUIDO_EM }, 'id = ?', [id]);
+    const result = await enviarDireto(tabletA, tabletB);
+
+    expect(result).toMatchObject({ summary: { attendances: { updated: 1 } } });
+    const stateB = await estado(tabletB);
+    expect(stateB.atendimentos).toEqual([
+      expect.objectContaining({ ativo: 0, exclusao: EXCLUIDO_EM }),
+    ]);
+    expect(stateB.tarefas).toHaveLength(3);
+    expect(stateB).toEqual(await estado(tabletA));
+  });
+});
+
+describe('correção do CRM', () => {
+  it('o CRM corrigido chega ao outro tablet, e as trocas seguintes continuam', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    const id = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await enviarDireto(tabletA, tabletB);
+
+    await tabletA.repository.updateProfile(
+      id,
+      { name: ANA.name, email: ANA.email, crmNumber: '67890', crmState: 'GO' },
+      '2026-11-11T10:00:00.000Z',
+    );
+    const corrigido = await enviarDireto(tabletA, tabletB);
+    await alterar(tabletA, 'profissional', { nome: 'Ana Souza' }, 'id = ?', [id]);
+    const seguinte = await enviarDireto(tabletA, tabletB);
+
+    expect(corrigido).toMatchObject({
+      summary: { professionals: { updated: 1 }, quarantined: 0 },
+    });
+    expect(seguinte).toMatchObject({ summary: { professionals: { updated: 1 }, quarantined: 0 } });
+    await expect(tabletB.repository.findByEmail(ANA.email)).resolves.toMatchObject({
+      name: 'Ana Souza',
+      crmNumber: '67890',
+      crmState: 'GO',
+    });
+    expect(await conflitos(tabletB)).toEqual([]);
+    expect(await estado(tabletB)).toEqual(await estado(tabletA));
+  });
+
+  it('o CRM corrigido que já é de outro médico no outro tablet fica para análise', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    const id = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await enviarDireto(tabletA, tabletB);
+    await cadastrar(tabletB, BRUNO, CPF_DO_BRUNO);
+
+    await tabletA.repository.updateProfile(
+      id,
+      { name: ANA.name, email: ANA.email, crmNumber: BRUNO.crmNumber, crmState: BRUNO.crmState },
+      '2026-11-11T10:00:00.000Z',
+    );
+    const result = await enviarDireto(tabletA, tabletB);
+
+    expect(result).toMatchObject({
+      ok: true,
+      summary: { quarantined: 1, professionals: { updated: 0 } },
+    });
+    expect(await conflitos(tabletB)).toEqual([expect.objectContaining({ motivo: 'crm_em_uso' })]);
+    await expect(tabletB.repository.findByEmail(ANA.email)).resolves.toMatchObject({
+      crmNumber: ANA.crmNumber,
+    });
+  });
+
+  it('o mesmo uuid com outro CPF continua indo para a análise', async () => {
+    const [tabletA, tabletB] = await tablets(2);
+    await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await enviarDireto(tabletA, tabletB);
+    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const [ana] = pacote.profissionais;
+
+    const result = await tabletB.sync.applyPackageJson(
+      JSON.stringify({
+        ...pacote,
+        profissionais: [{ ...ana, cpf: CPF_DO_BRUNO, origem_seq: 999 }],
+      }),
+    );
+
+    expect(result).toMatchObject({ summary: { quarantined: 1 } });
+    expect(await conflitos(tabletB)).toEqual([
+      expect.objectContaining({ motivo: 'identidade_divergente' }),
     ]);
   });
 });

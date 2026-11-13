@@ -45,6 +45,30 @@ async function insertProfessional(email = 'ana.souza@unieuro.com.br', crm = '123
   });
 }
 
+/** Profissional, paciente e avaliação aguardando o consentimento. Devolve o `id`. */
+async function insertAttendance(): Promise<number> {
+  await insertProfessional();
+  const professional = await createProfessionalRepository(
+    async () => database,
+    protector,
+  ).findByEmail('ana.souza@unieuro.com.br');
+  const { attendanceId } = await createAttendanceRepository(
+    async () => database,
+    protector,
+  ).createAttendance({
+    patient: {
+      name: 'José Alves Martins',
+      cpf: '52998224725',
+      birthDate: '1948-03-14',
+      schoolingYears: 5,
+      sex: null,
+    },
+    professionalId: professional!.id,
+    startedAt: '2026-10-09T14:32:00.000Z',
+  });
+  return attendanceId;
+}
+
 const stampOf = (table: string, where = '1 = 1', params: (string | number)[] = []) =>
   database.getFirstAsync<{
     uuid: string;
@@ -244,6 +268,148 @@ describe('exclusão', () => {
     await database.runAsync('UPDATE profissional SET ativo = 0');
 
     expect((await stampOf('profissional'))!.origem_seq).toBe(2);
+  });
+
+  it.each(['paciente', 'avaliacao'])(
+    'a tabela %s nasce ativa e a exclusão lógica gera marca',
+    async (table) => {
+      await insertAttendance();
+      const before = await stampOf(table);
+      await expect(database.getFirstAsync(`SELECT ativo, exclusao FROM ${table}`)).resolves.toEqual(
+        { ativo: 1, exclusao: null },
+      );
+
+      await database.runAsync(`UPDATE ${table} SET ativo = 0, exclusao = ?`, [
+        '2026-11-11T09:00:00.000Z',
+      ]);
+
+      expect((await stampOf(table))!.origem_seq).toBeGreaterThan(before!.origem_seq);
+      await expect(database.runAsync(`UPDATE ${table} SET ativo = 2`)).rejects.toThrow(/CHECK/);
+    },
+  );
+});
+
+describe('avaliação finalizada', () => {
+  const FINAL = /nao pode mudar/;
+
+  async function finishedAttendance(estado = 'concluida') {
+    const id = await insertAttendance();
+    await database.runAsync(
+      `INSERT INTO consentimento (id_avaliacao, versao_tcle, aceito, assinado_por, assinatura_png, data_hora)
+       VALUES (?, 'tcle', 1, 'paciente', x'01', '2026-10-09T14:35:00.000Z')`,
+      [id],
+    );
+    const { lastInsertRowId: taskId } = await database.runAsync(
+      `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+       VALUES (?, 'relogio', 1, 800, 600, '2026-10-09T14:40:00.000Z')`,
+      [id],
+    );
+    await database.runAsync(
+      `INSERT INTO desenho (id_tarefa, imagem_final, data_hora_confirmacao)
+       VALUES (?, x'02', '2026-10-09T14:42:00.000Z')`,
+      [taskId],
+    );
+    await database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [estado, id]);
+    return { id, taskId };
+  }
+
+  it.each(['concluida', 'interrompida', 'cancelada'])(
+    'a avaliação %s não muda de estado, de data, de profissional nem de paciente',
+    async (estado) => {
+      await finishedAttendance(estado);
+
+      for (const change of [
+        "estado = 'em_andamento'",
+        "data_hora_inicio = '2026-01-01T00:00:00.000Z'",
+        'id_profissional = id_profissional + 1',
+        'id_paciente = id_paciente + 1',
+      ]) {
+        await expect(database.runAsync(`UPDATE avaliacao SET ${change}`)).rejects.toThrow(FINAL);
+      }
+    },
+  );
+
+  it('a avaliação finalizada ainda pode ser excluída logicamente, e regravar o mesmo valor passa', async () => {
+    await finishedAttendance();
+
+    await database.runAsync("UPDATE avaliacao SET estado = estado, ativo = 0, exclusao = 'x'");
+
+    await expect(database.getFirstAsync('SELECT ativo FROM avaliacao')).resolves.toEqual({
+      ativo: 0,
+    });
+  });
+
+  it('nada ligado a ela muda: consentimento, tarefa, desenho e traçado', async () => {
+    const { id, taskId } = await finishedAttendance();
+
+    for (const sql of [
+      "UPDATE consentimento SET versao_tcle = 'outra'",
+      'DELETE FROM consentimento',
+      `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+         VALUES (${id}, 'cubo', 2, 800, 600, 'x')`,
+      'UPDATE tarefa SET largura = 1',
+      'DELETE FROM desenho',
+      "UPDATE desenho SET imagem_final = x'03'",
+      `INSERT INTO evento_tracado (id_tarefa, ordem, tipo, instante) VALUES (${taskId}, 1, 'limpar', 0)`,
+    ]) {
+      await expect(database.execAsync(sql)).rejects.toThrow(FINAL);
+    }
+  });
+
+  it('a avaliação em andamento continua recebendo desenhos e pode ser finalizada', async () => {
+    const id = await insertAttendance();
+    await database.runAsync("UPDATE avaliacao SET estado = 'em_andamento' WHERE id = ?", [id]);
+
+    await database.runAsync(
+      `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+       VALUES (?, 'relogio', 1, 800, 600, 'x')`,
+      [id],
+    );
+    await database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [id]);
+
+    await expect(database.getFirstAsync('SELECT estado FROM avaliacao')).resolves.toEqual({
+      estado: 'concluida',
+    });
+  });
+
+  it('a recusa do TCLE grava o consentimento depois de cancelar a avaliação', async () => {
+    const id = await insertAttendance();
+    await database.runAsync("UPDATE avaliacao SET estado = 'cancelada' WHERE id = ?", [id]);
+
+    await database.runAsync(
+      `INSERT INTO consentimento (id_avaliacao, versao_tcle, aceito, assinado_por, data_hora)
+       VALUES (?, 'tcle', 0, 'paciente', 'x')`,
+      [id],
+    );
+
+    await expect(
+      database.getFirstAsync('SELECT count(*) AS total FROM consentimento'),
+    ).resolves.toEqual({ total: 1 });
+  });
+
+  it('enquanto o recebimento está pendente as tabelas ligadas entram, e depois não reabre', async () => {
+    const { id } = await finishedAttendance();
+    await expect(
+      database.runAsync('UPDATE avaliacao SET recebimento_pendente = 1 WHERE id = ?', [id]),
+    ).rejects.toThrow(FINAL);
+
+    // Como a sincronização grava: a avaliação já finalizada, com o recebimento pendente.
+    const { lastInsertRowId: other } = await database.runAsync(
+      `INSERT INTO avaliacao (id_profissional, id_paciente, data_hora_inicio, estado, last_update,
+         recebimento_pendente)
+       SELECT id_profissional, id_paciente, 'x', 'concluida', 'x', 1 FROM avaliacao WHERE id = ?`,
+      [id],
+    );
+    await database.runAsync(
+      `INSERT INTO tarefa (id_avaliacao, tipo, ordem, largura, altura, data_hora_inicio)
+       VALUES (?, 'relogio', 1, 800, 600, 'x')`,
+      [other],
+    );
+    await database.runAsync('UPDATE avaliacao SET recebimento_pendente = 0 WHERE id = ?', [other]);
+
+    await expect(
+      database.runAsync('UPDATE tarefa SET largura = 1 WHERE id_avaliacao = ?', [other]),
+    ).rejects.toThrow(FINAL);
   });
 });
 
