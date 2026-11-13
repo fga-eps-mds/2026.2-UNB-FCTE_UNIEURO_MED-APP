@@ -49,7 +49,8 @@ type AttendedPatientRow = {
 };
 
 // Só os atendimentos do profissional informado entram na contagem e no mais
-// recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
+// recente: um médico não vê o que outro coletou no mesmo tablet. Os excluídos
+// (#47 e #58) também ficam de fora. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
 //
 // O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
@@ -60,17 +61,17 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado FROM avaliacao r
-      WHERE r.id_paciente = p.id AND r.id_profissional = ?
+      WHERE r.id_paciente = p.id AND r.id_profissional = ? AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL
   GROUP BY p.id`;
 
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?`;
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL`;
 
 const INSERT_PATIENT = `INSERT INTO paciente
   (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)

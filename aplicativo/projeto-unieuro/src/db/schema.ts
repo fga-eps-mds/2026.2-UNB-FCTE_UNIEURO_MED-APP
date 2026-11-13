@@ -242,6 +242,78 @@ ALTER TABLE avaliacao ADD COLUMN motivo_interrupcao TEXT
 ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT;
 `;
 
+// Estados depois dos três desenhos. Ata 12 (09/11): exame finalizado faz parte da
+// pesquisa e não pode ser excluído. A regra da aplicação usa a mesma lista
+// (`ESTADOS_FINALIZADOS`, em `features/avaliacao/exclusao.ts`).
+const FINALIZADOS = `('processando_resultado', 'erro_inferencia', 'concluida')`;
+
+/**
+ * Versão 10: exclusão de exame (#58) e de paciente (#47). Nada é apagado de
+ * verdade: o exame recebe a data e o profissional da exclusão e sai das listas,
+ * mas continua no tablet. Excluir um paciente marca os exames dele aplicados pelo
+ * profissional, porque o mesmo paciente pode ter exames de outro médico.
+ *
+ * A tabela `exclusao` registra cada pedido com data, hora e profissional, e não
+ * aceita alteração nem remoção. Os gatilhos garantem a regra no banco, por
+ * qualquer caminho do código: exame finalizado não é excluído nem apagado, a
+ * exclusão não é desfeita e o exame excluído não muda mais de estado.
+ */
+const SCHEMA_V10 = `
+ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT;
+ALTER TABLE avaliacao ADD COLUMN excluido_por INTEGER REFERENCES profissional (id);
+
+CREATE TABLE IF NOT EXISTS exclusao (
+    id INTEGER PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK (tipo IN ('paciente', 'exame')),
+    id_paciente INTEGER NOT NULL REFERENCES paciente (id),
+    id_avaliacao INTEGER REFERENCES avaliacao (id),
+    id_profissional INTEGER NOT NULL REFERENCES profissional (id),
+    data_hora TEXT NOT NULL,
+    CHECK ((tipo = 'exame') = (id_avaliacao IS NOT NULL)),
+    CHECK (length(trim(data_hora)) > 0)
+);
+
+CREATE TRIGGER IF NOT EXISTS exclusao_sem_alteracao
+BEFORE UPDATE ON exclusao
+BEGIN
+    SELECT RAISE(ABORT, 'registro de exclusao nao pode ser alterado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS exclusao_sem_remocao
+BEFORE DELETE ON exclusao
+BEGIN
+    SELECT RAISE(ABORT, 'registro de exclusao nao pode ser apagado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_finalizada_sem_exclusao
+BEFORE UPDATE OF excluido_em ON avaliacao
+WHEN NEW.excluido_em IS NOT NULL AND OLD.estado IN ${FINALIZADOS}
+BEGIN
+    SELECT RAISE(ABORT, 'exame finalizado nao pode ser excluido');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_exclusao_definitiva
+BEFORE UPDATE OF excluido_em, excluido_por ON avaliacao
+WHEN OLD.excluido_em IS NOT NULL
+BEGIN
+    SELECT RAISE(ABORT, 'exclusao do exame nao pode ser desfeita');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_excluida_sem_mudanca
+BEFORE UPDATE OF estado ON avaliacao
+WHEN OLD.excluido_em IS NOT NULL
+BEGIN
+    SELECT RAISE(ABORT, 'exame excluido nao muda de estado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_finalizada_sem_remocao
+BEFORE DELETE ON avaliacao
+WHEN OLD.estado IN ${FINALIZADOS}
+BEGIN
+    SELECT RAISE(ABORT, 'exame finalizado nao pode ser apagado');
+END;
+`;
+
 /**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
@@ -257,7 +329,8 @@ export type MigrationStep =
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
  * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
- * (desistência do exame), e assim por diante. Para mudar o esquema,
+ * (desistência do exame), a posição 9 à versão 10 (exclusão de exame e de
+ * paciente), e assim por diante. Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -271,6 +344,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V7,
   SCHEMA_V8,
   SCHEMA_V9,
+  SCHEMA_V10,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
