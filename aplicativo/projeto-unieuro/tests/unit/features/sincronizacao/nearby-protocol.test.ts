@@ -12,11 +12,19 @@ const DEVICE = 'aaaaaaaa-0000-4000-8000-000000000000';
 const hello: ProtocolMessage = {
   tipo: 'ola',
   formato: 'med-sync-p2p',
-  versao: 1,
+  versao: 2,
   dispositivo: DEVICE,
   versao_esquema: 2,
   vetor: { [DEVICE]: 3 },
 };
+
+const lote = (pacote: string): ProtocolMessage => ({
+  tipo: 'lote',
+  indice: 0,
+  total: 1,
+  cobertura: { [DEVICE]: 3 },
+  pacote,
+});
 
 const utf8Bytes = (text: string) => Buffer.byteLength(text, 'utf8');
 
@@ -29,7 +37,7 @@ describe('divisão em partes', () => {
   });
 
   it('divide mensagem grande em partes que cabem no limite do Nearby', () => {
-    const big: ProtocolMessage = { tipo: 'pacote', pacote: 'ção'.repeat(20_000) };
+    const big = lote('ção'.repeat(20_000));
 
     const frames = frameMessage(big, '7');
 
@@ -43,7 +51,7 @@ describe('divisão em partes', () => {
 
   it('não separa um emoji entre duas partes', () => {
     // Com partes de 4 unidades, o emoji (2 unidades) cairia na divisa.
-    const message: ProtocolMessage = { tipo: 'pacote', pacote: 'a😀😀😀b' };
+    const message = lote('a😀😀😀b');
 
     const frames = frameMessage(message, '1', 4);
 
@@ -57,7 +65,7 @@ describe('divisão em partes', () => {
   });
 
   it('leva o par inteiro quando a parte tem uma unidade só', () => {
-    const message: ProtocolMessage = { tipo: 'pacote', pacote: '😀' };
+    const message = lote('😀');
 
     const frames = frameMessage(message, '1', 1);
 
@@ -66,7 +74,7 @@ describe('divisão em partes', () => {
   });
 
   it('remonta partes que chegam fora de ordem', () => {
-    const message: ProtocolMessage = { tipo: 'pacote', pacote: 'x'.repeat(CHUNK_SIZE * 2) };
+    const message = lote('x'.repeat(CHUNK_SIZE * 2));
     const frames = frameMessage(message, '9');
 
     const assembler = createAssembler();
@@ -76,17 +84,14 @@ describe('divisão em partes', () => {
   });
 
   it('não mistura partes de mensagens diferentes', () => {
-    const first = frameMessage({ tipo: 'pacote', pacote: 'a'.repeat(CHUNK_SIZE + 1) }, '1');
-    const second = frameMessage({ tipo: 'concluido' }, '2');
+    const first = frameMessage(lote('a'.repeat(CHUNK_SIZE + 1)), '1');
+    const second = frameMessage({ tipo: 'lote_ok', indice: 0 }, '2');
 
     const assembler = createAssembler();
 
     expect(assembler.push(first[0])).toBeNull();
-    expect(assembler.push(second[0])).toEqual({ tipo: 'concluido' });
-    expect(assembler.push(first[1])).toEqual({
-      tipo: 'pacote',
-      pacote: 'a'.repeat(CHUNK_SIZE + 1),
-    });
+    expect(assembler.push(second[0])).toEqual({ tipo: 'lote_ok', indice: 0 });
+    expect(assembler.push(first[1])).toEqual(lote('a'.repeat(CHUNK_SIZE + 1)));
   });
 
   it.each([
@@ -100,14 +105,14 @@ describe('divisão em partes', () => {
 
 describe('mensagens', () => {
   it.each([
-    ['concluido', { tipo: 'concluido' }, { tipo: 'concluido' }],
+    ['confirmação de lote', { tipo: 'lote_ok', indice: 3 }, { tipo: 'lote_ok', indice: 3 }],
+    ['lote', lote('{}'), lote('{}')],
     [
       'erro com motivo',
       { tipo: 'erro', motivo: 'versao_incompativel' },
       { tipo: 'erro', motivo: 'versao_incompativel' },
     ],
     ['erro sem motivo', { tipo: 'erro' }, { tipo: 'erro', motivo: 'erro' }],
-    ['pacote', { tipo: 'pacote', pacote: '{}' }, { tipo: 'pacote', pacote: '{}' }],
   ])('lê %s', (_case, value, expected) => {
     expect(parseMessage(JSON.stringify(value))).toEqual(expected);
   });
@@ -116,7 +121,14 @@ describe('mensagens', () => {
     ['texto que não é JSON', 'abc'],
     ['lista', '[]'],
     ['tipo desconhecido', JSON.stringify({ tipo: 'outro' })],
-    ['pacote sem conteúdo', JSON.stringify({ tipo: 'pacote' })],
+    ['o pacote único da versão 1', JSON.stringify({ tipo: 'pacote', pacote: '{}' })],
+    ['lote sem conteúdo', JSON.stringify({ ...lote('{}'), pacote: undefined })],
+    ['lote com índice além do total', JSON.stringify({ ...lote('{}'), indice: 1 })],
+    ['lote com índice negativo', JSON.stringify({ ...lote('{}'), indice: -1 })],
+    ['lote com total quebrado', JSON.stringify({ ...lote('{}'), total: 1.5 })],
+    ['lote com cobertura inválida', JSON.stringify({ ...lote('{}'), cobertura: { x: 1 } })],
+    ['confirmação sem índice', JSON.stringify({ tipo: 'lote_ok' })],
+    ['apresentação da versão 1', JSON.stringify({ ...hello, versao: 1 })],
     ['apresentação de outro formato', JSON.stringify({ ...hello, formato: 'x' })],
     ['apresentação sem uuid', JSON.stringify({ ...hello, dispositivo: 'tablet' })],
     ['apresentação com vetor inválido', JSON.stringify({ ...hello, vetor: { [DEVICE]: -1 } })],

@@ -10,7 +10,9 @@ import {
 } from '@/features/sincronizacao/nearby-protocol';
 import {
   REFUSAL_MESSAGES,
+  type IncomingBatches,
   type LocalDescription,
+  type OutgoingBatches,
   type SyncService,
 } from '@/features/sincronizacao/sync-service';
 
@@ -38,13 +40,29 @@ export type NearbyState =
       error: string | null;
     }
   | { phase: 'waiting'; peerName: string }
-  | { phase: 'syncing'; peerName: string }
-  | { phase: 'done'; peerName: string; summary: ImportSummary; peerConfirmed: boolean }
+  | ({ phase: 'syncing'; peerName: string } & SyncProgress)
+  | {
+      phase: 'done';
+      peerName: string;
+      summary: ImportSummary;
+      /** O outro tablet confirmou todos os lotes deste. */
+      peerConfirmed: boolean;
+      /** A conexão caiu antes de chegarem todos os lotes do outro tablet. */
+      partial: boolean;
+    }
   | { phase: 'failed'; message: string };
+
+/** Lotes confirmados e gravados. O total fica `null` até se saber. */
+export type SyncProgress = {
+  sent: number;
+  toSend: number | null;
+  received: number;
+  toReceive: number | null;
+};
 
 type Dependencies = {
   api: NearbyApi;
-  sync: Pick<SyncService, 'describeLocal' | 'preparePackageFor' | 'applyPackageJson'>;
+  sync: Pick<SyncService, 'describeLocal' | 'prepareBatchesFor' | 'receiveBatches'>;
   confirmPassword: (password: string) => Promise<boolean>;
   /** Pausa antes de desconectar, para a última mensagem chegar. */
   wait?: (ms: number) => Promise<void>;
@@ -62,7 +80,10 @@ export const NEARBY_MESSAGES = {
   rejected: 'A conexão não foi concluída. O outro tablet cancelou ou ainda não confirmou.',
   protocol:
     'O outro tablet mandou dados que este não reconhece. Atualize o aplicativo nos dois tablets.',
-  peerFailed: 'O outro tablet não conseguiu importar os dados. Nada foi alterado nele.',
+  peerFailed: 'O outro tablet não conseguiu gravar os dados.',
+  batchFailed: 'Não foi possível gravar parte dos dados recebidos.',
+  keptPartial:
+    'Os dados recebidos até ali foram salvos. Sincronize de novo para receber o restante.',
   droppedBefore: 'A conexão caiu antes de terminar. Nada foi alterado neste tablet.',
 } as const;
 
@@ -132,7 +153,8 @@ export const tabletName = (deviceId: string) => `Tablet ${deviceId.slice(0, 4).t
 
 /**
  * Procura, conecta, confere os 4 dígitos e a senha e troca os dados nos dois
- * sentidos. Cada lado aplica o que recebe numa transação.
+ * sentidos, em lotes. Cada lote é gravado numa transação e confirmado com
+ * `lote_ok`, que libera o seguinte.
  */
 export function createNearbySession({
   api,
@@ -154,8 +176,15 @@ export function createNearbySession({
   let assembler = createAssembler();
   let messageCount = 0;
   let queue: Promise<void> = Promise.resolve();
-  let received: ImportSummary | null = null;
-  let peerDone = false;
+  // O que chega do outro tablet.
+  let incoming: IncomingBatches | null = null;
+  let toReceive: number | null = null;
+  let incomingDone = false;
+  // O que este tablet manda.
+  let outgoing: OutgoingBatches | null = null;
+  let acknowledged = 0;
+  let outgoingDone = false;
+  let outgoingLogged = false;
   // A mensagem fica a cargo do aviso de desconexão, que vem em seguida.
   let connectionLost = false;
 
@@ -176,8 +205,13 @@ export function createNearbySession({
     peerName = '';
     assembler = createAssembler();
     queue = Promise.resolve();
-    received = null;
-    peerDone = false;
+    incoming = null;
+    toReceive = null;
+    incomingDone = false;
+    outgoing = null;
+    acknowledged = 0;
+    outgoingDone = false;
+    outgoingLogged = false;
     connectionLost = false;
   }
 
@@ -222,10 +256,48 @@ export function createNearbySession({
 
   const sendError = (motivo: string) => send({ tipo: 'erro', motivo }).catch(() => undefined);
 
+  const appliedBatches = () => incoming?.applied() ?? 0;
+
+  function showProgress() {
+    setState({
+      phase: 'syncing',
+      peerName,
+      sent: acknowledged,
+      toSend: outgoing?.total ?? null,
+      received: appliedBatches(),
+      toReceive,
+    });
+  }
+
+  // Um registro de envio e um de recebimento por troca, mesmo quando ela para no meio.
+  async function writeLogs() {
+    const pending = outgoing;
+    if (pending && !outgoingLogged) {
+      outgoingLogged = true;
+      await pending.finish(acknowledged).catch(() => undefined);
+    }
+    await incoming?.finish(incomingDone).catch(() => undefined);
+  }
+
+  /** Avisa que os lotes já gravados ficam, se houver algum. */
+  async function stop(message: string) {
+    const kept = appliedBatches() > 0;
+    await writeLogs();
+    fail(kept ? `${message} ${NEARBY_MESSAGES.keptPartial}` : message);
+  }
+
+  async function sendBatch(index: number) {
+    if (!outgoing) return;
+    const { pacote, cobertura } = await outgoing.read(index);
+    await send({ tipo: 'lote', indice: index, total: outgoing.total, cobertura, pacote });
+  }
+
   async function finishIfComplete() {
-    if (!received || !peerDone) return;
+    if (!incoming || !incomingDone || !outgoingDone) return;
     const finished = endpointId;
-    setState({ phase: 'done', peerName, summary: received, peerConfirmed: true });
+    const summary = incoming.summary();
+    await writeLogs();
+    setState({ phase: 'done', peerName, summary, peerConfirmed: true, partial: false });
     await wait(1500);
     // Não encerra uma sincronização nova que já começou.
     if (phase() === 'done' && endpointId === finished) release();
@@ -244,28 +316,50 @@ export function createNearbySession({
           fail(REFUSAL_MESSAGES.mesmo_tablet);
           return;
         }
-        const pacote = await sync.preparePackageFor(message.vetor, message.dispositivo);
-        await send({ tipo: 'pacote', pacote });
+        if (outgoing) throw new ProtocolError('Apresentação repetida.');
+        outgoing = await sync.prepareBatchesFor(message.vetor, message.dispositivo);
+        showProgress();
+        await sendBatch(0);
         return;
       }
-      case 'pacote': {
-        const result = await sync.applyPackageJson(message.pacote);
+      case 'lote': {
+        if (
+          !incoming ||
+          message.indice !== appliedBatches() ||
+          (toReceive !== null && message.total !== toReceive)
+        ) {
+          throw new ProtocolError('Lote fora de ordem.');
+        }
+        toReceive = message.total;
+        const result = await incoming.apply(message.pacote, message.cobertura);
         if (!result.ok) {
           await sendError(result.reason);
-          fail(result.message);
+          await stop(appliedBatches() > 0 ? NEARBY_MESSAGES.batchFailed : result.message);
           return;
         }
-        received = result.summary;
-        await send({ tipo: 'concluido' });
+        // Já está gravado, mesmo que a confirmação não chegue ao outro lado.
+        incomingDone = appliedBatches() === toReceive;
+        showProgress();
+        await send({ tipo: 'lote_ok', indice: message.indice });
         await finishIfComplete();
         return;
       }
-      case 'concluido':
-        peerDone = true;
-        await finishIfComplete();
+      case 'lote_ok': {
+        if (!outgoing || message.indice !== acknowledged || outgoingDone) {
+          throw new ProtocolError('Confirmação fora de ordem.');
+        }
+        acknowledged += 1;
+        outgoingDone = acknowledged === outgoing.total;
+        showProgress();
+        if (outgoingDone) {
+          await finishIfComplete();
+        } else {
+          await sendBatch(acknowledged);
+        }
         return;
+      }
       case 'erro':
-        fail(
+        await stop(
           message.motivo === 'versao_incompativel'
             ? REFUSAL_MESSAGES.versao_incompativel
             : NEARBY_MESSAGES.peerFailed,
@@ -285,9 +379,9 @@ export function createNearbySession({
       } catch (error) {
         if (error instanceof ProtocolError) {
           await sendError('mensagem_invalida');
-          fail(NEARBY_MESSAGES.protocol);
+          await stop(NEARBY_MESSAGES.protocol);
         } else if (!connectionLost) {
-          fail(REFUSAL_MESSAGES.erro);
+          await stop(REFUSAL_MESSAGES.erro);
         }
       }
     });
@@ -321,7 +415,8 @@ export function createNearbySession({
       return;
     }
     if (!local) return;
-    setState({ phase: 'syncing', peerName });
+    incoming = sync.receiveBatches();
+    showProgress();
     const hello: ProtocolMessage = {
       tipo: 'ola',
       formato: PROTOCOL_FORMAT,
@@ -339,18 +434,21 @@ export function createNearbySession({
     queue = queue.then(() => handleDisconnect(event.endpointId));
   }
 
-  function handleDisconnect(disconnected: string) {
+  async function handleDisconnect(disconnected: string) {
     if (disconnected !== endpointId) return;
     if (state.phase === 'done') return;
-    if (received) {
-      // Já gravou o que recebeu; só falta a confirmação do outro lado.
-      const summary = received;
-      const name = peerName;
-      release();
-      setState({ phase: 'done', peerName: name, summary, peerConfirmed: false });
+    await writeLogs();
+    if (!incoming || appliedBatches() === 0) {
+      fail(NEARBY_MESSAGES.droppedBefore);
       return;
     }
-    fail(NEARBY_MESSAGES.droppedBefore);
+    // Os lotes gravados ficam. A próxima troca manda só o que faltou.
+    const summary = incoming.summary();
+    const name = peerName;
+    const confirmed = outgoingDone;
+    const partial = !incomingDone;
+    release();
+    setState({ phase: 'done', peerName: name, summary, peerConfirmed: confirmed, partial });
   }
 
   return {

@@ -51,8 +51,8 @@ function createService(
       schemaVersion: 4,
       vector: {},
     })),
-    preparePackageFor: jest.fn(async () => '{}'),
-    applyPackageJson: jest.fn(async () => importResult),
+    prepareBatchesFor: jest.fn(),
+    receiveBatches: jest.fn(),
   };
 }
 

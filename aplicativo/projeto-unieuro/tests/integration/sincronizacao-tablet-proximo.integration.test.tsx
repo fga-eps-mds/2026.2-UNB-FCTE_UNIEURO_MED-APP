@@ -44,6 +44,7 @@ async function tabletWith(name: string, crm: string, cpf: string, key: number) {
     createdAt: new Date().toISOString(),
   });
   return {
+    tablet,
     database: tablet.database,
     service: createSyncService({
       repository: createSyncRepository(async () => tablet.database, tablet.protector),
@@ -57,6 +58,7 @@ let radioB: FakeNearby;
 let databaseA: SQLiteDatabase;
 let serviceA: ReturnType<typeof createSyncService>;
 let sessionB: NearbySession;
+let brunoTablet: TabletDeTeste;
 const confirmA = async (password: string) => password === 'senha-da-ana';
 
 beforeEach(async () => {
@@ -67,6 +69,7 @@ beforeEach(async () => {
   const bruno = await tabletWith('Bruno Lima', '22222', '52998224725', 2);
   databaseA = ana.database;
   serviceA = ana.service;
+  brunoTablet = bruno.tablet;
   sessionB = createNearbySession({
     api: radioB,
     sync: bruno.service,
@@ -253,7 +256,7 @@ describe('sincronizar com tablet próximo', () => {
   });
 
   it('avisa para conferir o outro tablet quando a conexão cai depois de receber', async () => {
-    air.dropWhen = (text, from) => from === 'tablet-b' && text.includes('"tipo":"concluido"');
+    air.dropWhen = (text, from) => from === 'tablet-b' && text.includes('"tipo":"lote_ok"');
     const user = userEvent.setup();
     renderCard();
     await reachConfirmation(user);
@@ -262,6 +265,49 @@ describe('sincronizar com tablet próximo', () => {
     expect(
       await screen.findByText(/confira no outro tablet se ele também terminou/, undefined, SLOW),
     ).toBeOnTheScreen();
+  });
+
+  it('mostra o progresso dos lotes e, se a conexão cai no meio, avisa que o resto vem na próxima troca', async () => {
+    // O Bruno manda um lote por profissional e a conexão cai no segundo.
+    await brunoTablet.repository.insert({
+      name: 'Carla Dias',
+      email: 'carla@unieuro.com.br',
+      crmNumber: '33333',
+      crmState: 'DF',
+      cpf: '22233344405',
+      passwordHash: 'hash',
+      createdAt: new Date().toISOString(),
+    });
+    sessionB.stop();
+    sessionB = createNearbySession({
+      api: radioB,
+      sync: createSyncService({
+        repository: createSyncRepository(async () => brunoTablet.database, brunoTablet.protector),
+        batchMaxBytes: 700,
+      }),
+      confirmPassword: async (password) => password === 'senha-do-bruno',
+      wait: async () => undefined,
+    });
+    air.dropWhen = (text, from) => from === 'tablet-b' && text.includes('"tipo":"lote","indice":1');
+    const user = userEvent.setup();
+    const { onReceived } = renderCard();
+    await reachConfirmation(user);
+    await confirmBoth(user);
+
+    expect(
+      await screen.findByLabelText(
+        new RegExp(`caiu antes do fim\\. ${NEARBY_MESSAGES.keptPartial}`),
+        undefined,
+        SLOW,
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/confira no outro tablet/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sincronizar de novo' })).toBeOnTheScreen();
+    expect(onReceived).toHaveBeenCalled();
+    const names = await databaseA.getAllAsync<{ nome: string }>(
+      'SELECT nome FROM profissional ORDER BY nome',
+    );
+    expect(names.map((row) => row.nome)).toEqual(['Ana Souza', 'Bruno Lima']);
   });
 
   it('encerra a busca ao sair da tela', async () => {

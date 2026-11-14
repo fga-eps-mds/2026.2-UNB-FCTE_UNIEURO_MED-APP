@@ -4,6 +4,7 @@ import { verifyPassword } from '@/features/auth/password';
 import {
   abrirTabletSincronizavel,
   alterar,
+  aplicarDireto,
   ASSINATURA,
   atender,
   cadastrar,
@@ -12,6 +13,7 @@ import {
   enviarPorArquivo,
   estado,
   finalizar,
+  pacoteDireto,
   type TabletSincronizavel,
 } from '../test-support/sincronizacao';
 import { ANA, BRUNO, CPF_DA_ANA, CPF_DO_BRUNO, SENHA_DE_TESTE } from '../test-support/tablet';
@@ -55,9 +57,11 @@ const MAIOR_UUID = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
 
 const abertos: TabletSincronizavel[] = [];
 
-async function tablets(quantidade: number) {
+async function tablets(quantidade: number, tamanhoDoLote?: number) {
   const novos = [];
-  for (let i = 0; i < quantidade; i += 1) novos.push(await abrirTabletSincronizavel());
+  for (let i = 0; i < quantidade; i += 1) {
+    novos.push(await abrirTabletSincronizavel({ tamanhoDoLote }));
+  }
   abertos.push(...novos);
   return novos;
 }
@@ -518,11 +522,10 @@ describe('pacientes e atendimentos', () => {
     const [tabletA, tabletB] = await tablets(2);
     await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
     const destino = await tabletB.sync.describeLocal();
-    const pacote = JSON.parse(
-      await tabletA.sync.preparePackageFor(destino.vector, destino.deviceId),
-    );
+    const pacote = await pacoteDireto(tabletA, destino.vector, destino.deviceId);
 
-    const result = await tabletB.sync.applyPackageJson(
+    const result = await aplicarDireto(
+      tabletB,
       JSON.stringify({ ...pacote, profissionais: [], pacientes: [] }),
     );
 
@@ -645,9 +648,10 @@ describe('avaliação só vai inteira', () => {
       /nao pode mudar/,
     );
 
-    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const pacote = await pacoteDireto(tabletA);
     const [avaliacao] = pacote.avaliacoes;
-    const result = await tabletB.sync.applyPackageJson(
+    const result = await aplicarDireto(
+      tabletB,
       JSON.stringify({
         ...pacote,
         profissionais: [],
@@ -666,10 +670,10 @@ describe('avaliação só vai inteira', () => {
   it('a avaliação com uma parte inválida não entra, e o resto do pacote entra', async () => {
     const [tabletA, tabletB] = await tablets(2);
     await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
-    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const pacote = await pacoteDireto(tabletA);
     pacote.avaliacoes[0].tarefas[2].eventos[0][1] = 'rabisco';
 
-    const result = await tabletB.sync.applyPackageJson(JSON.stringify(pacote));
+    const result = await aplicarDireto(tabletB, JSON.stringify(pacote));
 
     expect(result).toMatchObject({
       ok: true,
@@ -792,10 +796,11 @@ describe('correção do CRM', () => {
     const [tabletA, tabletB] = await tablets(2);
     await cadastrar(tabletA, ANA, CPF_DA_ANA);
     await enviarDireto(tabletA, tabletB);
-    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const pacote = await pacoteDireto(tabletA);
     const [ana] = pacote.profissionais;
 
-    const result = await tabletB.sync.applyPackageJson(
+    const result = await aplicarDireto(
+      tabletB,
       JSON.stringify({
         ...pacote,
         profissionais: [{ ...ana, cpf: CPF_DO_BRUNO, origem_seq: 999 }],
@@ -857,6 +862,73 @@ describe('convergência com ordens sorteadas', () => {
   });
 });
 
+describe('envio em lotes', () => {
+  // Limite de 1 caractere: cada registro vai num lote próprio.
+  const UM_POR_LOTE = 1;
+
+  it('avaliações completas divididas em lotes chegam iguais, pelo Nearby e pelo arquivo', async () => {
+    const [tabletA, tabletB, tabletC] = await tablets(3, UM_POR_LOTE);
+    const ana = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await atender(tabletA, ana, JOSE);
+    await atender(tabletA, ana, MARIA);
+    await atender(tabletA, ana, JOSE, { startedAt: '2026-10-10T09:00:00.000Z' });
+
+    const direto = await enviarDireto(tabletA, tabletB);
+    const arquivo = await enviarPorArquivo(tabletA, tabletC);
+
+    // 1 profissional, 2 pacientes e 3 avaliações.
+    expect(direto).toMatchObject({ ok: true, lotes: 6, gravados: 6 });
+    expect(direto).toMatchObject({ summary: { attendances: { inserted: 3 } } });
+    expect(arquivo).toMatchObject({ ok: true, summary: { attendances: { inserted: 3 } } });
+    const stateA = await estado(tabletA);
+    expect(stateA.tarefas).toHaveLength(9);
+    expect(stateA.eventos).toHaveLength(27);
+    expect(await estado(tabletB)).toEqual(stateA);
+    expect(await estado(tabletC)).toEqual(stateA);
+  });
+
+  it('a queda entre lotes não perde a avaliação com contador menor que um cadastro já gravado', async () => {
+    const [tabletA, tabletB] = await tablets(2, UM_POR_LOTE);
+    const ana = await cadastrar(tabletA, ANA, CPF_DA_ANA);
+    await atender(tabletA, ana, JOSE);
+    // O paciente muda depois: o contador dele passa o da avaliação, mas ele vai antes.
+    await alterar(tabletA, 'paciente', { nome: 'José Alves Martins Filho' }, 'id = 1');
+
+    const primeira = await enviarDireto(tabletA, tabletB, { pararDepoisDe: 2 });
+
+    expect(primeira).toMatchObject({ ok: true, lotes: 3, gravados: 2 });
+    expect(await estado(tabletB)).toMatchObject({ atendimentos: [] });
+    expect(
+      await tabletB.database.getAllAsync<{ nome: string }>('SELECT nome FROM paciente'),
+    ).toEqual([{ nome: 'José Alves Martins Filho' }]);
+
+    const segunda = await enviarDireto(tabletA, tabletB);
+
+    expect(segunda).toMatchObject({ ok: true, summary: { attendances: { inserted: 1 } } });
+    expect(await estado(tabletB)).toEqual(await estado(tabletA));
+    expect(
+      await tabletB.database.getAllAsync('SELECT resultado FROM sync_log ORDER BY id'),
+    ).toEqual([{ resultado: 'parcial' }, { resultado: 'sucesso' }]);
+  });
+
+  it('três tablets em cadeia convergem com lotes', async () => {
+    const [tabletA, tabletB, tabletC] = await tablets(3, UM_POR_LOTE);
+    await atender(tabletA, await cadastrar(tabletA, ANA, CPF_DA_ANA), JOSE);
+    await atender(tabletB, await cadastrar(tabletB, BRUNO, CPF_DO_BRUNO), MARIA);
+
+    await enviarDireto(tabletA, tabletB, { pararDepoisDe: 1 });
+    await enviarDireto(tabletB, tabletC);
+    await enviarDireto(tabletA, tabletB);
+    await enviarDireto(tabletB, tabletC);
+    await enviarDireto(tabletC, tabletA);
+
+    const stateA = await estado(tabletA);
+    expect(stateA.atendimentos).toHaveLength(2);
+    expect(await estado(tabletB)).toEqual(stateA);
+    expect(await estado(tabletC)).toEqual(stateA);
+  });
+});
+
 describe('pacotes recusados', () => {
   it('código errado não grava nada', async () => {
     const [tabletA, tabletB] = await tablets(2);
@@ -897,11 +969,9 @@ describe('pacotes recusados', () => {
   it('pacote de outra versão do banco é recusado sem gravar nada', async () => {
     const [tabletA, tabletB] = await tablets(2);
     await cadastrar(tabletA, ANA, CPF_DA_ANA);
-    const pacote = JSON.parse(await tabletA.sync.preparePackageFor({}, 'tablet-b'));
+    const pacote = await pacoteDireto(tabletA);
 
-    const result = await tabletB.sync.applyPackageJson(
-      JSON.stringify({ ...pacote, versao_esquema: 99 }),
-    );
+    const result = await aplicarDireto(tabletB, JSON.stringify({ ...pacote, versao_esquema: 99 }));
 
     expect(result).toMatchObject({ ok: false, reason: 'versao_incompativel' });
     expect(await professionals(tabletB)).toEqual([]);

@@ -6,12 +6,12 @@ jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 describe('composição da feature de sincronização', () => {
   it('oferece o serviço de sincronização completo', () => {
     expect(Object.keys(syncService).sort()).toEqual([
-      'applyPackageJson',
       'describeLocal',
       'exportPackage',
       'importPackage',
       'lastReceivedAt',
-      'preparePackageFor',
+      'prepareBatchesFor',
+      'receiveBatches',
     ]);
   });
 

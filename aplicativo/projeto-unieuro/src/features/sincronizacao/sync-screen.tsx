@@ -29,8 +29,8 @@ type SyncScreenProps = {
     | 'importPackage'
     | 'lastReceivedAt'
     | 'describeLocal'
-    | 'preparePackageFor'
-    | 'applyPackageJson'
+    | 'prepareBatchesFor'
+    | 'receiveBatches'
   >;
   /** `null` no Expo Go. */
   nearby: NearbyApi | null;

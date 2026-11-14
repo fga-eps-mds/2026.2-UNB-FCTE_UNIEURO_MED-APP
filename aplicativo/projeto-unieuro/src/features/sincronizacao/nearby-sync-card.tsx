@@ -6,7 +6,12 @@ import {
   openLocationSettings as openSystemLocationSettings,
   type NearbyApi,
 } from '@/features/sincronizacao/nearby-module';
-import { createNearbySession, type NearbyState } from '@/features/sincronizacao/nearby-session';
+import {
+  createNearbySession,
+  NEARBY_MESSAGES,
+  type NearbyState,
+  type SyncProgress,
+} from '@/features/sincronizacao/nearby-session';
 import { describeSummary } from '@/features/sincronizacao/summary-text';
 import { ActionButton, LabeledInput } from '@/features/sincronizacao/sync-controls';
 import type { SyncStyles } from '@/features/sincronizacao/sync.styles';
@@ -15,7 +20,7 @@ import type { SyncService } from '@/features/sincronizacao/sync-service';
 type NearbySyncCardProps = {
   /** `null` no Expo Go. */
   nearby: NearbyApi | null;
-  service: Pick<SyncService, 'describeLocal' | 'preparePackageFor' | 'applyPackageJson'>;
+  service: Pick<SyncService, 'describeLocal' | 'prepareBatchesFor' | 'receiveBatches'>;
   confirmPassword: (password: string) => Promise<boolean>;
   /** Chamado depois de gravar os dados recebidos. */
   onReceived?: () => void;
@@ -25,6 +30,15 @@ type NearbySyncCardProps = {
 };
 
 const TITLE = 'Sincronizar com tablet próximo';
+
+/** "Enviando 3 de 7 · Recebendo 2 de 4", só com os totais já conhecidos. */
+export function describeProgress({ sent, toSend, received, toReceive }: SyncProgress): string {
+  const parts = [
+    toSend !== null && `Enviando ${Math.min(sent + 1, toSend)} de ${toSend}`,
+    toReceive !== null && `Recebendo ${Math.min(received + 1, toReceive)} de ${toReceive}`,
+  ].filter((part): part is string => Boolean(part));
+  return parts.join(' · ');
+}
 
 export default function NearbySyncCard({ nearby, styles, ...props }: NearbySyncCardProps) {
   if (!nearby) {
@@ -186,23 +200,33 @@ function NearbySession({
       )}
 
       {state.phase === 'syncing' && (
-        <Text accessibilityLiveRegion="polite" style={styles.text}>
-          Sincronizando com o {state.peerName}... Mantenha os dois tablets perto.
-        </Text>
+        <>
+          <Text accessibilityLiveRegion="polite" style={styles.text}>
+            Sincronizando com o {state.peerName}... Mantenha os dois tablets perto.
+          </Text>
+          {describeProgress(state) && <Text style={styles.hint}>{describeProgress(state)}</Text>}
+        </>
       )}
 
       {state.phase === 'done' && (
         <>
-          <FeedbackMessage
-            kind="success"
-            message={`Sincronização concluída com o ${state.peerName}.`}
-          />
+          {state.partial ? (
+            <FeedbackMessage
+              kind="info"
+              message={`A conexão com o ${state.peerName} caiu antes do fim. ${NEARBY_MESSAGES.keptPartial}`}
+            />
+          ) : (
+            <FeedbackMessage
+              kind="success"
+              message={`Sincronização concluída com o ${state.peerName}.`}
+            />
+          )}
           {describeSummary(state.summary).map((line) => (
             <Text key={line} style={styles.text}>
               {line}
             </Text>
           ))}
-          {!state.peerConfirmed && (
+          {!state.partial && !state.peerConfirmed && (
             <Text style={styles.hint}>
               A conexão caiu antes da confirmação do outro tablet. Os dados recebidos aqui foram
               salvos; confira no outro tablet se ele também terminou.

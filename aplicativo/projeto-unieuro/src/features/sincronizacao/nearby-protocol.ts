@@ -2,13 +2,17 @@ import type { VersionVector } from '@/db/sync-repository';
 import { isUuid, isVector } from '@/features/sincronizacao/sync-package';
 
 /**
- * Protocolo da troca pelo Nearby (a conexão já é cifrada):
+ * Protocolo da troca pelo Nearby (a conexão já é cifrada). Os dois sentidos
+ * correm ao mesmo tempo:
  * 1. cada lado manda `ola` com o seu vetor;
- * 2. responde com `pacote`, só com o que falta ao outro;
- * 3. depois de aplicar, manda `concluido`.
+ * 2. quem recebe o `ola` divide o que falta ao outro em lotes e manda o primeiro;
+ * 3. quem recebe um `lote` grava numa transação e responde `lote_ok`;
+ * 4. cada `lote_ok` libera o lote seguinte.
+ * A troca termina quando os dois lados gravaram tudo e tiveram tudo confirmado.
+ * Se a conexão cair, os lotes gravados ficam, e a próxima troca manda o resto.
  */
 export const PROTOCOL_FORMAT = 'med-sync-p2p';
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type HelloMessage = {
   tipo: 'ola';
@@ -21,9 +25,18 @@ export type HelloMessage = {
 
 export type ProtocolMessage =
   | HelloMessage
-  | { tipo: 'pacote'; pacote: string }
-  | { tipo: 'concluido' }
+  | BatchMessage
+  | { tipo: 'lote_ok'; indice: number }
   | { tipo: 'erro'; motivo: string };
+
+export type BatchMessage = {
+  tipo: 'lote';
+  indice: number;
+  total: number;
+  /** Até onde quem recebe passa a ter tudo de cada tablet, depois deste lote. */
+  cobertura: VersionVector;
+  pacote: string;
+};
 
 export class ProtocolError extends Error {
   constructor(message: string) {
@@ -89,6 +102,9 @@ export function createAssembler() {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const isIndex = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) >= 0;
+
 export function parseMessage(text: string): ProtocolMessage {
   let value: unknown;
   try {
@@ -110,11 +126,26 @@ export function parseMessage(text: string): ProtocolMessage {
         return value as HelloMessage;
       }
       throw new ProtocolError('Apresentação inválida.');
-    case 'pacote':
-      if (typeof value.pacote === 'string') return { tipo: 'pacote', pacote: value.pacote };
-      throw new ProtocolError('Pacote inválido.');
-    case 'concluido':
-      return { tipo: 'concluido' };
+    case 'lote':
+      if (
+        isIndex(value.indice) &&
+        isIndex(value.total) &&
+        value.indice < value.total &&
+        isVector(value.cobertura) &&
+        typeof value.pacote === 'string'
+      ) {
+        return {
+          tipo: 'lote',
+          indice: value.indice,
+          total: value.total,
+          cobertura: value.cobertura,
+          pacote: value.pacote,
+        };
+      }
+      throw new ProtocolError('Lote inválido.');
+    case 'lote_ok':
+      if (isIndex(value.indice)) return { tipo: 'lote_ok', indice: value.indice };
+      throw new ProtocolError('Confirmação de lote inválida.');
     case 'erro':
       return { tipo: 'erro', motivo: typeof value.motivo === 'string' ? value.motivo : 'erro' };
     default:

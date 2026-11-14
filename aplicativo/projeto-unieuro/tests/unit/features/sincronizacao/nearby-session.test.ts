@@ -18,8 +18,8 @@ function createSession() {
   const radio = new FakeAir().device('tablet-a');
   const sync = {
     describeLocal: jest.fn(async () => ({ deviceId: DEVICE, schemaVersion: 4, vector: {} })),
-    preparePackageFor: jest.fn(async () => '{}'),
-    applyPackageJson: jest.fn(),
+    prepareBatchesFor: jest.fn(),
+    receiveBatches: jest.fn(),
   };
   const session = createNearbySession({
     api: radio,

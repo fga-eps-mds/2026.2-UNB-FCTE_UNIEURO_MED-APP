@@ -2,8 +2,12 @@ import { createAttendanceRepository, type PatientRecord } from '@/db/attendance-
 import { createConsentRepository } from '@/db/consent-repository';
 import { createDrawingRepository, type TaskType } from '@/db/drawing-repository';
 import { nextHlc } from '@/db/hlc';
-import { createSyncRepository } from '@/db/sync-repository';
-import { createSyncService, type SyncService } from '@/features/sincronizacao/sync-service';
+import { createSyncRepository, type VersionVector } from '@/db/sync-repository';
+import {
+  createSyncService,
+  type ImportResult,
+  type SyncService,
+} from '@/features/sincronizacao/sync-service';
 
 import { abrirTablet, hashDaSenhaDeTeste, protetorComChave, type TabletDeTeste } from './tablet';
 
@@ -28,10 +32,16 @@ export type TabletSincronizavel = TabletDeTeste & {
 
 let proximaChave = 20;
 
-export async function abrirTabletSincronizavel(): Promise<TabletSincronizavel> {
+/** `tamanhoDoLote`: limite dos lotes, para os testes terem vários com poucos dados. */
+export async function abrirTabletSincronizavel(
+  opcoes: { tamanhoDoLote?: number } = {},
+): Promise<TabletSincronizavel> {
   const tablet = (await abrirTablet(protetorComChave(proximaChave++))) as TabletSincronizavel;
   const open = async () => tablet.database;
-  tablet.sync = createSyncService({ repository: createSyncRepository(open, tablet.protector) });
+  tablet.sync = createSyncService({
+    repository: createSyncRepository(open, tablet.protector),
+    batchMaxBytes: opcoes.tamanhoDoLote,
+  });
   tablet.atendimentos = createAttendanceRepository(open, tablet.protector);
   return tablet;
 }
@@ -200,11 +210,47 @@ export async function enviarPorArquivo(de: TabletSincronizavel, para: TabletSinc
   return para.sync.importPackage(pacote.contents, pacote.code);
 }
 
-/** Como a troca pelo Nearby: só a diferença, sem cifra. */
-export async function enviarDireto(de: TabletSincronizavel, para: TabletSincronizavel) {
+/**
+ * Como a troca pelo Nearby: só a diferença, sem cifra, lote por lote.
+ * `pararDepoisDe`: simula a queda da conexão depois de tantos lotes gravados.
+ */
+export async function enviarDireto(
+  de: TabletSincronizavel,
+  para: TabletSincronizavel,
+  { pararDepoisDe }: { pararDepoisDe?: number } = {},
+): Promise<ImportResult & { lotes: number; gravados: number }> {
   const destino = await para.sync.describeLocal();
-  const pacote = await de.sync.preparePackageFor(destino.vector, destino.deviceId);
-  return para.sync.applyPackageJson(pacote);
+  const lotes = await de.sync.prepareBatchesFor(destino.vector, destino.deviceId);
+  const recebimento = para.sync.receiveBatches();
+  let gravados = 0;
+  while (gravados < lotes.total && gravados !== pararDepoisDe) {
+    const { pacote, cobertura } = await lotes.read(gravados);
+    const resultado = await recebimento.apply(pacote, cobertura);
+    if (!resultado.ok) return { ...resultado, lotes: lotes.total, gravados };
+    gravados += 1;
+  }
+  await lotes.finish(gravados);
+  await recebimento.finish(gravados === lotes.total);
+  return { ok: true, summary: recebimento.summary(), lotes: lotes.total, gravados };
+}
+
+/** O pacote inteiro que iria pelo Nearby, para os testes alterarem antes de aplicar. */
+export async function pacoteDireto(
+  de: TabletSincronizavel,
+  vetor: VersionVector = {},
+  destino = '00000000-0000-4000-8000-000000000000',
+) {
+  const lotes = await de.sync.prepareBatchesFor(vetor, destino);
+  if (lotes.total !== 1) throw new Error(`Esperava um lote só, vieram ${lotes.total}.`);
+  return JSON.parse((await lotes.read(0)).pacote);
+}
+
+/** Aplica um pacote montado pelo teste, como um lote único do Nearby. */
+export async function aplicarDireto(para: TabletSincronizavel, json: string) {
+  const recebimento = para.sync.receiveBatches();
+  const resultado = await recebimento.apply(json, JSON.parse(json).vetor);
+  await recebimento.finish(true);
+  return resultado;
 }
 
 /**

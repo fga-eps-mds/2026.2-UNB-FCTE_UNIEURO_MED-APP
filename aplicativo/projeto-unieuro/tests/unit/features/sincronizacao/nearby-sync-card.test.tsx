@@ -2,7 +2,7 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 
 import { Colors } from '@/constants/theme';
 import { NEARBY_MESSAGES } from '@/features/sincronizacao/nearby-session';
-import NearbySyncCard from '@/features/sincronizacao/nearby-sync-card';
+import NearbySyncCard, { describeProgress } from '@/features/sincronizacao/nearby-sync-card';
 import { createSyncStyles } from '@/features/sincronizacao/sync.styles';
 
 import { FakeAir, type FakeNearby } from '../../../test-support/fake-nearby';
@@ -18,8 +18,8 @@ const service = {
     schemaVersion: 4,
     vector: {},
   })),
-  preparePackageFor: jest.fn(async () => '{}'),
-  applyPackageJson: jest.fn(),
+  prepareBatchesFor: jest.fn(),
+  receiveBatches: jest.fn(),
 };
 
 function renderCard(nearby: FakeNearby | null, openLocationSettings = jest.fn(async () => {})) {
@@ -97,5 +97,23 @@ describe('NearbySyncCard', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeOnTheScreen();
+  });
+});
+
+describe('describeProgress', () => {
+  it('mostra o lote em andamento nos dois sentidos', () => {
+    expect(describeProgress({ sent: 2, toSend: 7, received: 1, toReceive: 4 })).toBe(
+      'Enviando 3 de 7 · Recebendo 2 de 4',
+    );
+  });
+
+  it('não passa do total quando o último lote já foi', () => {
+    expect(describeProgress({ sent: 3, toSend: 3, received: 0, toReceive: null })).toBe(
+      'Enviando 3 de 3',
+    );
+  });
+
+  it('sem os totais ainda, não mostra nada', () => {
+    expect(describeProgress({ sent: 0, toSend: null, received: 0, toReceive: null })).toBe('');
   });
 });
