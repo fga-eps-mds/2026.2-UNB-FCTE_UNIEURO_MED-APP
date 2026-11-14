@@ -39,6 +39,15 @@ export type AttendedPatientRecord = {
   lastState: string;
 };
 
+/**
+ * Paciente atendido por qualquer profissional do tablet, como só o superusuário
+ * vê (#49): o resumo conta os atendimentos de todos, e `attendedBy` é o nome de
+ * quem fez o mais recente.
+ */
+export type AnyAttendedPatientRecord = AttendedPatientRecord & {
+  attendedBy: string;
+};
+
 type AttendedPatientRow = {
   id: number;
   nome: string;
@@ -66,6 +75,34 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE a.id_profissional = ?
   GROUP BY p.id`;
+
+// Só o superusuário com a conta ativa pode ver o que outro médico coletou (#49).
+// A condição vai dentro das consultas "de todos", e não só na tela: para qualquer
+// outro profissional elas não devolvem linha nenhuma, por qualquer caminho do código.
+const REQUESTER_IS_SUPERUSER = `EXISTS (SELECT 1 FROM profissional s
+    WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1)`;
+
+// Atendimento mais recente do paciente, entre os de todos os profissionais, com o
+// mesmo desempate pelo id da consulta do médico.
+const LATEST_ATTENDANCE = `FROM avaliacao r
+      WHERE r.id_paciente = p.id
+      ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1`;
+
+const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
+    COUNT(a.id) AS total,
+    MAX(a.data_hora_inicio) AS ultimo_inicio,
+    (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
+    (SELECT m.nome FROM profissional m
+      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE ${REQUESTER_IS_SUPERUSER}
+  GROUP BY p.id`;
+
+const LIST_ALL_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE ${REQUESTER_IS_SUPERUSER}`;
 
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
@@ -107,6 +144,10 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  * Também lista os pacientes que um profissional atendeu, para a tela inicial
  * (#77). Essa consulta não lê o CPF: ele só é decifrado por
  * `listAttendedPatientCpfs`, quando a busca da tela inicial pede (#99).
+ *
+ * As consultas `listAll...` trazem os pacientes de todos os profissionais, para o
+ * superusuário (#49). Elas recebem quem está pedindo e só respondem a um
+ * superusuário com a conta ativa.
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -187,6 +228,41 @@ export function createAttendanceRepository(
       const rows = await database.getAllAsync<{ id: number; cpf_cifrado: string }>(
         LIST_ATTENDED_PATIENT_CPFS,
         [professionalId],
+      );
+      return Promise.all(
+        rows.map(async (row) => ({
+          patientId: row.id,
+          cpf: await protector.decrypt(row.cpf_cifrado),
+        })),
+      );
+    },
+
+    /** Pacientes de todos os profissionais, com quem atendeu por último. Só para o superusuário. */
+    async listAllAttendedPatients(requesterId: number): Promise<AnyAttendedPatientRecord[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<AttendedPatientRow & { atendido_por: string }>(
+        LIST_ALL_ATTENDED_PATIENTS,
+        [requesterId],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.nome,
+        recordNumber: row.numero_ficha,
+        attendanceCount: row.total,
+        lastStartedAt: row.ultimo_inicio,
+        lastState: row.ultimo_estado,
+        attendedBy: row.atendido_por,
+      }));
+    },
+
+    /** CPF dos pacientes de todos os profissionais, para a busca do superusuário. */
+    async listAllAttendedPatientCpfs(
+      requesterId: number,
+    ): Promise<{ patientId: number; cpf: string }[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<{ id: number; cpf_cifrado: string }>(
+        LIST_ALL_ATTENDED_PATIENT_CPFS,
+        [requesterId],
       );
       return Promise.all(
         rows.map(async (row) => ({

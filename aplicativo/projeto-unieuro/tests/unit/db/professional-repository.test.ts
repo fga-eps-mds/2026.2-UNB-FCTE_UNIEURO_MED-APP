@@ -22,6 +22,8 @@ const row = {
   last_update: '2026-09-26T13:00:00.000Z',
   ativo: 1,
   desativacao: null,
+  perfil: 'medico',
+  superusuario_por: null,
 };
 
 const CPF = '11144477735';
@@ -143,7 +145,7 @@ describe('insert', () => {
 
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining(
-        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update)',
+        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update, perfil)',
       ),
       [
         'Ana Carolina Souza',
@@ -190,6 +192,8 @@ describe('consultas', () => {
     updatedAt: '2026-09-26T13:00:00.000Z',
     active: true,
     deactivatedAt: null,
+    superuser: false,
+    superuserGrantedBy: null,
   };
 
   it('não traz o CPF nas leituras comuns', async () => {

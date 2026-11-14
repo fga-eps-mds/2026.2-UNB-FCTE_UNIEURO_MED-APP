@@ -95,7 +95,8 @@ export default function EditAccountScreen({ repository }: EditAccountScreenProps
       }
       setProfileErrors({});
       setProfilePassword('');
-      signIn(result.profile);
+      // Editar os dados não muda o perfil: a sessão mantém o que o login leu.
+      signIn({ ...result.profile, superuser: professional.superuser });
       setProfileFeedback({ kind: 'success', message: PROFILE_SAVED });
     } catch {
       setProfileFeedback({ kind: 'error', message: SAVE_FAILED });
