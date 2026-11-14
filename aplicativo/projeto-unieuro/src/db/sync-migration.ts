@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS sync_log (
     recebidos INTEGER NOT NULL DEFAULT 0,
     conflitos INTEGER NOT NULL DEFAULT 0,
     quarentena INTEGER NOT NULL DEFAULT 0,
-    resultado TEXT NOT NULL CHECK (resultado IN ('sucesso', 'recusado', 'erro')),
+    resultado TEXT NOT NULL CHECK (resultado IN ('sucesso', 'parcial', 'recusado', 'erro')),
     motivo TEXT
 );
 

@@ -131,6 +131,16 @@ export type ConflictEntry = {
   data: Record<string, unknown>;
 };
 
+/** Avaliação finalizada sem o conteúdo, para planejar os lotes. */
+export type SyncAttendanceStamp = {
+  uuid: string;
+  origem_id: string;
+  origem_seq: number;
+  /** Bytes dos desenhos e da assinatura. */
+  bytes_imagens: number;
+  eventos: number;
+};
+
 export type SyncLogEntry = {
   direction: 'envio' | 'recebimento';
   peerId: string | null;
@@ -140,7 +150,8 @@ export type SyncLogEntry = {
   received?: number;
   conflicts?: number;
   quarantined?: number;
-  result: 'sucesso' | 'recusado' | 'erro';
+  /** `parcial`: parte dos lotes foi gravada ou enviada antes de a troca parar. */
+  result: 'sucesso' | 'parcial' | 'recusado' | 'erro';
   reason?: string;
 };
 
@@ -160,6 +171,8 @@ const SELECT_ATTENDANCE = `SELECT a.id, a.uuid, p.uuid AS profissional_uuid, pa.
   JOIN paciente pa ON pa.id = a.id_paciente`;
 
 const FINAL_STATES = FINAL_ATTENDANCE_STATES.map(() => '?').join(', ');
+// Abaixo do limite de parâmetros do SQLite, com folga para os estados.
+const UUIDS_PER_QUERY = 500;
 
 const EVENT_COLUMNS = `ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao, inclinacao_x,
   inclinacao_y`;
@@ -284,6 +297,22 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
         };
       }),
     );
+  }
+
+  // Uma por vez: cada uma pode ter centenas de KB de desenho e traçado.
+  async function readFullAttendances(
+    rows: Local<SyncAttendanceHeader>[],
+  ): Promise<SyncAttendance[]> {
+    const attendances: SyncAttendance[] = [];
+    for (const { id, ...attendance } of rows) {
+      attendances.push({
+        ...attendance,
+        estado: attendance.estado as FinalAttendanceState,
+        consentimento: await readConsent(id),
+        tarefas: await readTasks(id),
+      });
+    }
+    return attendances;
   }
 
   async function insertConsent(attendanceId: number, consent: SyncConsent) {
@@ -544,14 +573,49 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
          ORDER BY a.origem_id, a.origem_seq`,
         [...FINAL_ATTENDANCE_STATES],
       );
-      return Promise.all(
-        rows.map(async ({ id, ...attendance }) => ({
-          ...attendance,
-          estado: attendance.estado as FinalAttendanceState,
-          consentimento: await readConsent(id),
-          tarefas: await readTasks(id),
-        })),
+      return readFullAttendances(rows);
+    },
+
+    /**
+     * As finalizadas sem ler os desenhos nem o traçado: só o carimbo e o tamanho
+     * das imagens e do traçado, para dividir o envio em lotes.
+     */
+    listAttendanceStamps(): Promise<SyncAttendanceStamp[]> {
+      return database.getAllAsync<SyncAttendanceStamp>(
+        `SELECT a.uuid, a.origem_id, a.origem_seq,
+           coalesce((SELECT sum(length(d.imagem_final)) FROM tarefa t
+                      JOIN desenho d ON d.id_tarefa = t.id WHERE t.id_avaliacao = a.id), 0)
+           + coalesce((SELECT length(c.assinatura_png) FROM consentimento c
+                        WHERE c.id_avaliacao = a.id), 0) AS bytes_imagens,
+           (SELECT count(*) FROM tarefa t JOIN evento_tracado e ON e.id_tarefa = t.id
+             WHERE t.id_avaliacao = a.id) AS eventos
+         FROM avaliacao a WHERE a.estado IN (${FINAL_STATES})
+         ORDER BY a.origem_id, a.origem_seq`,
+        [...FINAL_ATTENDANCE_STATES],
       );
+    },
+
+    /** As finalizadas pedidas, inteiras, na ordem de `listAttendances`. */
+    async readAttendances(uuids: string[]): Promise<SyncAttendance[]> {
+      const rows: Local<SyncAttendanceHeader>[] = [];
+      for (let start = 0; start < uuids.length; start += UUIDS_PER_QUERY) {
+        const chunk = uuids.slice(start, start + UUIDS_PER_QUERY);
+        rows.push(
+          ...(await database.getAllAsync<Local<SyncAttendanceHeader>>(
+            `${SELECT_ATTENDANCE}
+             WHERE a.estado IN (${FINAL_STATES}) AND a.uuid IN (${chunk.map(() => '?').join(', ')})`,
+            [...FINAL_ATTENDANCE_STATES, ...chunk],
+          )),
+        );
+      }
+      rows.sort((a, b) =>
+        a.origem_id === b.origem_id
+          ? a.origem_seq - b.origem_seq
+          : a.origem_id < b.origem_id
+            ? -1
+            : 1,
+      );
+      return readFullAttendances(rows);
     },
 
     findAttendanceByUuid: (uuid: string) =>

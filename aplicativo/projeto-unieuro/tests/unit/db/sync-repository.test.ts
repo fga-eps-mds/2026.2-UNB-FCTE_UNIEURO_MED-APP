@@ -173,6 +173,56 @@ describe('leitura para o pacote', () => {
   );
 });
 
+describe('leitura das avaliações em duas etapas', () => {
+  it('a listagem leve traz o carimbo e o tamanho das imagens e do traçado, sem ler os BLOBs', async () => {
+    await finish(await registerAnaWithJose());
+    const [full] = await operations.listAttendances();
+
+    const stamps = await operations.listAttendanceStamps();
+
+    const events = full.tarefas.reduce((total, task) => total + task.eventos.length, 0);
+    const drawings = full.tarefas.filter((task) => task.desenho).length;
+    expect(stamps).toEqual([
+      {
+        uuid: full.uuid,
+        origem_id: full.origem_id,
+        origem_seq: full.origem_seq,
+        bytes_imagens: SIGNATURE.length + drawings * DRAWING.length,
+        eventos: events,
+      },
+    ]);
+  });
+
+  it('a listagem leve também deixa de fora as avaliações não finalizadas', async () => {
+    const id = await registerAnaWithJose();
+    await database.runAsync("UPDATE avaliacao SET estado = 'em_andamento' WHERE id = ?", [id]);
+
+    await expect(operations.listAttendanceStamps()).resolves.toEqual([]);
+  });
+
+  it('lê inteiras só as avaliações pedidas, iguais às da listagem completa', async () => {
+    await finish(await registerAnaWithJose());
+    const [full] = await operations.listAttendances();
+
+    await expect(operations.readAttendances([full.uuid])).resolves.toEqual([full]);
+    await expect(
+      operations.readAttendances(['99999999-0000-4000-8000-000000000000']),
+    ).resolves.toEqual([]);
+    await expect(operations.readAttendances([])).resolves.toEqual([]);
+  });
+
+  it('aceita mais uuids do que cabem numa consulta só', async () => {
+    await finish(await registerAnaWithJose());
+    const [full] = await operations.listAttendances();
+    const many = Array.from(
+      { length: 1200 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    );
+
+    await expect(operations.readAttendances([...many, full.uuid])).resolves.toEqual([full]);
+  });
+});
+
 describe('gravação da avaliação recebida', () => {
   it('grava a avaliação e as tabelas ligadas a ela, e depois ela não muda mais', async () => {
     await finish(await registerAnaWithJose());
