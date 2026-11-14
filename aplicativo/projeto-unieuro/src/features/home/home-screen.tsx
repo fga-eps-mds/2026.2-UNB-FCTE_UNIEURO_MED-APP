@@ -20,16 +20,17 @@ import {
 } from '@/features/home/home.styles';
 import {
   EXAM_STATUS_LABEL,
+  EXAM_STATUS_TONE,
   countExams,
   cpfDigitsOf,
   describeTotals,
   filterPatients,
   formatDate,
   sortByLastExam,
-  type ExamStatus,
   type PatientCpf,
   type PatientSummary,
 } from '@/features/home/patients';
+import ExamStatusChip from '@/features/home/exam-status-chip';
 import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -267,12 +268,6 @@ function ColumnHeader({ styles }: { styles: HomeStyles }) {
   );
 }
 
-const CHIP_STYLES = {
-  concluido: { box: 'chipConcluido', text: 'chipConcluidoText' },
-  interrompido: { box: 'chipInterrompido', text: 'chipInterrompidoText' },
-  recusado: { box: 'chipRecusado', text: 'chipRecusadoText' },
-} as const satisfies Record<ExamStatus, { box: keyof HomeStyles; text: keyof HomeStyles }>;
-
 type PatientRowProps = {
   patient: PatientSummary;
   isWide: boolean;
@@ -311,11 +306,7 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
           <View style={styles.colLastExam}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
-              <View style={[styles.chip, styles[CHIP_STYLES[status].box]]}>
-                <Text style={[styles.chipText, styles[CHIP_STYLES[status].text]]}>
-                  {statusLabel}
-                </Text>
-              </View>
+              <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
             )}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
