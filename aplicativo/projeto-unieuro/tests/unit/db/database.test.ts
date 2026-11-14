@@ -198,6 +198,7 @@ describe('esquema', () => {
     const schemaV9 = MIGRATIONS[8];
     expect(schemaV9).toContain("ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'");
     expect(schemaV9).toContain("CHECK (perfil IN ('medico', 'superusuario'))");
+    expect(schemaV9).toContain('ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)');
   });
 });
 

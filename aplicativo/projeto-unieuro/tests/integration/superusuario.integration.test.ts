@@ -111,7 +111,10 @@ describe('conta do administrador', () => {
 
     await expect(professionals.insertSuperuser(conta(TAUIL), null)).resolves.toBe(true);
 
-    expect((await professionals.findByEmail(TAUIL.email))!.superuser).toBe(true);
+    expect(await professionals.findByEmail(TAUIL.email)).toMatchObject({
+      superuser: true,
+      superuserGrantedBy: null,
+    });
     await expect(professionals.hasSuperuser()).resolves.toBe(true);
   });
 
@@ -144,7 +147,10 @@ describe('superusuário só nasce de superusuário', () => {
     const tauil = await criarAdministrador();
 
     await expect(professionals.insertSuperuser(conta(ANA), tauil.id)).resolves.toBe(true);
-    expect((await professionals.findByEmail(ANA.email))!.superuser).toBe(true);
+    expect(await professionals.findByEmail(ANA.email)).toMatchObject({
+      superuser: true,
+      superuserGrantedBy: tauil.id,
+    });
   });
 
   it('um médico comum não cria superusuário', async () => {
@@ -168,8 +174,30 @@ describe('superusuário só nasce de superusuário', () => {
 
     await expect(professionals.promoteToSuperuser(ana.id, tauil.id, AGORA)).resolves.toBe(true);
 
-    expect(await perfilDe(ana.id)).toBe(true);
-    expect((await professionals.findById(ana.id))!.updatedAt).toBe(AGORA);
+    expect(await professionals.findById(ana.id)).toMatchObject({
+      superuser: true,
+      superuserGrantedBy: tauil.id,
+      updatedAt: AGORA,
+    });
+  });
+
+  it('o médico comum não guarda quem concedeu perfil nenhum', async () => {
+    await criarAdministrador();
+    const ana = await cadastrar(ANA);
+
+    expect(ana.superuserGrantedBy).toBeNull();
+  });
+
+  it('o banco recusa registrar quem concedeu o perfil a um médico comum', async () => {
+    const tauil = await criarAdministrador();
+    const ana = await cadastrar(ANA);
+
+    await expect(
+      database.runAsync('UPDATE profissional SET superusuario_por = ? WHERE id = ?', [
+        tauil.id,
+        ana.id,
+      ]),
+    ).rejects.toThrow(/CHECK constraint failed/);
   });
 
   it('um médico comum não promove ninguém, nem a si mesmo', async () => {

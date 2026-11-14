@@ -28,6 +28,11 @@ export type Professional = {
   deactivatedAt: string | null;
   /** Responsável pela pesquisa: vê os atendimentos de todos os profissionais (#49). */
   superuser: boolean;
+  /**
+   * Quem concedeu o perfil de superusuário. `null` num superusuário quer dizer
+   * administrador inicial do tablet; num médico, é sempre `null`.
+   */
+  superuserGrantedBy: number | null;
 };
 
 export type ProfessionalProfile = {
@@ -49,10 +54,11 @@ type ProfessionalRow = {
   ativo: number;
   desativacao: string | null;
   perfil: string;
+  superusuario_por: number | null;
 };
 
 const SELECT_PROFESSIONAL =
-  'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo, desativacao, perfil FROM profissional';
+  'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo, desativacao, perfil, superusuario_por FROM profissional';
 
 const INSERT_COLUMNS =
   'nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update, perfil';
@@ -62,8 +68,8 @@ const INSERT_COLUMNS =
 // superusuário. Com quem peça, só entra se ele for superusuário com a conta ativa.
 // A condição vai no próprio INSERT, para valer por qualquer caminho do código e
 // para dois pedidos ao mesmo tempo não criarem dois administradores.
-const INSERT_SUPERUSER = `INSERT INTO profissional (${INSERT_COLUMNS})
-  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'superusuario'
+const INSERT_SUPERUSER = `INSERT INTO profissional (${INSERT_COLUMNS}, superusuario_por)
+  SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'superusuario', ?
   WHERE CASE WHEN ? IS NULL
     THEN NOT EXISTS (SELECT 1 FROM profissional WHERE perfil = 'superusuario')
     ELSE EXISTS (SELECT 1 FROM profissional WHERE id = ? AND perfil = 'superusuario' AND ativo = 1)
@@ -81,6 +87,7 @@ const toProfessional = (row: ProfessionalRow): Professional => ({
   active: row.ativo === 1,
   deactivatedAt: row.desativacao,
   superuser: row.perfil === 'superusuario',
+  superuserGrantedBy: row.superusuario_por,
 });
 
 /**
@@ -97,7 +104,8 @@ const toProfessional = (row: ProfessionalRow): Professional => ({
  * master, que é a conta do administrador (`insertSuperuser` sem quem peça), e
  * depois disso um superusuário só nasce de outro superusuário (`insertSuperuser`
  * com quem peça, ou `promoteToSuperuser`). O cadastro comum (`insert`) cria
- * sempre um médico.
+ * sempre um médico. Os dois caminhos gravam quem concedeu o perfil
+ * (`superuserGrantedBy`): vazio é o administrador inicial.
  */
 export function createProfessionalRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -204,6 +212,7 @@ export function createProfessionalRepository(
         ...insertParams(professional, cpfCifrado, cpfIndice),
         actorId,
         actorId,
+        actorId,
       ]);
       return result.changes > 0;
     },
@@ -264,11 +273,11 @@ export function createProfessionalRepository(
     ): Promise<boolean> {
       const database = await open();
       const result = await database.runAsync(
-        `UPDATE profissional SET perfil = 'superusuario', last_update = ?
+        `UPDATE profissional SET perfil = 'superusuario', superusuario_por = ?, last_update = ?
          WHERE id = ? AND ativo = 1 AND perfil = 'medico'
            AND EXISTS (SELECT 1 FROM profissional
                        WHERE id = ? AND perfil = 'superusuario' AND ativo = 1)`,
-        [updatedAt, targetId, actorId],
+        [actorId, updatedAt, targetId, actorId],
       );
       return result.changes > 0;
     },

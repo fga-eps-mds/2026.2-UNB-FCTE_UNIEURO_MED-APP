@@ -23,6 +23,7 @@ const row = {
   ativo: 1,
   desativacao: null,
   perfil: 'medico',
+  superusuario_por: null,
 };
 
 const CPF = '11144477735';
@@ -192,6 +193,7 @@ describe('consultas', () => {
     active: true,
     deactivatedAt: null,
     superuser: false,
+    superuserGrantedBy: null,
   };
 
   it('não traz o CPF nas leituras comuns', async () => {

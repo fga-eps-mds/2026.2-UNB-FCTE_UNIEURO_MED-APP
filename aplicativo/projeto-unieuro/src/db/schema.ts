@@ -235,10 +235,18 @@ ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado TEXT
  * de uma conta de administrador criada para isso, e não do cadastro comum: o PO
  * pediu um "cadastro master" e que "um superusuário só nasça de um superusuário"
  * (reunião de 09/11). As duas regras ficam no repositório do profissional.
+ *
+ * `superusuario_por` guarda quem concedeu o perfil. Vazio num superusuário quer
+ * dizer administrador inicial; num médico, fica sempre vazio. Na sincronização
+ * entre tablets (#118), é por ela que se sabe se dois tablets criaram cada um o
+ * seu administrador, e qual deles veio primeiro. Também registra quem deu acesso
+ * aos atendimentos de todos, o que a LGPD pede.
  */
 const SCHEMA_V9 = `
 ALTER TABLE profissional ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'
     CHECK (perfil IN ('medico', 'superusuario'));
+ALTER TABLE profissional ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)
+    CHECK (superusuario_por IS NULL OR perfil = 'superusuario');
 `;
 
 /**
