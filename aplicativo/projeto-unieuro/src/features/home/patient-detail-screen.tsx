@@ -1,4 +1,3 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import { useRouter } from 'expo-router';
 
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
+import ExamStatusChip from '@/features/home/exam-status-chip';
 import { createHomeStyles, WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import {
   SEX_LABEL,
@@ -21,7 +21,6 @@ import {
   describeExams,
   formatDateTime,
   formatSchooling,
-  type ExamTone,
   type PatientDetail,
   type PatientExam,
 } from '@/features/home/patient-detail';
@@ -29,7 +28,6 @@ import {
   createPatientDetailStyles,
   type PatientDetailStyles,
 } from '@/features/home/patient-detail.styles';
-import type { ThemeColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type PatientDetailScreenProps = {
@@ -101,12 +99,7 @@ export default function PatientDetailScreen({
         {patient ? (
           <>
             <PatientCard patient={patient} today={today} styles={styles} />
-            <ExamsCard
-              exams={patient.exams}
-              professionalName={professional.name}
-              theme={theme}
-              styles={styles}
-            />
+            <ExamsCard exams={patient.exams} professionalName={professional.name} styles={styles} />
           </>
         ) : loading ? (
           <View style={styles.state} accessible accessibilityLabel={LOADING_MESSAGE}>
@@ -162,12 +155,10 @@ function PatientCard({
 function ExamsCard({
   exams,
   professionalName,
-  theme,
   styles,
 }: {
   exams: PatientExam[];
   professionalName: string;
-  theme: ThemeColors;
   styles: PatientDetailStyles;
 }) {
   return (
@@ -180,43 +171,22 @@ function ExamsCard({
       </View>
       <View>
         {exams.map((exam) => (
-          <ExamRow
-            key={exam.id}
-            exam={exam}
-            professionalName={professionalName}
-            theme={theme}
-            styles={styles}
-          />
+          <ExamRow key={exam.id} exam={exam} professionalName={professionalName} styles={styles} />
         ))}
       </View>
     </View>
   );
 }
 
-// Ícones das mensagens do guia de identidade visual: a situação nunca depende só da cor.
-const TONE = {
-  success: { icon: 'check-circle', box: 'chipSuccess', text: 'chipSuccessText' },
-  warning: { icon: 'alert', box: 'chipWarning', text: 'chipWarningText' },
-  error: { icon: 'close-circle', box: 'chipError', text: 'chipErrorText' },
-  info: { icon: 'information', box: 'chipInfo', text: 'chipInfoText' },
-} as const satisfies Record<
-  ExamTone,
-  { icon: string; box: keyof PatientDetailStyles; text: keyof PatientDetailStyles }
->;
-
 function ExamRow({
   exam,
   professionalName,
-  theme,
   styles,
 }: {
   exam: PatientExam;
   professionalName: string;
-  theme: ThemeColors;
   styles: PatientDetailStyles;
 }) {
-  const tone = TONE[exam.tone];
-
   // A linha é um só item para o leitor de tela, com a frase completa.
   return (
     <View
@@ -228,16 +198,7 @@ function ExamRow({
         <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
         <Text style={styles.examBy}>Aplicado por {professionalName}</Text>
       </View>
-      <View testID="situacao" style={[styles.chip, styles[tone.box]]}>
-        <MaterialCommunityIcons
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          name={tone.icon}
-          size={20}
-          color={theme[exam.tone]}
-        />
-        <Text style={[styles.chipText, styles[tone.text]]}>{exam.label}</Text>
-      </View>
+      <ExamStatusChip tone={exam.tone} label={exam.label} />
     </View>
   );
 }

@@ -6,9 +6,11 @@
  */
 import {
   EXAM_STATUS_LABEL,
+  EXAM_STATUS_TONE,
   formatDate,
   toExamStatus,
   type ExamStatus,
+  type ExamTone,
 } from '@/features/home/patients';
 
 /**
@@ -31,9 +33,6 @@ export type PatientDetailRepository = {
   /** Devolve `null` se o paciente não existe ou não foi atendido por esse profissional. */
   findPatientWithExams(professionalId: number, patientId: number): Promise<PatientWithExams | null>;
 };
-
-/** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
-export type ExamTone = 'success' | 'warning' | 'error' | 'info';
 
 export type PatientExam = {
   id: number;
@@ -65,16 +64,10 @@ export const SEX_LABEL = {
   none: 'Não informado',
 } as const;
 
-const FINISHED_TONE: Record<ExamStatus, ExamTone> = {
-  concluido: 'success',
-  interrompido: 'warning',
-  recusado: 'warning',
-};
-
 // O erro ao calcular é o único exame não terminado que pede ação; os demais só
 // informam em que ponto o exame está.
 function toneOf(status: ExamStatus | null, state: string): ExamTone {
-  if (status) return FINISHED_TONE[status];
+  if (status) return EXAM_STATUS_TONE[status];
   return state === 'erro_inferencia' ? 'error' : 'info';
 }
 
