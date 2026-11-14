@@ -422,14 +422,51 @@ async function applyAttendance(context: Context, received: SyncAttendance) {
   }
 }
 
+/** Soma os resumos dos lotes de uma mesma troca. */
+export function mergeSummaries(a: ImportSummary, b: ImportSummary): ImportSummary {
+  const counts = (x: Counts, y: Counts): Counts => ({
+    inserted: x.inserted + y.inserted,
+    updated: x.updated + y.updated,
+  });
+  return {
+    professionals: {
+      ...counts(a.professionals, b.professionals),
+      unified: a.professionals.unified + b.professionals.unified,
+    },
+    patients: {
+      ...counts(a.patients, b.patients),
+      unified: a.patients.unified + b.patients.unified,
+    },
+    attendances: counts(a.attendances, b.attendances),
+    conflicts: a.conflicts + b.conflicts,
+    quarantined: a.quarantined + b.quarantined,
+    skipped: a.skipped + b.skipped,
+  };
+}
+
+/** Nunca passa do vetor de quem enviou: ninguém repassa o que não tem. */
+function limitTo(coverage: VersionVector, senderVector: VersionVector): VersionVector {
+  const limited: VersionVector = {};
+  for (const [originId, seq] of Object.entries(coverage)) {
+    const ceiling = senderVector[originId];
+    if (ceiling !== undefined) limited[originId] = Math.min(seq, ceiling);
+  }
+  return limited;
+}
+
 /**
  * Rode dentro de `SyncRepository.inTransaction`. Importar o mesmo pacote duas
  * vezes não muda nada. Atendimentos por último, porque apontam para os outros.
+ *
+ * `coverage` é o que o pacote (ou o lote) garante ter levado de cada tablet. O
+ * vetor deste tablet só avança até ali: um lote que leva a avaliação de contador
+ * 50 sem a de contador 40 não pode marcar a 40 como recebida.
  */
 export async function applyPackage(
   operations: SyncOperations,
   syncPackage: SyncPackage,
   now: Date,
+  coverage: VersionVector = syncPackage.vetor,
 ): Promise<ImportSummary> {
   const summary = emptySummary();
   const context: Context = { operations, senderVector: syncPackage.vetor, now, summary };
@@ -441,7 +478,6 @@ export async function applyPackage(
   for (const alias of syncPackage.aliases_paciente) await operations.adoptAlias('paciente', alias);
 
   const localVector = await operations.readVector();
-  const received: VersionVector = { ...syncPackage.vetor };
   let newestHlc = '';
 
   async function applyAll<T extends Versioned>(
@@ -462,7 +498,6 @@ export async function applyPackage(
       } else {
         await apply(context, record);
       }
-      received[record.origem_id] = Math.max(received[record.origem_id] ?? 0, record.origem_seq);
       if (compareHlc(record.versao_hlc, newestHlc) > 0) newestHlc = record.versao_hlc;
     }
   }
@@ -476,7 +511,7 @@ export async function applyPackage(
   await applyAll(PATIENT.table, syncPackage.pacientes, validatePatient, applyPatient);
   await applyAll(ATTENDANCE_TABLE, syncPackage.avaliacoes, validateAttendance, applyAttendance);
 
-  await operations.mergeVector(received);
+  await operations.mergeVector(limitTo(coverage, syncPackage.vetor));
   if (newestHlc) await operations.observeRemoteHlc(newestHlc, now.getTime());
   return summary;
 }

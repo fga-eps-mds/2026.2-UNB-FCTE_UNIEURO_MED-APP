@@ -14,7 +14,7 @@ import {
   type SyncPatient,
   type SyncProfessional,
 } from '@/db/sync-repository';
-import { applyPackage, emptySummary } from '@/features/sincronizacao/apply-package';
+import { applyPackage, emptySummary, mergeSummaries } from '@/features/sincronizacao/apply-package';
 import type { SyncPackage } from '@/features/sincronizacao/sync-package';
 
 import { createTempDatabase, type TempDatabase } from '../../../test-support/real-sqlite';
@@ -129,6 +129,83 @@ const conflicts = () =>
   database.getAllAsync<{ tipo: string; tabela: string; motivo: string; dados: string }>(
     'SELECT tipo, tabela, motivo, dados FROM sync_conflito ORDER BY id',
   );
+
+describe('vetor de versões', () => {
+  const bruno = (): SyncProfessional => ({
+    ...ana,
+    uuid: 'cccccccc-0000-4000-8000-000000000000',
+    nome: 'Bruno Lima',
+    email: 'bruno@unieuro.com.br',
+    crm_numero: '22222',
+    cpf: '22233344405',
+    ...fromOther(9, FUTURE),
+  });
+  const otherSeq = async () => (await operations.readVector())[OTHER];
+
+  it('sem cobertura, avança até o vetor de quem enviou', async () => {
+    await applyPackage(operations, syncPackage({ vetor: { [OTHER]: 5 } }), NOW);
+
+    expect(await otherSeq()).toBe(5);
+  });
+
+  it('com a cobertura de um lote, avança só até ela', async () => {
+    await applyPackage(operations, syncPackage({ vetor: { [OTHER]: 9 } }), NOW, { [OTHER]: 2 });
+
+    expect(await otherSeq()).toBe(2);
+  });
+
+  it('não aprende o contador pelos registros do lote, só pela cobertura', async () => {
+    // Um lote com o contador 9 não diz nada sobre os contadores antes dele.
+    const summary = await applyPackage(
+      operations,
+      syncPackage({ vetor: { [OTHER]: 9 }, profissionais: [bruno()] }),
+      NOW,
+      { [OTHER]: 3 },
+    );
+
+    expect(summary.professionals.inserted).toBe(1);
+    expect(await otherSeq()).toBe(3);
+  });
+
+  it('a cobertura não passa do vetor de quem enviou, nem inclui tablet fora dele', async () => {
+    const third = 'dddddddd-0000-4000-8000-000000000000';
+
+    await applyPackage(operations, syncPackage({ vetor: { [OTHER]: 4 } }), NOW, {
+      [OTHER]: 40,
+      [third]: 7,
+    });
+
+    expect(await otherSeq()).toBe(4);
+    expect((await operations.readVector())[third]).toBeUndefined();
+  });
+});
+
+describe('mergeSummaries', () => {
+  it('soma cada contagem dos lotes', () => {
+    const a = {
+      ...emptySummary(),
+      professionals: { inserted: 1, updated: 2, unified: 3 },
+      attendances: { inserted: 4, updated: 0 },
+      conflicts: 1,
+    };
+    const b = {
+      ...emptySummary(),
+      patients: { inserted: 5, updated: 1, unified: 2 },
+      attendances: { inserted: 1, updated: 6 },
+      quarantined: 2,
+      skipped: 3,
+    };
+
+    expect(mergeSummaries(a, b)).toEqual({
+      professionals: { inserted: 1, updated: 2, unified: 3 },
+      patients: { inserted: 5, updated: 1, unified: 2 },
+      attendances: { inserted: 5, updated: 6 },
+      conflicts: 1,
+      quarantined: 2,
+      skipped: 3,
+    });
+  });
+});
 
 describe('registros já recebidos', () => {
   it('ignora o que o vetor deste tablet já cobre', async () => {
