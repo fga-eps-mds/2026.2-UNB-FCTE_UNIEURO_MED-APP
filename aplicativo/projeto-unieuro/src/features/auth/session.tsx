@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
  * Profissional autenticado, como as telas o enxergam.
  *
  * Guarda só o que as telas mostram ou usam para filtrar dados: id, nome,
- * e-mail e CRM. O CPF e o hash da senha ficam fora, para não circularem pela
+ * e-mail, CRM e se a conta é de superusuário (#49). O CPF e o hash da senha ficam fora, para não circularem pela
  * interface. A sessão vive apenas na memória: ao fechar o aplicativo, o
  * profissional entra de novo.
  */
@@ -14,6 +14,11 @@ export type SessionProfessional = {
   email: string;
   crmNumber: string;
   crmState: string;
+  /**
+   * Responsável pela pesquisa: vê os atendimentos de todos os profissionais.
+   * Ausente vale como médico comum, que vê só os próprios.
+   */
+  superuser?: boolean;
 };
 
 type SessionContextValue = {
@@ -66,6 +71,7 @@ export function toSessionProfessional(source: SessionProfessional): SessionProfe
     email: source.email,
     crmNumber: source.crmNumber,
     crmState: source.crmState,
+    superuser: source.superuser === true,
   };
 }
 

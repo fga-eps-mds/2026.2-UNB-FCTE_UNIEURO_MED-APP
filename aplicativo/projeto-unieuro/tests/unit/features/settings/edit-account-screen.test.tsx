@@ -34,7 +34,12 @@ afterEach(async () => {
 
 function SessaoAtual() {
   const { professional } = useSession();
-  return <Text>{professional ? `Sessão: ${professional.name}` : 'Sem sessão'}</Text>;
+  return (
+    <>
+      <Text>{professional ? `Sessão: ${professional.name}` : 'Sem sessão'}</Text>
+      {professional?.superuser ? <Text>Perfil: superusuário</Text> : null}
+    </>
+  );
 }
 
 function renderTela(
@@ -88,6 +93,18 @@ describe('EditAccountScreen', () => {
     expect(screen.getByText('Sessão: Ana Souza')).toBeOnTheScreen();
     expect(screen.getByText(PROFILE_SAVED)).toBeOnTheScreen();
     expect(screen.getByLabelText('CONFIRME COM A SUA SENHA ATUAL')).toHaveDisplayValue('');
+  });
+
+  it('salvar os dados não tira o perfil de superusuário da sessão (#49)', async () => {
+    const user = userEvent.setup();
+    renderTela({ id: tablet.anaId, ...ANA, superuser: true });
+
+    await substituir(user, 'NOME COMPLETO', 'Ana Souza');
+    await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA ATUAL'), SENHA_DE_TESTE);
+    await user.press(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(await screen.findByText('Sessão: Ana Souza')).toBeOnTheScreen();
+    expect(screen.getByText('Perfil: superusuário')).toBeOnTheScreen();
   });
 
   it('dado já usado por outra conta: avisa no campo e não altera o cadastro', async () => {

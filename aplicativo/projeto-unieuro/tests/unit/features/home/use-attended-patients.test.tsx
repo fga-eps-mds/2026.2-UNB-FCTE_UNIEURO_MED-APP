@@ -32,6 +32,8 @@ const repositoryWith = (...answers: (AttendedPatient[] | Error)[]) => {
   return {
     listAttendedPatients: list,
     listAttendedPatientCpfs: jest.fn().mockResolvedValue([{ patientId: 1, cpf: '12345678909' }]),
+    listAllAttendedPatients: jest.fn().mockResolvedValue([]),
+    listAllAttendedPatientCpfs: jest.fn().mockResolvedValue([]),
   } satisfies PatientListRepository;
 };
 
@@ -108,6 +110,8 @@ describe('pacientes atendidos na tela inicial', () => {
         () => new Promise<AttendedPatient[]>((done) => (resolve = done)),
       ),
       listAttendedPatientCpfs: jest.fn(),
+      listAllAttendedPatients: jest.fn(),
+      listAllAttendedPatientCpfs: jest.fn(),
     };
     const { result, unmount } = renderWithSession(repository, ana);
 
@@ -124,6 +128,8 @@ describe('pacientes atendidos na tela inicial', () => {
         () => new Promise<AttendedPatient[]>((_resolve, fail) => (reject = fail)),
       ),
       listAttendedPatientCpfs: jest.fn(),
+      listAllAttendedPatients: jest.fn(),
+      listAllAttendedPatientCpfs: jest.fn(),
     };
     const { result, unmount } = renderWithSession(repository, ana);
 
@@ -206,6 +212,57 @@ describe('pacientes atendidos na tela inicial', () => {
       const { result } = renderWithSession(repositoryWith(), null);
 
       expect(result.current.loading).toBe(false);
+    });
+  });
+
+  describe('superusuário (#49)', () => {
+    const tauil: SessionProfessional = {
+      id: 3,
+      name: 'Carlos Bernardo Tauil',
+      email: 'tauil@unieuro.com.br',
+      crmNumber: '12771',
+      crmState: 'DF',
+      superuser: true,
+    };
+
+    it('lê os pacientes de todos os profissionais, com quem atendeu', async () => {
+      const repository = repositoryWith();
+      repository.listAllAttendedPatients.mockResolvedValue([
+        { ...jose, attendedBy: 'Paulo Henrique Rocha' },
+      ]);
+
+      const { result } = renderWithSession(repository, tauil);
+
+      await waitFor(() => expect(result.current.patients).toHaveLength(1));
+      expect(repository.listAllAttendedPatients).toHaveBeenCalledWith(3);
+      expect(repository.listAttendedPatients).not.toHaveBeenCalled();
+      expect(result.current.patients[0]).toMatchObject({ attendedBy: 'Paulo Henrique Rocha' });
+    });
+
+    it('busca o CPF entre os pacientes de todos', async () => {
+      const repository = repositoryWith();
+      const { result } = renderWithSession(repository, tauil);
+
+      await act(async () => {
+        await result.current.loadPatientCpfs();
+      });
+
+      expect(repository.listAllAttendedPatientCpfs).toHaveBeenCalledWith(3);
+      expect(repository.listAttendedPatientCpfs).not.toHaveBeenCalled();
+    });
+
+    it('o médico comum continua lendo só os próprios pacientes', async () => {
+      const repository = repositoryWith([jose]);
+      const { result } = renderWithSession(repository, ana);
+
+      await waitFor(() => expect(result.current.patients).toHaveLength(1));
+      await act(async () => {
+        await result.current.loadPatientCpfs();
+      });
+
+      expect(repository.listAllAttendedPatients).not.toHaveBeenCalled();
+      expect(repository.listAllAttendedPatientCpfs).not.toHaveBeenCalled();
+      expect(result.current.patients[0]).not.toHaveProperty('attendedBy');
     });
   });
 });
