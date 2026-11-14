@@ -55,6 +55,24 @@ describe('toPatientDetail', () => {
   });
 
   it.each([
+    ['concluida', 'success'],
+    ['interrompida', 'warning'],
+    ['cancelada', 'warning'],
+    ['erro_inferencia', 'error'],
+    ['aguardando_consentimento', 'info'],
+    ['em_andamento', 'info'],
+    ['processando_resultado', 'info'],
+    ['outro_estado', 'info'],
+  ])('classifica o exame %s como "%s", para a cor e o ícone da situação', (state, tone) => {
+    const { exams } = toPatientDetail({
+      ...registro,
+      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state }],
+    });
+
+    expect(exams[0].tone).toBe(tone);
+  });
+
+  it.each([
     ['aguardando_consentimento', 'Aguardando o termo'],
     ['em_andamento', 'Em andamento'],
     ['processando_resultado', 'Processando'],

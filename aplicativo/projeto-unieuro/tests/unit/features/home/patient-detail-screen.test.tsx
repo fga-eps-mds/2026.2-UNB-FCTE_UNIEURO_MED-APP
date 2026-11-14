@@ -1,6 +1,8 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { render, screen, userEvent, within } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
+import { Colors } from '@/constants/theme';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { toPatientDetail, type PatientDetail } from '@/features/home/patient-detail';
 import PatientDetailScreen, {
@@ -122,6 +124,68 @@ describe('PatientDetailScreen', () => {
       });
 
       expect(screen.getByTestId('exame')).toHaveTextContent(/Recusou o termo/);
+    });
+  });
+
+  describe('Cenário: situação além da cor', () => {
+    const comEstado = (state: string) =>
+      toPatientDetail({
+        id: 7,
+        name: 'José Alves Martins',
+        recordNumber: '2026-0184',
+        birthDate: '1948-03-14',
+        schoolingYears: 5,
+        sex: 'masculino',
+        exams: [{ id: 3, startedAt: '2026-10-06T09:00:00', state }],
+      });
+
+    // Cor e ícone de cada situação seguem as mensagens do guia de identidade visual.
+    it.each([
+      ['concluida', 'check-circle', Colors.light.success],
+      ['interrompida', 'alert', Colors.light.warning],
+      ['cancelada', 'alert', Colors.light.warning],
+      ['erro_inferencia', 'close-circle', Colors.light.error],
+      ['em_andamento', 'information', Colors.light.info],
+    ])('o exame %s mostra o ícone %s junto ao texto', (state, icone, cor) => {
+      renderTela({ patient: comEstado(state) });
+
+      const exame = screen.getByTestId('exame');
+      const { name, color } = within(exame).UNSAFE_getByType(MaterialCommunityIcons).props;
+      expect(name).toBe(icone);
+      expect(color).toBe(cor);
+    });
+
+    it('esconde o ícone do leitor de tela, que lê só o texto da situação', () => {
+      renderTela({ patient: comEstado('erro_inferencia') });
+
+      const icone = within(screen.getByTestId('exame')).UNSAFE_getByType(MaterialCommunityIcons);
+      expect(icone.props.accessibilityElementsHidden).toBe(true);
+      expect(icone.props.importantForAccessibility).toBe('no-hide-descendants');
+    });
+
+    it('mostra o erro ao calcular com a cor de erro, e não com a de "Em andamento"', () => {
+      renderTela({ patient: comEstado('erro_inferencia') });
+
+      const texto = screen.getByText('Erro ao calcular');
+      expect(texto).toHaveStyle({ color: Colors.light.error });
+      expect(screen.getByTestId('situacao')).toHaveStyle({
+        backgroundColor: Colors.light.errorBg,
+      });
+    });
+  });
+
+  describe('Cenário: leitor de tela', () => {
+    it('lê cada exame de uma vez, com data, hora, profissional e situação', () => {
+      renderTela();
+
+      const exame = screen.getByLabelText(
+        '05/10/2026 às 14:32, aplicado por Ana Carolina Souza, Concluído',
+      );
+      expect(exame).toBe(screen.getAllByTestId('exame')[0]);
+      expect(exame.props.accessible).toBe(true);
+      expect(
+        screen.getByLabelText('28/09/2026 às 10:05, aplicado por Ana Carolina Souza, Interrompido'),
+      ).toBeOnTheScreen();
     });
   });
 

@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -16,9 +17,11 @@ import { createHomeStyles, WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.st
 import {
   SEX_LABEL,
   describeAge,
+  describeExamForReader,
   describeExams,
   formatDateTime,
   formatSchooling,
+  type ExamTone,
   type PatientDetail,
   type PatientExam,
 } from '@/features/home/patient-detail';
@@ -26,6 +29,7 @@ import {
   createPatientDetailStyles,
   type PatientDetailStyles,
 } from '@/features/home/patient-detail.styles';
+import type { ThemeColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type PatientDetailScreenProps = {
@@ -100,7 +104,7 @@ export default function PatientDetailScreen({
             <ExamsCard
               exams={patient.exams}
               professionalName={professional.name}
-              home={home}
+              theme={theme}
               styles={styles}
             />
           </>
@@ -158,12 +162,12 @@ function PatientCard({
 function ExamsCard({
   exams,
   professionalName,
-  home,
+  theme,
   styles,
 }: {
   exams: PatientExam[];
   professionalName: string;
-  home: ReturnType<typeof createHomeStyles>;
+  theme: ThemeColors;
   styles: PatientDetailStyles;
 }) {
   return (
@@ -180,7 +184,7 @@ function ExamsCard({
             key={exam.id}
             exam={exam}
             professionalName={professionalName}
-            home={home}
+            theme={theme}
             styles={styles}
           />
         ))}
@@ -189,35 +193,50 @@ function ExamsCard({
   );
 }
 
-const CHIP_STYLES = {
-  concluido: { box: 'chipConcluido', text: 'chipConcluidoText' },
-  interrompido: { box: 'chipInterrompido', text: 'chipInterrompidoText' },
-  recusado: { box: 'chipRecusado', text: 'chipRecusadoText' },
-} as const;
+// Ícones das mensagens do guia de identidade visual: a situação nunca depende só da cor.
+const TONE = {
+  success: { icon: 'check-circle', box: 'chipSuccess', text: 'chipSuccessText' },
+  warning: { icon: 'alert', box: 'chipWarning', text: 'chipWarningText' },
+  error: { icon: 'close-circle', box: 'chipError', text: 'chipErrorText' },
+  info: { icon: 'information', box: 'chipInfo', text: 'chipInfoText' },
+} as const satisfies Record<
+  ExamTone,
+  { icon: string; box: keyof PatientDetailStyles; text: keyof PatientDetailStyles }
+>;
 
 function ExamRow({
   exam,
   professionalName,
-  home,
+  theme,
   styles,
 }: {
   exam: PatientExam;
   professionalName: string;
-  home: ReturnType<typeof createHomeStyles>;
+  theme: ThemeColors;
   styles: PatientDetailStyles;
 }) {
-  const chip = exam.status ? CHIP_STYLES[exam.status] : null;
+  const tone = TONE[exam.tone];
 
+  // A linha é um só item para o leitor de tela, com a frase completa.
   return (
-    <View testID="exame" style={styles.exam}>
+    <View
+      testID="exame"
+      accessible
+      accessibilityLabel={describeExamForReader(exam, professionalName)}
+      style={styles.exam}>
       <View style={styles.examWhen}>
         <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
         <Text style={styles.examBy}>Aplicado por {professionalName}</Text>
       </View>
-      <View style={[home.chip, chip ? home[chip.box] : styles.chipPending]}>
-        <Text style={[home.chipText, chip ? home[chip.text] : styles.chipPendingText]}>
-          {exam.label}
-        </Text>
+      <View testID="situacao" style={[styles.chip, styles[tone.box]]}>
+        <MaterialCommunityIcons
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          name={tone.icon}
+          size={20}
+          color={theme[exam.tone]}
+        />
+        <Text style={[styles.chipText, styles[tone.text]]}>{exam.label}</Text>
       </View>
     </View>
   );

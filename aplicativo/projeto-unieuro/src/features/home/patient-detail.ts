@@ -32,6 +32,9 @@ export type PatientDetailRepository = {
   findPatientWithExams(professionalId: number, patientId: number): Promise<PatientWithExams | null>;
 };
 
+/** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
+export type ExamTone = 'success' | 'warning' | 'error' | 'info';
+
 export type PatientExam = {
   id: number;
   /** Data e hora ISO do início do exame. */
@@ -40,6 +43,7 @@ export type PatientExam = {
   status: ExamStatus | null;
   /** Texto da situação, que existe também para o exame que ainda não terminou. */
   label: string;
+  tone: ExamTone;
 };
 
 export type PatientDetail = Omit<PatientWithExams, 'exams'> & { exams: PatientExam[] };
@@ -61,6 +65,19 @@ export const SEX_LABEL = {
   none: 'Não informado',
 } as const;
 
+const FINISHED_TONE: Record<ExamStatus, ExamTone> = {
+  concluido: 'success',
+  interrompido: 'warning',
+  recusado: 'warning',
+};
+
+// O erro ao calcular é o único exame não terminado que pede ação; os demais só
+// informam em que ponto o exame está.
+function toneOf(status: ExamStatus | null, state: string): ExamTone {
+  if (status) return FINISHED_TONE[status];
+  return state === 'erro_inferencia' ? 'error' : 'info';
+}
+
 function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
   const status = toExamStatus(exam.state);
   return {
@@ -68,6 +85,7 @@ function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
     startedAt: exam.startedAt,
     status,
     label: status ? EXAM_STATUS_LABEL[status] : (UNFINISHED_LABEL[exam.state] ?? UNKNOWN_LABEL),
+    tone: toneOf(status, exam.state),
   };
 }
 
@@ -104,6 +122,19 @@ const twoDigits = (value: number) => String(value).padStart(2, '0');
  * `formatDate`, o instante é convertido para o fuso do aparelho antes de escrito.
  */
 export function formatDateTime(isoDateTime: string): string {
+  return `${formatDate(isoDateTime)} · ${formatTime(isoDateTime)}`;
+}
+
+function formatTime(isoDateTime: string): string {
   const date = new Date(isoDateTime);
-  return `${formatDate(isoDateTime)} · ${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`;
+  return `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`;
+}
+
+/**
+ * Frase única da linha do exame para o leitor de tela. Sem ela, o TalkBack lê a
+ * data, o profissional e a situação como três itens separados.
+ */
+export function describeExamForReader(exam: PatientExam, professionalName: string): string {
+  const when = `${formatDate(exam.startedAt)} às ${formatTime(exam.startedAt)}`;
+  return `${when}, aplicado por ${professionalName}, ${exam.label}`;
 }
