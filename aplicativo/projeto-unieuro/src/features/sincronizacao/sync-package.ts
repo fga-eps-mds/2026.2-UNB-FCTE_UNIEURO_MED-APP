@@ -127,6 +127,143 @@ export function buildPackage(input: {
 export const countRecords = (syncPackage: SyncPackage) =>
   syncPackage.profissionais.length + syncPackage.pacientes.length + syncPackage.avaliacoes.length;
 
+// Envio em lotes
+
+/** Tamanho alvo de um lote, em caracteres do JSON. Uma avaliação nunca se divide. */
+export const BATCH_MAX_BYTES = 512 * 1024;
+
+/** Estimativas usadas antes de ler os desenhos e o traçado do banco. */
+const ATTENDANCE_BASE_BYTES = 2048;
+const TRACE_EVENT_BYTES = 70;
+
+/** Tamanho aproximado de uma avaliação no pacote, sem ler os BLOBs. */
+export function estimateAttendanceSize(imageBytes: number, traceEvents: number): number {
+  return ATTENDANCE_BASE_BYTES + Math.ceil((imageBytes * 4) / 3) + traceEvents * TRACE_EVENT_BYTES;
+}
+
+export type BatchTable = 'profissionais' | 'pacientes' | 'avaliacoes';
+
+export type BatchEntry<T> = {
+  table: BatchTable;
+  value: T;
+  /** `null` para um registro sem carimbo válido: ele vai, mas não conta no vetor. */
+  stamp: Stamped | null;
+  size: number;
+};
+
+export type Batch<T> = {
+  entries: BatchEntry<T>[];
+  /** Até onde o tablet que recebe pode dizer que tem tudo, depois deste lote. */
+  cobertura: VersionVector;
+};
+
+/**
+ * Divide os registros em lotes de até `maxBytes`: cadastros primeiro, porque as
+ * avaliações apontam para eles; depois as avaliações por `origem_seq`. Sempre
+ * devolve pelo menos um lote.
+ *
+ * A cobertura de cada lote, por tablet de origem, é o menor `origem_seq` que
+ * ainda falta menos 1, ou o vetor de quem envia quando não falta nada. O contador
+ * é um só por tablet, para todas as tabelas: usar o maior já enviado marcaria
+ * como recebido o que ficou para o lote seguinte.
+ */
+export function planBatches<T>(
+  entries: BatchEntry<T>[],
+  senderVector: VersionVector,
+  maxBytes = BATCH_MAX_BYTES,
+): Batch<T>[] {
+  const registrations = entries.filter((entry) => entry.table !== 'avaliacoes');
+  const attendances = entries
+    .filter((entry) => entry.table === 'avaliacoes')
+    .sort((a, b) => (a.stamp?.origem_seq ?? 0) - (b.stamp?.origem_seq ?? 0));
+
+  const groups: BatchEntry<T>[][] = [[]];
+  let size = 0;
+  for (const entry of [...registrations, ...attendances]) {
+    const current = groups[groups.length - 1];
+    if (current.length > 0 && size + entry.size > maxBytes) {
+      groups.push([entry]);
+      size = entry.size;
+    } else {
+      current.push(entry);
+      size += entry.size;
+    }
+  }
+
+  // Do último para o primeiro: o que falta depois de cada lote.
+  const remaining = new Map<string, number>();
+  const batches: Batch<T>[] = new Array(groups.length);
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const cobertura: VersionVector = {};
+    for (const [originId, seq] of Object.entries(senderVector)) {
+      const next = remaining.get(originId);
+      const covered = next === undefined ? seq : Math.min(seq, next - 1);
+      if (covered > 0) cobertura[originId] = covered;
+    }
+    batches[index] = { entries: groups[index], cobertura };
+
+    for (const { stamp } of groups[index]) {
+      if (!stamp) continue;
+      const next = remaining.get(stamp.origem_id);
+      if (next === undefined || stamp.origem_seq < next) {
+        remaining.set(stamp.origem_id, stamp.origem_seq);
+      }
+    }
+  }
+  return batches;
+}
+
+/** Carimbo de um registro ainda não validado, para dividir o pacote recebido. */
+function stampOf(value: unknown): Stamped | null {
+  if (!isObject(value) || !isUuid(value.origem_id) || !isCount(value.origem_seq)) return null;
+  return { origem_id: value.origem_id, origem_seq: value.origem_seq };
+}
+
+export type PackageBatch = { pacote: SyncPackage; cobertura: VersionVector };
+
+/** Monta o pacote de um lote. Os aliases vão só no primeiro. */
+export function batchPackage(
+  header: SyncPackage,
+  entries: BatchEntry<unknown>[],
+  first: boolean,
+): SyncPackage {
+  const of = (table: BatchTable) =>
+    entries.filter((entry) => entry.table === table).map((entry) => entry.value);
+  return {
+    ...header,
+    profissionais: of('profissionais'),
+    pacientes: of('pacientes'),
+    avaliacoes: of('avaliacoes'),
+    aliases_profissional: first ? header.aliases_profissional : [],
+    aliases_paciente: first ? header.aliases_paciente : [],
+  };
+}
+
+/** Divide um pacote inteiro, como o do arquivo, para gravar lote por lote. */
+export function splitPackage(syncPackage: SyncPackage, maxBytes = BATCH_MAX_BYTES): PackageBatch[] {
+  const entries = (table: BatchTable, values: unknown[]): BatchEntry<unknown>[] =>
+    values.map((value) => ({
+      table,
+      value,
+      stamp: stampOf(value),
+      size: JSON.stringify(value).length,
+    }));
+
+  const batches = planBatches(
+    [
+      ...entries('profissionais', syncPackage.profissionais),
+      ...entries('pacientes', syncPackage.pacientes),
+      ...entries('avaliacoes', syncPackage.avaliacoes),
+    ],
+    syncPackage.vetor,
+    maxBytes,
+  );
+  return batches.map((batch, index) => ({
+    pacote: batchPackage(syncPackage, batch.entries, index === 0),
+    cobertura: batch.cobertura,
+  }));
+}
+
 function isAliasList(value: unknown): value is SyncAlias[] {
   return (
     Array.isArray(value) &&

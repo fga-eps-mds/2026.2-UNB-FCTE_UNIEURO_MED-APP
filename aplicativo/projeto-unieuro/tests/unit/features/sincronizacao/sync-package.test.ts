@@ -7,9 +7,14 @@ import type {
   SyncTask,
 } from '@/db/sync-repository';
 import {
+  BATCH_MAX_BYTES,
   buildPackage,
   countRecords,
+  estimateAttendanceSize,
   isCovered,
+  planBatches,
+  splitPackage,
+  type BatchEntry,
   PackageRefusedError,
   parsePackage,
   validateAttendance,
@@ -156,6 +161,170 @@ describe('buildPackage', () => {
     expect(syncPackage.profissionais).toEqual([]);
     expect(syncPackage.pacientes).toEqual([]);
     expect(syncPackage.avaliacoes).toEqual([attendance()]);
+  });
+});
+
+describe('estimateAttendanceSize', () => {
+  it('conta as imagens em base64 e o traçado, com uma base para o resto', () => {
+    expect(estimateAttendanceSize(0, 0)).toBe(2048);
+    expect(estimateAttendanceSize(3000, 0)).toBe(2048 + 4000);
+    expect(estimateAttendanceSize(0, 10)).toBe(2048 + 700);
+  });
+});
+
+describe('planBatches', () => {
+  const entry = (
+    table: BatchEntry<string>['table'],
+    seq: number,
+    size: number,
+    origin = TABLET_A,
+  ): BatchEntry<string> => ({
+    table,
+    value: `${table}-${origin.slice(0, 1)}-${seq}`,
+    stamp: { origem_id: origin, origem_seq: seq },
+    size,
+  });
+  const values = (batches: { entries: BatchEntry<string>[] }[]) =>
+    batches.map((batch) => batch.entries.map((item) => item.value));
+
+  it('sem nada a enviar, devolve um lote vazio com o vetor de quem envia', () => {
+    expect(planBatches([], { [TABLET_A]: 7 })).toEqual([
+      { entries: [], cobertura: { [TABLET_A]: 7 } },
+    ]);
+  });
+
+  it('o limite padrão é de 512 KB', () => {
+    expect(BATCH_MAX_BYTES).toBe(512 * 1024);
+  });
+
+  it('respeita o limite de tamanho, e a avaliação maior que o limite vai sozinha', () => {
+    const batches = planBatches(
+      [
+        entry('avaliacoes', 1, 60),
+        entry('avaliacoes', 2, 30),
+        entry('avaliacoes', 3, 500),
+        entry('avaliacoes', 4, 10),
+      ],
+      { [TABLET_A]: 4 },
+      100,
+    );
+
+    expect(values(batches)).toEqual([
+      ['avaliacoes-a-1', 'avaliacoes-a-2'],
+      ['avaliacoes-a-3'],
+      ['avaliacoes-a-4'],
+    ]);
+  });
+
+  it('manda os cadastros antes das avaliações, e as avaliações pelo contador', () => {
+    const batches = planBatches(
+      [
+        entry('avaliacoes', 9, 50),
+        entry('profissionais', 8, 50),
+        entry('avaliacoes', 3, 50),
+        entry('pacientes', 5, 50),
+      ],
+      { [TABLET_A]: 9 },
+      100,
+    );
+
+    expect(values(batches)).toEqual([
+      ['profissionais-a-8', 'pacientes-a-5'],
+      ['avaliacoes-a-3', 'avaliacoes-a-9'],
+    ]);
+  });
+
+  it('a cobertura de cada lote para antes do menor contador que ainda falta', () => {
+    // O paciente (contador 60) vai antes, mas as avaliações 40 e 55 ficam para depois.
+    const batches = planBatches(
+      [entry('pacientes', 60, 100), entry('avaliacoes', 40, 100), entry('avaliacoes', 55, 100)],
+      { [TABLET_A]: 60 },
+      100,
+    );
+
+    expect(batches.map((batch) => batch.cobertura)).toEqual([
+      { [TABLET_A]: 39 },
+      { [TABLET_A]: 54 },
+      { [TABLET_A]: 60 },
+    ]);
+  });
+
+  it('calcula a cobertura de cada tablet de origem separadamente', () => {
+    const batches = planBatches(
+      [entry('avaliacoes', 1, 100, TABLET_A), entry('avaliacoes', 2, 100, TABLET_B)],
+      { [TABLET_A]: 5, [TABLET_B]: 2 },
+      100,
+    );
+
+    expect(batches.map((batch) => batch.cobertura)).toEqual([
+      { [TABLET_A]: 5, [TABLET_B]: 1 },
+      { [TABLET_A]: 5, [TABLET_B]: 2 },
+    ]);
+  });
+
+  it('não promete o que falta logo no primeiro contador, nem tablet fora do vetor', () => {
+    const batches = planBatches(
+      [entry('pacientes', 1, 100), entry('avaliacoes', 1, 100, TABLET_B)],
+      { [TABLET_A]: 1, [TABLET_B]: 1 },
+      100,
+    );
+
+    expect(batches[0].cobertura).toEqual({ [TABLET_A]: 1 });
+  });
+
+  it('um registro sem carimbo vai no lote, mas não muda a cobertura', () => {
+    const batches = planBatches(
+      [{ table: 'pacientes', value: 'sem carimbo', stamp: null, size: 10 }],
+      { [TABLET_A]: 3 },
+    );
+
+    expect(batches).toEqual([
+      {
+        entries: [expect.objectContaining({ value: 'sem carimbo' })],
+        cobertura: { [TABLET_A]: 3 },
+      },
+    ]);
+  });
+});
+
+describe('splitPackage', () => {
+  it('a soma dos lotes é o pacote inteiro, sem perder nem repetir registro', () => {
+    const syncPackage = buildPackage({
+      ...header,
+      vector: { [TABLET_A]: 5 },
+      professionalAliases: [{ uuid_alias: TABLET_B, uuid_principal: PROFESSIONAL_UUID }],
+      professionals: [professional()],
+      patients: [patient()],
+      attendances: [
+        attendance({ ...stamp(3) }),
+        attendance({ uuid: '44444444-4444-4444-8444-444444444444', ...stamp(4) }),
+      ],
+    });
+
+    const batches = splitPackage(syncPackage, 1500);
+
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches.flatMap(({ pacote }) => pacote.profissionais)).toEqual(
+      syncPackage.profissionais,
+    );
+    expect(batches.flatMap(({ pacote }) => pacote.pacientes)).toEqual(syncPackage.pacientes);
+    expect(batches.flatMap(({ pacote }) => pacote.avaliacoes)).toEqual(syncPackage.avaliacoes);
+    // Os aliases só no primeiro; o cabeçalho em todos.
+    expect(batches[0].pacote.aliases_profissional).toHaveLength(1);
+    for (const { pacote } of batches.slice(1)) expect(pacote.aliases_profissional).toEqual([]);
+    for (const { pacote } of batches) {
+      expect(pacote).toMatchObject({ origem: TABLET_A, vetor: { [TABLET_A]: 5 } });
+    }
+    expect(batches.at(-1)!.cobertura).toEqual({ [TABLET_A]: 5 });
+  });
+
+  it('um registro inválido, sem carimbo, também vai, para a quarentena de quem recebe', () => {
+    const syncPackage = { ...fullPackage(), pacientes: [{ lixo: true }] };
+
+    const batches = splitPackage(syncPackage);
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0].pacote.pacientes).toEqual([{ lixo: true }]);
   });
 });
 
