@@ -58,7 +58,6 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 // combinado com o PO e avisa o que ainda falta.
 const PENDING = {
   export: 'A exportação em XML chega em uma próxima entrega.',
-  patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
 
@@ -236,7 +235,9 @@ export default function HomeScreen({
                   isWide={isWide}
                   showDivider={index > 0}
                   styles={styles}
-                  onOpen={() => showNotice(PENDING.patient)}
+                  onOpen={() =>
+                    router.push({ pathname: '/paciente/[id]', params: { id: String(item.id) } })
+                  }
                 />
               )}
             />

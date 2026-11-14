@@ -358,13 +358,17 @@ describe('HomeScreen', () => {
       expect(screen.getByText(mensagem)).toBeOnTheScreen();
     });
 
-    it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
+    it('abre a tela dos exames do paciente', async () => {
       const user = userEvent.setup();
       renderTela();
 
       await user.press(botoesDePaciente()[0]);
 
-      expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
+      expect(useRouter().push).toHaveBeenCalledWith({
+        pathname: '/paciente/[id]',
+        params: { id: '2' },
+      });
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
   });
 
