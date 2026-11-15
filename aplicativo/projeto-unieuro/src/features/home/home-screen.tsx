@@ -26,6 +26,7 @@ import {
   describeTotals,
   filterPatients,
   formatDate,
+  listsAllProfessionals,
   sortByLastExam,
   type PatientCpf,
   type PatientSummary,
@@ -35,7 +36,10 @@ import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
 import { useTheme } from '@/hooks/use-theme';
 
 type HomeScreenProps = {
-  /** Pacientes atendidos pelo profissional autenticado, e só por ele. */
+  /**
+   * Pacientes atendidos pelo profissional autenticado, e só por ele. Para o
+   * superusuário, os de todos os profissionais, cada um com quem atendeu (#49).
+   */
   patients: readonly PatientSummary[];
   /** A leitura dos pacientes no banco falhou. */
   loadFailed?: boolean;
@@ -111,6 +115,8 @@ export default function HomeScreen({
   const visible = useMemo(() => filterPatients(ordered, query, cpfs), [ordered, query, cpfs]);
   const hasExams = countExams(patients) > 0;
   const hasPatients = patients.length > 0;
+  // O superusuário vê os pacientes de todos os profissionais, com quem atendeu (#49).
+  const allProfessionals = listsAllProfessionals(patients);
 
   if (!professional) return null;
 
@@ -157,7 +163,7 @@ export default function HomeScreen({
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
             <Text accessibilityRole="header" style={styles.title}>
-              Seus pacientes
+              {allProfessionals ? 'Pacientes de todos os profissionais' : 'Seus pacientes'}
             </Text>
             {/* Enquanto carrega, o aviso fica só no cartão da lista, para não ser lido duas vezes. */}
             {!loading && <Text style={styles.subtitle}>{describeTotals(patients)}</Text>}
@@ -285,6 +291,7 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
     `ficha ${patient.recordNumber}`,
     `último exame ${lastExam}`,
     statusLabel,
+    patient.attendedBy && `atendido por ${patient.attendedBy}`,
   ]
     .filter(Boolean)
     .join(', ');
@@ -308,6 +315,9 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
             {status && (
               <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
             )}
+            {patient.attendedBy ? (
+              <Text style={styles.cellSecondary}>Atendido por {patient.attendedBy}</Text>
+            ) : null}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
         </Pressable>

@@ -213,6 +213,60 @@ describe('HomeScreen', () => {
     });
   });
 
+  describe('Cenário: responsável vê todos os atendimentos', () => {
+    const deTodos: PatientSummary[] = [
+      { ...pacientes[0], attendedBy: 'Ana Carolina Souza' },
+      { ...pacientes[1], attendedBy: 'Bruno Henrique Lima' },
+    ];
+
+    it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', () => {
+      renderTela(deTodos);
+
+      expect(
+        screen.getByRole('header', { name: 'Pacientes de todos os profissionais' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Ana Carolina Souza')).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+    });
+
+    it('conta os exames do tablet, e não os do responsável', () => {
+      renderTela(deTodos);
+
+      expect(screen.getByText('2 pacientes e 3 exames aplicados no tablet.')).toBeOnTheScreen();
+    });
+
+    it('lê quem atendeu no texto do leitor de tela', () => {
+      renderTela(deTodos);
+
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(linha.props.accessibilityLabel).toBe(
+        'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído, atendido por Bruno Henrique Lima',
+      );
+    });
+
+    it('mostra quem atendeu também quando a tela é larga', () => {
+      renderTela(deTodos);
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Cenário: médico comum não vê o que outro coletou', () => {
+    it('não mostra quem atendeu, porque todos os pacientes da lista são dele', () => {
+      renderTela();
+
+      expect(screen.getByRole('header', { name: 'Seus pacientes' })).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
+      for (const linha of botoesDePaciente()) {
+        expect(linha.props.accessibilityLabel).not.toMatch(/atendido por/);
+      }
+    });
+  });
+
   describe('Cenário: busca de paciente', () => {
     it('filtra por parte do nome, sem diferenciar acentos', async () => {
       const user = userEvent.setup();
