@@ -22,6 +22,15 @@ export type PatientSummary = {
   attendedBy?: string;
 };
 
+/** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
+export type ExamTone = 'success' | 'warning' | 'error' | 'info';
+
+export const EXAM_STATUS_TONE: Record<ExamStatus, ExamTone> = {
+  concluido: 'success',
+  interrompido: 'warning',
+  recusado: 'warning',
+};
+
 export const EXAM_STATUS_LABEL: Record<ExamStatus, string> = {
   concluido: 'Concluído',
   interrompido: 'Interrompido',
