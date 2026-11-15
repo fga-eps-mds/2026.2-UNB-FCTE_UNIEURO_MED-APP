@@ -159,7 +159,8 @@ describe('HomeScreen', () => {
       renderTela();
 
       const linha = screen.getByRole('button', { name: new RegExp(`^${nome}, ficha`) });
-      const { name } = within(linha).UNSAFE_getByType(MaterialCommunityIcons).props;
+      const situacao = within(linha).getByTestId('situacao');
+      const { name } = within(situacao).UNSAFE_getByType(MaterialCommunityIcons).props;
       expect(name).toBe(icone);
     });
 
@@ -167,7 +168,7 @@ describe('HomeScreen', () => {
       renderTela([{ ...pacientes[0], lastExamAt: null, lastExamStatus: null, examCount: 0 }]);
 
       const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
-      expect(within(linha).UNSAFE_queryAllByType(MaterialCommunityIcons)).toHaveLength(0);
+      expect(within(linha).queryByTestId('situacao')).toBeNull();
     });
 
     it('mantém a situação no texto lido pelo leitor de tela, sem repeti-la pelo ícone', () => {
@@ -177,8 +178,9 @@ describe('HomeScreen', () => {
       expect(linha.props.accessibilityLabel).toBe(
         'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído',
       );
-      const icone = within(linha).UNSAFE_getByType(MaterialCommunityIcons);
-      expect(icone.props.accessibilityElementsHidden).toBe(true);
+      for (const icone of within(linha).UNSAFE_getAllByType(MaterialCommunityIcons)) {
+        expect(icone.props.accessibilityElementsHidden).toBe(true);
+      }
     });
 
     it('mostra todas as colunas quando a tela é larga', () => {
@@ -277,6 +279,35 @@ describe('HomeScreen', () => {
       expect(screen.queryByText(/^Atendido por/)).toBeNull();
     });
 
+    it('mostra os atalhos do protótipo do responsável pela pesquisa', () => {
+      renderTela(deTodos, responsavel);
+
+      for (const nome of [
+        'Área do superusuário',
+        'Configurações',
+        'Sair',
+        'Novo exame',
+        'Exportar a coleta inteira (XML)',
+        'Sincronizar tablets',
+      ]) {
+        expect(screen.getByRole('button', { name: nome })).toBeOnTheScreen();
+      }
+      expect(
+        screen.getByText('BUSCAR PACIENTE OU PROFISSIONAL', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+    });
+
+    it('avisa que a área do superusuário chega numa próxima entrega', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.press(screen.getByRole('button', { name: 'Área do superusuário' }));
+
+      expect(
+        screen.getByText('A área do superusuário chega em uma próxima entrega.'),
+      ).toBeOnTheScreen();
+    });
+
     it('mostra o título de todos mesmo antes de haver exame no tablet', () => {
       renderTela([], responsavel);
 
@@ -305,6 +336,16 @@ describe('HomeScreen', () => {
 
       expect(screen.getByText('FICHA')).toBeOnTheScreen();
       expect(screen.queryByText('ATENDIDO POR')).toBeNull();
+    });
+
+    it('não mostra a área do superusuário e busca só pelo paciente', () => {
+      renderTela();
+
+      expect(screen.queryByRole('button', { name: 'Área do superusuário' })).toBeNull();
+      expect(
+        screen.getByText('BUSCAR PACIENTE', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeOnTheScreen();
     });
   });
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -63,6 +64,7 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 const PENDING = {
   export: 'A exportação em XML chega em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
+  superuserArea: 'A área do superusuário chega em uma próxima entrega.',
 };
 
 /** Tempo que o aviso rápido fica na tela, como pede o guia de identidade visual. */
@@ -145,18 +147,27 @@ export default function HomeScreen({
               {allProfessionals ? 'Responsável pela pesquisa' : `CRM ${formatCrm(professional)}`}
             </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
+          {allProfessionals && (
+            <HeaderLink
+              label="Área do superusuário"
+              onPress={() => showNotice(PENDING.superuserArea)}
+              styles={styles}
+            />
+          )}
+          <HeaderLink
+            icon="cog-outline"
+            label="Configurações"
             onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-            <Text style={styles.outlineButtonText}>Configurações</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+            styles={styles}
+            color={theme.primary}
+          />
+          <HeaderLink
+            icon="logout"
+            label="Sair"
             onPress={signOut}
-            style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-            <Text style={styles.textButtonText}>Sair</Text>
-          </Pressable>
+            styles={styles}
+            color={theme.primary}
+          />
         </View>
       </View>
 
@@ -176,49 +187,73 @@ export default function HomeScreen({
             accessibilityLabel="Novo exame"
             onPress={() => router.push('/novo-exame')}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-            <Text style={styles.primaryButtonText}>+ Novo exame</Text>
+            <ButtonIcon name="plus" color={theme.onPrimary} />
+            <Text style={styles.primaryButtonText}>Novo exame</Text>
           </Pressable>
         </View>
 
-        <View style={styles.toolbar}>
-          {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+        <View style={styles.toolbarBlock}>
           {hasPatients && (
-            <TextInput
-              accessibilityLabel={
-                allProfessionals ? 'Buscar paciente ou profissional' : 'Buscar paciente'
-              }
-              placeholder={
-                allProfessionals ? 'Nome, ficha ou profissional' : 'Buscar por nome, ficha ou CPF'
-              }
-              placeholderTextColor={theme.placeholder}
-              value={query}
-              onChangeText={setQuery}
-              autoCorrect={false}
-              returnKeyType="search"
-              style={styles.search}
-            />
+            <Text style={styles.searchLabel} accessibilityElementsHidden>
+              {allProfessionals ? 'BUSCAR PACIENTE OU PROFISSIONAL' : 'BUSCAR PACIENTE'}
+            </Text>
           )}
-          <View style={styles.toolbarActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !hasExams }}
-              disabled={!hasExams}
-              onPress={() => showNotice(PENDING.export)}
-              style={({ pressed }) => [
-                styles.outlineButton,
-                !hasExams && styles.disabledButton,
-                pressed && styles.pressed,
-              ]}>
-              <Text style={[styles.outlineButtonText, !hasExams && styles.disabledButtonText]}>
-                Exportar todos (XML)
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => showNotice(PENDING.sync)}
-              style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-              <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
-            </Pressable>
+          <View style={styles.toolbar}>
+            {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+            {hasPatients && (
+              <View style={styles.search}>
+                <MaterialCommunityIcons
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  name="magnify"
+                  size={24}
+                  color={theme.placeholder}
+                />
+                <TextInput
+                  accessibilityLabel={
+                    allProfessionals ? 'Buscar paciente ou profissional' : 'Buscar paciente'
+                  }
+                  placeholder={
+                    allProfessionals
+                      ? 'Nome, ficha ou profissional'
+                      : 'Buscar por nome, ficha ou CPF'
+                  }
+                  placeholderTextColor={theme.placeholder}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+              </View>
+            )}
+            <View style={styles.toolbarActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !hasExams }}
+                disabled={!hasExams}
+                onPress={() => showNotice(PENDING.export)}
+                style={({ pressed }) => [
+                  styles.outlineButton,
+                  !hasExams && styles.disabledButton,
+                  pressed && styles.pressed,
+                ]}>
+                <ButtonIcon
+                  name="tray-arrow-down"
+                  color={hasExams ? theme.primary : theme.textSecondary}
+                />
+                <Text style={[styles.outlineButtonText, !hasExams && styles.disabledButtonText]}>
+                  {allProfessionals ? 'Exportar a coleta inteira (XML)' : 'Exportar todos (XML)'}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => showNotice(PENDING.sync)}
+                style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
+                <ButtonIcon name="sync" color={theme.primary} />
+                <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -249,6 +284,7 @@ export default function HomeScreen({
                 <PatientRow
                   patient={item}
                   isWide={isWide}
+                  chevronColor={theme.textSecondary}
                   showDivider={index > 0}
                   styles={styles}
                   onOpen={() =>
@@ -286,8 +322,11 @@ function ColumnHeader({ styles, showAttendedBy }: ColumnHeaderProps) {
       {showAttendedBy && (
         <Text style={[styles.columnLabel, styles.colAttendedBy]}>ATENDIDO POR</Text>
       )}
-      <Text style={[styles.columnLabel, styles.colLastExam]}>ÚLTIMO EXAME</Text>
+      <Text style={[styles.columnLabel, styles.colLastExam, styles.colLastExamWide]}>
+        ÚLTIMO EXAME
+      </Text>
       <Text style={[styles.columnLabel, styles.colCount]}>EXAMES</Text>
+      <View style={styles.chevron} />
     </View>
   );
 }
@@ -295,12 +334,20 @@ function ColumnHeader({ styles, showAttendedBy }: ColumnHeaderProps) {
 type PatientRowProps = {
   patient: PatientSummary;
   isWide: boolean;
+  chevronColor: string;
   showDivider: boolean;
   styles: HomeStyles;
   onOpen: () => void;
 };
 
-function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRowProps) {
+function PatientRow({
+  patient,
+  isWide,
+  chevronColor,
+  showDivider,
+  styles,
+  onOpen,
+}: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
   const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
@@ -332,7 +379,7 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
           {isWide && patient.attendedBy !== undefined && (
             <Text style={[styles.record, styles.colAttendedBy]}>{patient.attendedBy}</Text>
           )}
-          <View style={styles.colLastExam}>
+          <View style={[styles.colLastExam, isWide && styles.colLastExamWide]}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
               <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
@@ -342,9 +389,54 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
             ) : null}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
+          <MaterialCommunityIcons
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            name="chevron-right"
+            size={24}
+            color={chevronColor}
+            style={styles.chevron}
+          />
         </Pressable>
       </View>
     </View>
+  );
+}
+
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Ícone de um botão. Fica oculto para o leitor de tela, que lê só o texto. */
+function ButtonIcon({ name, color }: { name: IconName; color: string }) {
+  return (
+    <MaterialCommunityIcons
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      name={name}
+      size={24}
+      color={color}
+    />
+  );
+}
+
+type HeaderLinkProps = {
+  label: string;
+  onPress: () => void;
+  styles: HomeStyles;
+  icon?: IconName;
+  color?: string;
+};
+
+/** Ação do cabeçalho em forma de link, com ícone opcional, como no protótipo. */
+function HeaderLink({ label, onPress, styles, icon, color }: HeaderLinkProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+      {icon && color ? <ButtonIcon name={icon} color={color} /> : null}
+      <Text style={styles.textButtonText}>{label}</Text>
+    </Pressable>
   );
 }
 
