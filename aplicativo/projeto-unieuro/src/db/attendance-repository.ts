@@ -41,11 +41,12 @@ export type AttendedPatientRecord = {
 
 /**
  * Paciente atendido por qualquer profissional do tablet, como só o superusuário
- * vê (#49): o resumo conta os atendimentos de todos, e `attendedBy` é o nome de
- * quem fez o mais recente.
+ * vê (#49): o resumo conta os atendimentos de todos, `attendedBy` é o nome de
+ * quem fez o mais recente e `professionalIds`, todos os que já o atenderam.
  */
 export type AnyAttendedPatientRecord = AttendedPatientRecord & {
   attendedBy: string;
+  professionalIds: number[];
 };
 
 /** Exame (atendimento) aplicado pelo profissional, como a tela do paciente o mostra. */
@@ -158,7 +159,8 @@ const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
     (SELECT m.nome FROM profissional m
-      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por
+      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por,
+    GROUP_CONCAT(DISTINCT a.id_profissional) AS profissionais
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE ${REQUESTER_IS_SUPERUSER}
@@ -348,10 +350,9 @@ export function createAttendanceRepository(
     /** Pacientes de todos os profissionais, com quem atendeu por último. Só para o superusuário. */
     async listAllAttendedPatients(requesterId: number): Promise<AnyAttendedPatientRecord[]> {
       const database = await open();
-      const rows = await database.getAllAsync<AttendedPatientRow & { atendido_por: string }>(
-        LIST_ALL_ATTENDED_PATIENTS,
-        [requesterId],
-      );
+      const rows = await database.getAllAsync<
+        AttendedPatientRow & { atendido_por: string; profissionais: string }
+      >(LIST_ALL_ATTENDED_PATIENTS, [requesterId]);
       return rows.map((row) => ({
         id: row.id,
         name: row.nome,
@@ -360,6 +361,7 @@ export function createAttendanceRepository(
         lastStartedAt: row.ultimo_inicio,
         lastState: row.ultimo_estado,
         attendedBy: row.atendido_por,
+        professionalIds: row.profissionais.split(',').map(Number),
       }));
     },
 

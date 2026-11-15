@@ -1,5 +1,6 @@
 import {
   countExams,
+  countProfessionals,
   cpfDigitsOf,
   describeTotals,
   filterPatients,
@@ -160,6 +161,30 @@ describe('resumo do cabeçalho', () => {
     ).toBe('1 paciente e 1 exame deste tablet. Só o responsável pela pesquisa vê esta lista.');
   });
 
+  it('para o superusuário, diz de quantos profissionais são os exames', () => {
+    const deTodos = [
+      paciente({ id: 1, examCount: 2, professionalIds: [10, 11] }),
+      paciente({ id: 2, examCount: 1, professionalIds: [11] }),
+    ];
+
+    expect(describeTotals(deTodos, true)).toBe(
+      '2 pacientes e 3 exames de 2 profissionais deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+    expect(describeTotals([deTodos[1]], true)).toBe(
+      '1 paciente e 1 exame de 1 profissional deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+  });
+
+  it('conta cada profissional uma vez, mesmo com vários pacientes', () => {
+    expect(
+      countProfessionals([
+        paciente({ id: 1, professionalIds: [10, 11] }),
+        paciente({ id: 2, professionalIds: [11, 12] }),
+        paciente({ id: 3 }),
+      ]),
+    ).toBe(3);
+  });
+
   it('para o superusuário sem exame no tablet, avisa do mesmo jeito', () => {
     expect(describeTotals([], true)).toBe('Nenhum exame aplicado ainda.');
   });
@@ -225,9 +250,11 @@ describe('atendimento convertido para a lista', () => {
       lastStartedAt: '2026-10-13T09:10:00.000Z',
       lastState: 'concluida',
       attendedBy: 'Bruno Lima',
+      professionalIds: [10, 11],
     });
 
     expect(resumo.attendedBy).toBe('Bruno Lima');
+    expect(resumo.professionalIds).toEqual([10, 11]);
   });
 });
 

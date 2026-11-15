@@ -20,6 +20,8 @@ export type PatientSummary = {
    * do médico comum, todos os pacientes foram atendidos por ele.
    */
   attendedBy?: string;
+  /** Profissionais que já atenderam o paciente. Também só na lista do superusuário. */
+  professionalIds?: readonly number[];
 };
 
 /** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
@@ -50,6 +52,7 @@ export type AttendedPatient = {
   lastStartedAt: string;
   lastState: string;
   attendedBy?: string;
+  professionalIds?: number[];
 };
 
 /** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
@@ -119,6 +122,7 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     lastExamStatus: toExamStatus(patient.lastState),
     examCount: patient.attendanceCount,
     ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
+    ...(patient.professionalIds === undefined ? {} : { professionalIds: patient.professionalIds }),
   };
 }
 
@@ -184,6 +188,11 @@ export function countExams(patients: readonly PatientSummary[]): number {
   return patients.reduce((total, patient) => total + patient.examCount, 0);
 }
 
+/** Quantos profissionais diferentes atenderam os pacientes da lista. */
+export function countProfessionals(patients: readonly PatientSummary[]): number {
+  return new Set(patients.flatMap((patient) => patient.professionalIds ?? [])).size;
+}
+
 const ONLY_SUPERUSER_SEES = 'Só o responsável pela pesquisa vê esta lista.';
 
 /**
@@ -200,7 +209,10 @@ export function describeTotals(
   const pacientes = patients.length === 1 ? '1 paciente' : `${patients.length} pacientes`;
   if (allProfessionals) {
     const doTablet = exams === 1 ? '1 exame' : `${exams} exames`;
-    return `${pacientes} e ${doTablet} deste tablet. ${ONLY_SUPERUSER_SEES}`;
+    const count = countProfessionals(patients);
+    const deQuem =
+      count === 0 ? '' : count === 1 ? ' de 1 profissional' : ` de ${count} profissionais`;
+    return `${pacientes} e ${doTablet}${deQuem} deste tablet. ${ONLY_SUPERUSER_SEES}`;
   }
   const exames = exams === 1 ? '1 exame aplicado' : `${exams} exames aplicados`;
   return `${pacientes} e ${exames} por você.`;

@@ -207,7 +207,7 @@ describe('Cenário: responsável vê todos os atendimentos', () => {
     expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
     expect(
       screen.getByText(
-        '3 pacientes e 4 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+        '3 pacientes e 4 exames de 2 profissionais deste tablet. Só o responsável pela pesquisa vê esta lista.',
       ),
     ).toBeOnTheScreen();
 
