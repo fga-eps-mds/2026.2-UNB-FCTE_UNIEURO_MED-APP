@@ -187,21 +187,43 @@ function ExamRow({
   professionalName: string;
   styles: PatientDetailStyles;
 }) {
+  const router = useRouter();
   // Para o superusuário, o exame pode ser de outro médico (#49); para o médico
   // comum, todos os exames da tela foram aplicados por ele.
   const appliedBy = exam.appliedBy ?? professionalName;
-  // A linha é um só item para o leitor de tela, com a frase completa.
+  const conteudo = (
+    <>
+      <View style={styles.examWhen}>
+        <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
+        <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
+      </View>
+      <ExamStatusChip tone={exam.tone} label={exam.label} />
+    </>
+  );
+  // A linha é um só item para o leitor de tela, com a frase completa. O exame com os
+  // três desenhos vira botão e abre o resultado (#14).
+  if (exam.hasResult) {
+    return (
+      <Pressable
+        testID="exame"
+        accessibilityRole="button"
+        accessibilityLabel={describeExamForReader(exam, appliedBy)}
+        accessibilityHint="Abre o resultado do exame"
+        onPress={() =>
+          router.push({ pathname: '/resultado/[id]', params: { id: String(exam.id) } })
+        }
+        style={({ pressed }) => [styles.exam, pressed && styles.pressed]}>
+        {conteudo}
+      </Pressable>
+    );
+  }
   return (
     <View
       testID="exame"
       accessible
       accessibilityLabel={describeExamForReader(exam, appliedBy)}
       style={styles.exam}>
-      <View style={styles.examWhen}>
-        <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
-        <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
-      </View>
-      <ExamStatusChip tone={exam.tone} label={exam.label} />
+      {conteudo}
     </View>
   );
 }

@@ -12,6 +12,7 @@ import {
   type ExamStatus,
   type ExamTone,
 } from '@/features/home/patients';
+import { temResultado } from '@/features/resultado/resultado';
 
 /**
  * Paciente com os exames do profissional, como o repositório do atendimento
@@ -71,6 +72,8 @@ export type PatientExam = {
   /** Texto da situação, que existe também para o exame que ainda não terminou. */
   label: string;
   tone: ExamTone;
+  /** O exame já tem os três desenhos, e o resultado pode ser aberto (#14). */
+  hasResult: boolean;
 };
 
 export type PatientDetail = Omit<PatientWithExams, 'exams'> & { exams: PatientExam[] };
@@ -107,6 +110,7 @@ function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
     status,
     label: status ? EXAM_STATUS_LABEL[status] : (UNFINISHED_LABEL[exam.state] ?? UNKNOWN_LABEL),
     tone: toneOf(status, exam.state),
+    hasResult: temResultado(exam.state),
     ...(exam.appliedBy === undefined ? {} : { appliedBy: exam.appliedBy }),
   };
 }
