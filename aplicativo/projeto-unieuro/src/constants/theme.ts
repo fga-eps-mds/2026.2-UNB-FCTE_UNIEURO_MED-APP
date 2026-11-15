@@ -52,7 +52,12 @@ export const Colors = {
   },
 } as const;
 
-export type ThemeColors = (typeof Colors)[keyof typeof Colors];
+/**
+ * As chaves de uma paleta, cada uma com uma cor qualquer. O tipo não fixa os valores do
+ * claro e do escuro para que outras paletas com as mesmas chaves, como a de alto contraste
+ * das telas do paciente (#24), também sirvam.
+ */
+export type ThemeColors = { readonly [Chave in keyof (typeof Colors)['light']]: string };
 export type ThemeMode = 'system' | keyof typeof Colors;
 
 export const FontFamilies = {
