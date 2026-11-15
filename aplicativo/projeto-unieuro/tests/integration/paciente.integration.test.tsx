@@ -169,6 +169,55 @@ describe('Cenário: abrir um paciente', () => {
     expect(await screen.findByText(NOT_FOUND_MESSAGE)).toBeOnTheScreen();
   });
 
+  describe('superusuário (#49)', () => {
+    const ADMIN = {
+      name: 'Carlos Bernardo Tauil',
+      email: 'tauil@unieuro.com.br',
+      crmNumber: '12771',
+      crmState: 'DF',
+      cpf: '39053344705',
+    };
+    let admin: SessionProfessional;
+
+    beforeEach(async () => {
+      await tablet.repository.insertSuperuser(
+        { ...ADMIN, passwordHash: 'hash-da-senha', createdAt: '2026-09-26T13:00:00.000Z' },
+        null,
+      );
+      admin = { ...(await sessao(ADMIN.email)), superuser: true };
+    });
+
+    it('abre o paciente que só outro médico atendeu', async () => {
+      renderPaciente(admin, antonioId);
+
+      expect(
+        await screen.findByRole('header', { name: 'Antônio Carlos Ferreira' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Aplicado por Ana Carolina Souza')).toBeOnTheScreen();
+      expect(screen.queryByText(NOT_FOUND_MESSAGE)).toBeNull();
+    });
+
+    it('mostra os exames de todos os médicos, cada um com quem aplicou', async () => {
+      renderPaciente(admin, joseId);
+
+      expect(
+        await screen.findByText('3 exames, do mais recente para o mais antigo'),
+      ).toBeOnTheScreen();
+      const exames = screen.getAllByTestId('exame');
+      expect(exames[0]).toHaveTextContent(/Aplicado por Bruno Lima/);
+      expect(exames[1]).toHaveTextContent(/Aplicado por Ana Carolina Souza/);
+      expect(exames[2]).toHaveTextContent(/Aplicado por Ana Carolina Souza/);
+      expect(screen.queryByText(/Aplicado por Carlos Bernardo Tauil/)).toBeNull();
+    });
+
+    it('a sessão marcada como superusuário não abre nada se a conta não é superusuário', async () => {
+      // A trava está no banco: a sessão sozinha não dá acesso aos pacientes de outros.
+      renderPaciente({ ...bruno, superuser: true }, antonioId);
+
+      expect(await screen.findByText(NOT_FOUND_MESSAGE)).toBeOnTheScreen();
+    });
+  });
+
   it('mostra o exame aplicado depois, quando a tela volta a ter foco', async () => {
     renderPaciente(ana, antonioId);
     await screen.findByText('1 exame');

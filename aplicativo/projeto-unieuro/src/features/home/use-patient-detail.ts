@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 
 import { useSession } from '@/features/auth/session';
 import {
+  findPatientWithExamsFor,
   toPatientDetail,
   type PatientDetail,
   type PatientDetailRepository,
@@ -16,7 +17,8 @@ type Reading = {
 };
 
 /**
- * Paciente e exames do profissional da sessão, lidos do banco (#59).
+ * Paciente e exames do profissional da sessão, lidos do banco (#59). Para o
+ * superusuário, os exames de todos os profissionais (#49).
  *
  * A leitura se repete sempre que a tela volta a ter foco, para mostrar o exame
  * que acabou de ser aplicado. `patientId` é `null` quando o parâmetro da rota
@@ -25,20 +27,22 @@ type Reading = {
 export function usePatientDetail(repository: PatientDetailRepository, patientId: number | null) {
   const { professional } = useSession();
   const professionalId = professional?.id ?? null;
+  const superuser = professional?.superuser === true;
   const key =
-    professionalId !== null && patientId !== null ? `${professionalId}:${patientId}` : null;
+    professionalId !== null && patientId !== null
+      ? `${professionalId}:${superuser}:${patientId}`
+      : null;
   const [reading, setReading] = useState<Reading | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       if (professionalId === null || patientId === null) return;
 
-      const readKey = `${professionalId}:${patientId}`;
+      const readKey = `${professionalId}:${superuser}:${patientId}`;
       // Uma leitura que termina depois de a tela perder o foco ou de a sessão
       // mudar não sobrescreve o que está na tela.
       let current = true;
-      repository
-        .findPatientWithExams(professionalId, patientId)
+      findPatientWithExamsFor({ id: professionalId, superuser }, repository, patientId)
         .then((found) => {
           if (!current) return;
           setReading({ key: readKey, patient: found && toPatientDetail(found), failed: false });
@@ -55,7 +59,7 @@ export function usePatientDetail(repository: PatientDetailRepository, patientId:
       return () => {
         current = false;
       };
-    }, [professionalId, patientId, repository]),
+    }, [professionalId, superuser, patientId, repository]),
   );
 
   const latest = reading?.key === key ? reading : null;

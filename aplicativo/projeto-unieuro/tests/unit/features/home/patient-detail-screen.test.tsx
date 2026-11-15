@@ -93,6 +93,35 @@ describe('PatientDetailScreen', () => {
       expect(screen.getAllByText('Aplicado por Ana Carolina Souza')).toHaveLength(2);
     });
 
+    it('para o superusuário, diz qual médico aplicou cada exame (#49)', () => {
+      renderTela({
+        patient: toPatientDetail({
+          ...jose,
+          exams: [
+            {
+              id: 12,
+              startedAt: '2026-10-05T14:32:00',
+              state: 'concluida',
+              appliedBy: 'Paulo Henrique Rocha',
+            },
+            {
+              id: 9,
+              startedAt: '2026-09-28T10:05:00',
+              state: 'interrompida',
+              appliedBy: 'Ana Carolina Souza',
+            },
+          ],
+        }),
+      });
+
+      const exames = screen.getAllByTestId('exame');
+      expect(exames[0]).toHaveTextContent(/Aplicado por Paulo Henrique Rocha/);
+      expect(exames[1]).toHaveTextContent(/Aplicado por Ana Carolina Souza/);
+      expect(
+        screen.getByLabelText(/aplicado por Paulo Henrique Rocha, Concluído/),
+      ).toBeOnTheScreen();
+    });
+
     it('mostra a situação de um exame que ainda não terminou', () => {
       renderTela({
         patient: toPatientDetail({

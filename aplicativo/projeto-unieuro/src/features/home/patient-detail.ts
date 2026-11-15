@@ -26,18 +26,46 @@ export type PatientWithExams = {
   birthDate: string;
   schoolingYears: number;
   sex: 'feminino' | 'masculino' | null;
-  exams: { id: number; startedAt: string; state: string }[];
+  /** `appliedBy` só vem na consulta do superusuário (#49). */
+  exams: { id: number; startedAt: string; state: string; appliedBy?: string }[];
 };
 
 export type PatientDetailRepository = {
   /** Devolve `null` se o paciente não existe ou não foi atendido por esse profissional. */
   findPatientWithExams(professionalId: number, patientId: number): Promise<PatientWithExams | null>;
+  /**
+   * Paciente com os exames de todos os profissionais. Só responde a um
+   * superusuário (#49): para os demais, devolve `null`.
+   */
+  findAnyPatientWithExams(requesterId: number, patientId: number): Promise<PatientWithExams | null>;
 };
+
+/** Quem está pedindo o paciente: o profissional da sessão. */
+export type PatientDetailViewer = {
+  id: number;
+  superuser?: boolean;
+};
+
+/**
+ * Paciente como o profissional pode vê-lo: o superusuário vê os exames de todos,
+ * com quem aplicou cada um, e o médico comum vê só os que ele aplicou (#49).
+ */
+export function findPatientWithExamsFor(
+  viewer: PatientDetailViewer,
+  repository: PatientDetailRepository,
+  patientId: number,
+): Promise<PatientWithExams | null> {
+  return viewer.superuser === true
+    ? repository.findAnyPatientWithExams(viewer.id, patientId)
+    : repository.findPatientWithExams(viewer.id, patientId);
+}
 
 export type PatientExam = {
   id: number;
   /** Data e hora ISO do início do exame. */
   startedAt: string;
+  /** Quem aplicou o exame, quando não foi o profissional da sessão (#49). */
+  appliedBy?: string;
   /** Desfecho do exame, ou `null` enquanto ele não terminou. */
   status: ExamStatus | null;
   /** Texto da situação, que existe também para o exame que ainda não terminou. */
@@ -79,6 +107,7 @@ function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
     status,
     label: status ? EXAM_STATUS_LABEL[status] : (UNFINISHED_LABEL[exam.state] ?? UNKNOWN_LABEL),
     tone: toneOf(status, exam.state),
+    ...(exam.appliedBy === undefined ? {} : { appliedBy: exam.appliedBy }),
   };
 }
 
