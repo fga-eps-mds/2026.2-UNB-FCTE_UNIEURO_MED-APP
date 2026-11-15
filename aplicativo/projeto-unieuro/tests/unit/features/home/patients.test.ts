@@ -1,5 +1,6 @@
 import {
   countExams,
+  describeExamState,
   countProfessionals,
   cpfDigitsOf,
   describeTotals,
@@ -238,7 +239,21 @@ describe('atendimento convertido para a lista', () => {
       lastExamAt: '2026-10-13T09:10:00.000Z',
       lastExamStatus: null,
       examCount: 3,
+      lastExamSituation: { label: 'Aguardando o termo', tone: 'info' },
     });
+  });
+
+  it.each([
+    ['concluida', 'Concluído', 'success'],
+    ['interrompida', 'Interrompido', 'warning'],
+    ['cancelada', 'Recusou o termo', 'warning'],
+    ['aguardando_consentimento', 'Aguardando o termo', 'info'],
+    ['em_andamento', 'Em andamento', 'info'],
+    ['processando_resultado', 'Processando', 'info'],
+    ['erro_inferencia', 'Erro ao calcular', 'error'],
+    ['estado_novo', 'Situação desconhecida', 'info'],
+  ])('a situação do exame no estado %s é "%s"', (estado, label, tone) => {
+    expect(describeExamState(estado)).toEqual({ label, tone });
   });
 
   it('leva o nome de quem atendeu por último, quando a consulta traz', () => {

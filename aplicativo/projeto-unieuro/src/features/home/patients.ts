@@ -22,6 +22,11 @@ export type PatientSummary = {
   attendedBy?: string;
   /** Profissionais que já atenderam o paciente. Também só na lista do superusuário. */
   professionalIds?: readonly number[];
+  /**
+   * Situação do último exame, também quando ele ainda não terminou ("Em
+   * andamento"). Sem ela, a lista usa `lastExamStatus`.
+   */
+  lastExamSituation?: ExamSituation;
 };
 
 /** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
@@ -98,6 +103,20 @@ export function listPatientCpfsFor(
     : repository.listAttendedPatientCpfs(viewer.id);
 }
 
+/** Texto e tom da situação de um exame, terminado ou não. */
+export type ExamSituation = { label: string; tone: ExamTone };
+
+// Situação dos exames que ainda não terminaram. Os que terminaram usam o rótulo
+// de `EXAM_STATUS_LABEL`, para a mesma situação ter sempre o mesmo texto.
+export const UNFINISHED_EXAM_LABEL: Record<string, string> = {
+  aguardando_consentimento: 'Aguardando o termo',
+  em_andamento: 'Em andamento',
+  processando_resultado: 'Processando',
+  erro_inferencia: 'Erro ao calcular',
+};
+
+export const UNKNOWN_EXAM_LABEL = 'Situação desconhecida';
+
 // Estados da avaliação que encerram o exame, conforme o diagrama de estados do
 // documento de arquitetura. Os demais (aguardando consentimento, em andamento,
 // processando resultado e erro na inferência) ainda não terminaram e ficam sem
@@ -112,6 +131,19 @@ export function toExamStatus(state: string): ExamStatus | null {
   return FINISHED_STATES[state] ?? null;
 }
 
+/**
+ * Situação de um exame pelo estado gravado. O erro ao calcular é o único exame
+ * não terminado que pede ação; os demais só informam em que ponto o exame está.
+ */
+export function describeExamState(state: string): ExamSituation {
+  const status = toExamStatus(state);
+  if (status) return { label: EXAM_STATUS_LABEL[status], tone: EXAM_STATUS_TONE[status] };
+  return {
+    label: UNFINISHED_EXAM_LABEL[state] ?? UNKNOWN_EXAM_LABEL,
+    tone: state === 'erro_inferencia' ? 'error' : 'info',
+  };
+}
+
 /** Cada atendimento registrado conta como um exame do paciente com esse profissional. */
 export function toPatientSummary(patient: AttendedPatient): PatientSummary {
   return {
@@ -121,6 +153,7 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     lastExamAt: patient.lastStartedAt,
     lastExamStatus: toExamStatus(patient.lastState),
     examCount: patient.attendanceCount,
+    lastExamSituation: describeExamState(patient.lastState),
     ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
     ...(patient.professionalIds === undefined ? {} : { professionalIds: patient.professionalIds }),
   };
