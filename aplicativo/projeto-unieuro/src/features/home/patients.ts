@@ -122,14 +122,6 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
   };
 }
 
-/**
- * A lista é a do superusuário, com os pacientes de todos os profissionais (#49):
- * só ela traz quem atendeu cada paciente.
- */
-export function listsAllProfessionals(patients: readonly PatientSummary[]): boolean {
-  return patients.some((patient) => patient.attendedBy !== undefined);
-}
-
 const normalize = (text: string) =>
   text
     .normalize('NFD')
@@ -192,14 +184,18 @@ export function countExams(patients: readonly PatientSummary[]): number {
 
 /**
  * Resumo do cabeçalho, por exemplo "8 pacientes e 12 exames aplicados por você."
- * Na lista do superusuário, os exames são de todos: "... aplicados no tablet."
+ * Para o superusuário, que vê a lista de todos os profissionais (#49), os exames
+ * são do tablet: "... aplicados no tablet."
  */
-export function describeTotals(patients: readonly PatientSummary[]): string {
+export function describeTotals(
+  patients: readonly PatientSummary[],
+  allProfessionals = false,
+): string {
   if (patients.length === 0) return 'Nenhum exame aplicado ainda.';
   const exams = countExams(patients);
   const pacientes = patients.length === 1 ? '1 paciente' : `${patients.length} pacientes`;
   const exames = exams === 1 ? '1 exame aplicado' : `${exams} exames aplicados`;
-  const autoria = listsAllProfessionals(patients) ? 'no tablet' : 'por você';
+  const autoria = allProfessionals ? 'no tablet' : 'por você';
   return `${pacientes} e ${exames} ${autoria}.`;
 }
 

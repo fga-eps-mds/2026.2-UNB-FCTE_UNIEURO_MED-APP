@@ -4,7 +4,6 @@ import {
   describeTotals,
   filterPatients,
   formatDate,
-  listsAllProfessionals,
   sortByLastExam,
   EXAM_STATUS_TONE,
   toExamStatus,
@@ -134,24 +133,17 @@ describe('resumo do cabeçalho', () => {
     expect(describeTotals([])).toBe('Nenhum exame aplicado ainda.');
   });
 
-  it('na lista do superusuário, conta os exames do tablet, e não os dele', () => {
+  it('para o superusuário, conta os exames do tablet, e não os dele', () => {
     const deTodos = [
       paciente({ id: 1, examCount: 2, attendedBy: 'Ana Carolina Souza' }),
       paciente({ id: 2, examCount: 1, attendedBy: 'Bruno Lima' }),
     ];
 
-    expect(describeTotals(deTodos)).toBe('2 pacientes e 3 exames aplicados no tablet.');
-  });
-});
-
-describe('lista de todos os profissionais', () => {
-  it('é a lista que traz quem atendeu cada paciente', () => {
-    expect(listsAllProfessionals([paciente({ attendedBy: 'Bruno Lima' })])).toBe(true);
+    expect(describeTotals(deTodos, true)).toBe('2 pacientes e 3 exames aplicados no tablet.');
   });
 
-  it('não é a lista do médico comum, que não traz quem atendeu', () => {
-    expect(listsAllProfessionals(lista)).toBe(false);
-    expect(listsAllProfessionals([])).toBe(false);
+  it('para o superusuário sem exame no tablet, avisa do mesmo jeito', () => {
+    expect(describeTotals([], true)).toBe('Nenhum exame aplicado ainda.');
   });
 });
 

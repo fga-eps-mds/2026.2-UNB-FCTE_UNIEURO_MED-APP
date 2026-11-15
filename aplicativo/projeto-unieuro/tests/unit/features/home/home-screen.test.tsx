@@ -218,9 +218,10 @@ describe('HomeScreen', () => {
       { ...pacientes[0], attendedBy: 'Ana Carolina Souza' },
       { ...pacientes[1], attendedBy: 'Bruno Henrique Lima' },
     ];
+    const responsavel: SessionProfessional = { ...profissional, superuser: true };
 
     it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', () => {
-      renderTela(deTodos);
+      renderTela(deTodos, responsavel);
 
       expect(
         screen.getByRole('header', { name: 'Pacientes de todos os profissionais' }),
@@ -230,13 +231,13 @@ describe('HomeScreen', () => {
     });
 
     it('conta os exames do tablet, e não os do responsável', () => {
-      renderTela(deTodos);
+      renderTela(deTodos, responsavel);
 
       expect(screen.getByText('2 pacientes e 3 exames aplicados no tablet.')).toBeOnTheScreen();
     });
 
     it('lê quem atendeu no texto do leitor de tela', () => {
-      renderTela(deTodos);
+      renderTela(deTodos, responsavel);
 
       const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
       expect(linha.props.accessibilityLabel).toBe(
@@ -245,13 +246,22 @@ describe('HomeScreen', () => {
     });
 
     it('mostra quem atendeu também quando a tela é larga', () => {
-      renderTela(deTodos);
+      renderTela(deTodos, responsavel);
 
       fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
         nativeEvent: { layout: { width: 1280, height: 800 } },
       });
 
       expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+    });
+
+    it('mostra o título de todos mesmo antes de haver exame no tablet', () => {
+      renderTela([], responsavel);
+
+      expect(
+        screen.getByRole('header', { name: 'Pacientes de todos os profissionais' }),
+      ).toBeOnTheScreen();
+      expect(screen.getByText('Nenhum exame aplicado ainda.')).toBeOnTheScreen();
     });
   });
 

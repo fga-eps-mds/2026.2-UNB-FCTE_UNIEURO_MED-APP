@@ -26,7 +26,6 @@ import {
   describeTotals,
   filterPatients,
   formatDate,
-  listsAllProfessionals,
   sortByLastExam,
   type PatientCpf,
   type PatientSummary,
@@ -116,7 +115,7 @@ export default function HomeScreen({
   const hasExams = countExams(patients) > 0;
   const hasPatients = patients.length > 0;
   // O superusuário vê os pacientes de todos os profissionais, com quem atendeu (#49).
-  const allProfessionals = listsAllProfessionals(patients);
+  const allProfessionals = professional?.superuser === true;
 
   if (!professional) return null;
 
@@ -166,7 +165,9 @@ export default function HomeScreen({
               {allProfessionals ? 'Pacientes de todos os profissionais' : 'Seus pacientes'}
             </Text>
             {/* Enquanto carrega, o aviso fica só no cartão da lista, para não ser lido duas vezes. */}
-            {!loading && <Text style={styles.subtitle}>{describeTotals(patients)}</Text>}
+            {!loading && (
+              <Text style={styles.subtitle}>{describeTotals(patients, allProfessionals)}</Text>
+            )}
           </View>
           <Pressable
             accessibilityRole="button"
