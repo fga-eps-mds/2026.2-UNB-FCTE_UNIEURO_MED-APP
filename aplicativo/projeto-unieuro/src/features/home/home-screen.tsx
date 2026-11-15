@@ -32,6 +32,7 @@ import {
 } from '@/features/home/patients';
 import ExamStatusChip from '@/features/home/exam-status-chip';
 import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
+import { ehSuperusuario } from '@/features/superusuario/acesso';
 import { useTheme } from '@/hooks/use-theme';
 
 type HomeScreenProps = {
@@ -138,6 +139,15 @@ export default function HomeScreen({
             </Text>
             <Text style={styles.professionalCrm}>CRM {formatCrm(professional)}</Text>
           </View>
+          {/* Só o responsável pela pesquisa tem a entrada da área administrativa (#119). */}
+          {ehSuperusuario(professional) && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/superusuario')}
+              style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
+              <Text style={styles.outlineButtonText}>Área do superusuário</Text>
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push('/settings')}

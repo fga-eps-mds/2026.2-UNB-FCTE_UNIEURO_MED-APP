@@ -506,3 +506,21 @@ describe('HomeScreen', () => {
     expect(screen.getByRole('button', { name: 'Sair' })).toBeOnTheScreen();
   });
 });
+
+describe('entrada da área do superusuário (#119)', () => {
+  const botaoArea = () => screen.queryByRole('button', { name: 'Área do superusuário' });
+
+  it('o superusuário tem o botão no topo e abre a área por ele', async () => {
+    renderTela(pacientes, { ...profissional, superuser: true });
+
+    await userEvent.setup().press(botaoArea()!);
+
+    expect(useRouter().push).toHaveBeenCalledWith('/superusuario');
+  });
+
+  it('Cenário: acesso de um profissional comum: o médico comum não tem o botão', () => {
+    renderTela();
+
+    expect(botaoArea()).toBeNull();
+  });
+});
