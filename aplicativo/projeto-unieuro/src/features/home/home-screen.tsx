@@ -135,7 +135,6 @@ export default function HomeScreen({
           </View>
           <View>
             <Text style={styles.brandName}>MNEMA</Text>
-            <Text style={styles.brandCaption}>RASTREIO COGNITIVO</Text>
           </View>
         </View>
         <View style={styles.account}>
@@ -284,7 +283,7 @@ export default function HomeScreen({
                 <PatientRow
                   patient={item}
                   isWide={isWide}
-                  chevronColor={theme.textSecondary}
+                  chevronColor={theme.primary}
                   showDivider={index > 0}
                   styles={styles}
                   onOpen={() =>
@@ -350,12 +349,15 @@ function PatientRow({
 }: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
-  const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
+  // A situação vem do estado do exame, também quando ele ainda não terminou.
+  const situation =
+    patient.lastExamSituation ??
+    (status ? { label: EXAM_STATUS_LABEL[status], tone: EXAM_STATUS_TONE[status] } : null);
   const description = [
     patient.name,
     `ficha ${patient.recordNumber}`,
     `último exame ${lastExam}`,
-    statusLabel,
+    situation?.label,
     patient.attendedBy && `atendido por ${patient.attendedBy}`,
   ]
     .filter(Boolean)
@@ -381,9 +383,7 @@ function PatientRow({
           )}
           <View style={[styles.colLastExam, isWide && styles.colLastExamWide]}>
             <Text style={styles.cell}>{lastExam}</Text>
-            {status && (
-              <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
-            )}
+            {situation && <ExamStatusChip tone={situation.tone} label={situation.label} />}
             {!isWide && patient.attendedBy ? (
               <Text style={styles.cellSecondary}>Atendido por {patient.attendedBy}</Text>
             ) : null}

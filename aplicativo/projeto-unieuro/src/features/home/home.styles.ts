@@ -5,9 +5,9 @@ import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme'
 /** Largura a partir da qual a lista mostra todas as colunas, como no tablet deitado. */
 export const WIDE_LAYOUT_MIN_WIDTH = 900;
 
-// Tamanhos do guia de identidade visual (DOCS, produto/identidade-visual.md)
-// para as telas do profissional: o menor texto é 16, o corpo é 18 e o botão
-// médio tem 64 de altura, com texto 20.
+// Proporções do protótipo do Figma para o tablet deitado (tela 30, #49), sem
+// descer do menor texto do guia de identidade visual (DOCS,
+// produto/identidade-visual.md): 16.
 export function createHomeStyles(theme: ThemeColors) {
   const label = {
     color: theme.textSecondary,
@@ -17,17 +17,17 @@ export function createHomeStyles(theme: ThemeColors) {
     fontWeight: '600' as const,
     letterSpacing: 0.64,
   };
-  const body = { fontFamily: FontFamilies.regular, fontSize: 18, lineHeight: 28 };
+  const body = { fontFamily: FontFamilies.regular, fontSize: 16, lineHeight: 24 };
   const button = {
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: 'row' as const,
     gap: 10,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingHorizontal: 24,
-    borderRadius: 16,
+    borderRadius: 12,
   };
-  const buttonText = { fontFamily: FontFamilies.semibold, fontSize: 20, lineHeight: 26 };
+  const buttonText = { fontFamily: FontFamilies.semibold, fontSize: 18, lineHeight: 24 };
 
   return StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: theme.background },
@@ -67,19 +67,13 @@ export function createHomeStyles(theme: ThemeColors) {
       backgroundColor: theme.primary,
     },
     logoText: { color: theme.onPrimary, fontFamily: FontFamilies.bold, fontSize: 20 },
-    brandName: {
-      color: theme.text,
-      fontFamily: FontFamilies.bold,
-      fontSize: 16,
-      letterSpacing: 0.6,
-    },
-    brandCaption: { ...label, marginTop: 2 },
+    brandName: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 20 },
     // O nome do profissional encolhe e vira reticências, para não empurrar os
     // botões de configurações e de sair para fora da tela (#97).
-    account: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 16 },
+    account: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     accountText: { flexShrink: 1, alignItems: 'flex-end' },
     professionalName: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
-    professionalCrm: { ...label, marginTop: 2 },
+    professionalCrm: { ...body, color: theme.textSecondary },
     body: { flex: 1, gap: 24, padding: 24 },
     bodyWide: { paddingHorizontal: 40, paddingTop: 32 },
     titleRow: {
@@ -90,7 +84,7 @@ export function createHomeStyles(theme: ThemeColors) {
       gap: 16,
     },
     titleBlock: { flexShrink: 1, gap: 6 },
-    title: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 34, lineHeight: 42 },
+    title: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 30, lineHeight: 38 },
     subtitle: { ...body, color: theme.textSecondary },
     toolbarBlock: { gap: 8 },
     searchLabel: label,
@@ -98,17 +92,17 @@ export function createHomeStyles(theme: ThemeColors) {
     search: {
       flexGrow: 1,
       flexBasis: 320,
-      minHeight: 60,
+      minHeight: 56,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
       paddingHorizontal: 16,
       borderRadius: 12,
       borderWidth: 1.5,
-      borderColor: theme.border,
+      borderColor: theme.textSecondary,
       backgroundColor: theme.field,
     },
-    searchInput: { ...body, flex: 1, minHeight: 56, color: theme.text },
+    searchInput: { ...body, flex: 1, minHeight: 52, color: theme.text },
     toolbarActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
     primaryButton: { ...button, backgroundColor: theme.primary },
     primaryButtonText: { ...buttonText, color: theme.onPrimary },
@@ -127,15 +121,17 @@ export function createHomeStyles(theme: ThemeColors) {
     listCard: {
       flex: 1,
       overflow: 'hidden',
-      borderRadius: 24,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 28,
       backgroundColor: theme.surface,
     },
     columnHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      paddingHorizontal: 32,
-      paddingVertical: 14,
+      paddingVertical: 18,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
@@ -144,8 +140,7 @@ export function createHomeStyles(theme: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
+      paddingVertical: 2,
     },
     rowMain: {
       flex: 1,
@@ -153,7 +148,6 @@ export function createHomeStyles(theme: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      paddingHorizontal: 12,
       borderRadius: 12,
     },
     colName: { flex: 2.4 },
@@ -161,9 +155,9 @@ export function createHomeStyles(theme: ThemeColors) {
     colAttendedBy: { flex: 1.8 },
     colLastExam: { flex: 1.4, alignItems: 'flex-start', gap: 4 },
     // No tablet deitado, a situação fica ao lado da data, como no protótipo.
-    colLastExamWide: { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    colLastExamWide: { flex: 2.4, flexDirection: 'row', alignItems: 'center', gap: 12 },
     chevron: { width: 24 },
-    colCount: { flex: 0.6, textAlign: 'center' },
+    colCount: { flex: 0.6 },
     patientName: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
     cell: { ...body, color: theme.text },
     cellSecondary: {
@@ -174,7 +168,7 @@ export function createHomeStyles(theme: ThemeColors) {
     },
     record: { ...body, color: theme.textSecondary },
     count: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
-    separator: { height: 1, marginHorizontal: 24, backgroundColor: theme.border },
+    separator: { height: 1, backgroundColor: theme.border },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
     emptyIcon: {
       width: 88,

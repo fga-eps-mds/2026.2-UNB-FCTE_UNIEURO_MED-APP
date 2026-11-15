@@ -164,6 +164,20 @@ describe('HomeScreen', () => {
       expect(name).toBe(icone);
     });
 
+    it('mostra a situação também do exame que ainda não terminou', () => {
+      renderTela([
+        {
+          ...pacientes[0],
+          lastExamStatus: null,
+          lastExamSituation: { label: 'Em andamento', tone: 'info' },
+        },
+      ]);
+
+      const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+      expect(within(linha).getByText('Em andamento')).toBeOnTheScreen();
+      expect(linha.props.accessibilityLabel).toMatch(/, Em andamento$/);
+    });
+
     it('não mostra ícone para o paciente sem exame', () => {
       renderTela([{ ...pacientes[0], lastExamAt: null, lastExamStatus: null, examCount: 0 }]);
 
