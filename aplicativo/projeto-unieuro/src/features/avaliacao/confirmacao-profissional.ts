@@ -1,4 +1,6 @@
-export type ConfirmacaoResultado = { confirmado: true } | { confirmado: false; mensagem: string };
+export type ConfirmacaoResultado =
+  | { confirmado: true }
+  | { confirmado: false; motivo: 'vazio' | 'incompleto' | 'incorreto'; mensagem: string };
 
 export type ProfessionalCpfRepository = {
   /** Lê e decifra o CPF somente durante a conferência. */
@@ -20,9 +22,9 @@ export async function confirmarProfissional(
   professionalId: number,
   repository: ProfessionalCpfRepository,
 ): Promise<ConfirmacaoResultado> {
-  if (digitos.length === 0) return { confirmado: false, mensagem: DIGITOS_VAZIOS };
+  if (digitos.length === 0) return { confirmado: false, motivo: 'vazio', mensagem: DIGITOS_VAZIOS };
   if (!/^\d{4}$/.test(digitos)) {
-    return { confirmado: false, mensagem: DIGITOS_INCOMPLETOS };
+    return { confirmado: false, motivo: 'incompleto', mensagem: DIGITOS_INCOMPLETOS };
   }
 
   const cpf = await repository.getCpf(professionalId);
@@ -32,5 +34,5 @@ export async function confirmarProfissional(
 
   return cpf.slice(0, 4) === digitos
     ? { confirmado: true }
-    : { confirmado: false, mensagem: DIGITOS_INCORRETOS };
+    : { confirmado: false, motivo: 'incorreto', mensagem: DIGITOS_INCORRETOS };
 }

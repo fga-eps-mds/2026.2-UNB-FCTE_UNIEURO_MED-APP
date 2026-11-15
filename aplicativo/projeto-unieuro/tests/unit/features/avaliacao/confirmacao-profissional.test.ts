@@ -26,23 +26,28 @@ describe('confirmarProfissional', () => {
   it('recusa dígitos incorretos sem revelar os dígitos esperados', async () => {
     const resultado = await confirmarProfissional('9999', ID_PROFISSIONAL, criarRepositorio());
 
-    expect(resultado).toEqual({ confirmado: false, mensagem: DIGITOS_INCORRETOS });
+    expect(resultado).toEqual({
+      confirmado: false,
+      motivo: 'incorreto',
+      mensagem: DIGITOS_INCORRETOS,
+    });
     expect(DIGITOS_INCORRETOS).not.toContain('1114');
     expect(DIGITOS_INCORRETOS).not.toContain(CPF_PROTEGIDO);
   });
 
   it.each([
-    ['', DIGITOS_VAZIOS],
-    ['1', DIGITOS_INCOMPLETOS],
-    ['111', DIGITOS_INCOMPLETOS],
-    ['11a4', DIGITOS_INCOMPLETOS],
-    ['11144', DIGITOS_INCOMPLETOS],
-  ])('recusa entrada %p sem ler o CPF protegido', async (digitos, mensagem) => {
+    ['', DIGITOS_VAZIOS, 'vazio'],
+    ['1', DIGITOS_INCOMPLETOS, 'incompleto'],
+    ['111', DIGITOS_INCOMPLETOS, 'incompleto'],
+    ['11a4', DIGITOS_INCOMPLETOS, 'incompleto'],
+    ['11144', DIGITOS_INCOMPLETOS, 'incompleto'],
+  ])('recusa entrada %p sem ler o CPF protegido', async (digitos, mensagem, motivo) => {
     const repositorio = criarRepositorio();
 
     await expect(confirmarProfissional(digitos, ID_PROFISSIONAL, repositorio)).resolves.toEqual({
       confirmado: false,
       mensagem,
+      motivo,
     });
     expect(repositorio.getCpf).not.toHaveBeenCalled();
   });

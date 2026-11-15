@@ -7,7 +7,6 @@ import { FontFamilies, type ThemeColors } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
 import {
-  DIGITOS_INCORRETOS,
   confirmarProfissional,
   type ProfessionalCpfRepository,
 } from '@/features/avaliacao/confirmacao-profissional';
@@ -61,7 +60,7 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
         router.dismissTo('/menu');
         return;
       }
-      if (resultado.mensagem === DIGITOS_INCORRETOS) setDigitos('');
+      if (resultado.motivo === 'incorreto') setDigitos('');
       setErro(resultado.mensagem);
     } catch {
       // Falha do banco: avisa e libera o botão, para o profissional não ficar preso.
