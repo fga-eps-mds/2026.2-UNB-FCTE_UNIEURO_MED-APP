@@ -174,7 +174,7 @@ describe('esquema', () => {
   it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
     const schemaV6 = MIGRATIONS[5];
 
-    expect(SCHEMA_VERSION).toBe(8);
+    expect(SCHEMA_VERSION).toBe(9);
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
     expect(schemaV6).toContain('REFERENCES avaliacao (id)');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
@@ -192,6 +192,13 @@ describe('esquema', () => {
     const schemaV8 = MIGRATIONS[7];
     expect(schemaV8).toContain('ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado');
     expect(schemaV8).not.toMatch(/cpf_responsavel\s+TEXT/);
+  });
+
+  it('chega à versão 9 com o perfil do profissional, médico por padrão (#49)', () => {
+    const schemaV9 = MIGRATIONS[8];
+    expect(schemaV9).toContain("ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'");
+    expect(schemaV9).toContain("CHECK (perfil IN ('medico', 'superusuario'))");
+    expect(schemaV9).toContain('ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)');
   });
 });
 

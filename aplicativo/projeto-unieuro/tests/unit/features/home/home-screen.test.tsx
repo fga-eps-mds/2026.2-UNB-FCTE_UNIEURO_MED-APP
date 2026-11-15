@@ -1,4 +1,13 @@
-import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
@@ -140,6 +149,36 @@ describe('HomeScreen', () => {
       expect(screen.getByText('Concluído')).toBeOnTheScreen();
       expect(screen.getByText('Interrompido')).toBeOnTheScreen();
       expect(screen.getByText('Recusou o termo')).toBeOnTheScreen();
+    });
+
+    it.each([
+      ['Antônio Carlos Ferreira', 'check-circle'],
+      ['José Alves Martins', 'alert'],
+      ['Raimundo Nonato Costa', 'alert'],
+    ])('mostra o ícone da situação do último exame de %s: %s', (nome, icone) => {
+      renderTela();
+
+      const linha = screen.getByRole('button', { name: new RegExp(`^${nome}, ficha`) });
+      const { name } = within(linha).UNSAFE_getByType(MaterialCommunityIcons).props;
+      expect(name).toBe(icone);
+    });
+
+    it('não mostra ícone para o paciente sem exame', () => {
+      renderTela([{ ...pacientes[0], lastExamAt: null, lastExamStatus: null, examCount: 0 }]);
+
+      const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+      expect(within(linha).UNSAFE_queryAllByType(MaterialCommunityIcons)).toHaveLength(0);
+    });
+
+    it('mantém a situação no texto lido pelo leitor de tela, sem repeti-la pelo ícone', () => {
+      renderTela();
+
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(linha.props.accessibilityLabel).toBe(
+        'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído',
+      );
+      const icone = within(linha).UNSAFE_getByType(MaterialCommunityIcons);
+      expect(icone.props.accessibilityElementsHidden).toBe(true);
     });
 
     it('mostra todas as colunas quando a tela é larga', () => {
@@ -358,13 +397,17 @@ describe('HomeScreen', () => {
       expect(screen.getByText(mensagem)).toBeOnTheScreen();
     });
 
-    it('avisa que os exames do paciente chegam em uma próxima entrega', async () => {
+    it('abre a tela dos exames do paciente', async () => {
       const user = userEvent.setup();
       renderTela();
 
       await user.press(botoesDePaciente()[0]);
 
-      expect(screen.getByText(/exames do paciente aparecem aqui/)).toBeOnTheScreen();
+      expect(useRouter().push).toHaveBeenCalledWith({
+        pathname: '/paciente/[id]',
+        params: { id: '2' },
+      });
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
   });
 
