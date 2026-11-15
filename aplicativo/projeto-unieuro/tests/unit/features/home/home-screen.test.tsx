@@ -223,9 +223,7 @@ describe('HomeScreen', () => {
     it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', () => {
       renderTela(deTodos, responsavel);
 
-      expect(
-        screen.getByRole('header', { name: 'Pacientes de todos os profissionais' }),
-      ).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
       expect(screen.getByText('Atendido por Ana Carolina Souza')).toBeOnTheScreen();
       expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
     });
@@ -233,7 +231,28 @@ describe('HomeScreen', () => {
     it('conta os exames do tablet, e não os do responsável', () => {
       renderTela(deTodos, responsavel);
 
-      expect(screen.getByText('2 pacientes e 3 exames aplicados no tablet.')).toBeOnTheScreen();
+      expect(
+        screen.getByText(
+          '2 pacientes e 3 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+        ),
+      ).toBeOnTheScreen();
+    });
+
+    it('apresenta o superusuário como responsável pela pesquisa no cabeçalho', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByText('Responsável pela pesquisa')).toBeOnTheScreen();
+      expect(screen.queryByText(/^CRM /)).toBeNull();
+    });
+
+    it('busca também pelo nome de quem atendeu', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'bruno');
+
+      expect(botoesDePaciente()).toHaveLength(1);
+      expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
     });
 
     it('lê quem atendeu no texto do leitor de tela', () => {
@@ -245,22 +264,23 @@ describe('HomeScreen', () => {
       );
     });
 
-    it('mostra quem atendeu também quando a tela é larga', () => {
+    it('no tablet deitado, mostra quem atendeu numa coluna própria', () => {
       renderTela(deTodos, responsavel);
 
       fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
         nativeEvent: { layout: { width: 1280, height: 800 } },
       });
 
-      expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+      expect(screen.getByText('ATENDIDO POR')).toBeOnTheScreen();
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(within(linha).getByText('Bruno Henrique Lima')).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
     });
 
     it('mostra o título de todos mesmo antes de haver exame no tablet', () => {
       renderTela([], responsavel);
 
-      expect(
-        screen.getByRole('header', { name: 'Pacientes de todos os profissionais' }),
-      ).toBeOnTheScreen();
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
       expect(screen.getByText('Nenhum exame aplicado ainda.')).toBeOnTheScreen();
     });
   });
@@ -274,6 +294,17 @@ describe('HomeScreen', () => {
       for (const linha of botoesDePaciente()) {
         expect(linha.props.accessibilityLabel).not.toMatch(/atendido por/);
       }
+    });
+
+    it('no tablet deitado, não tem a coluna de quem atendeu', () => {
+      renderTela();
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('FICHA')).toBeOnTheScreen();
+      expect(screen.queryByText('ATENDIDO POR')).toBeNull();
     });
   });
 

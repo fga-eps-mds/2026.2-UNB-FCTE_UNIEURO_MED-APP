@@ -63,6 +63,16 @@ describe('busca de paciente', () => {
     expect(filterPatients(comLetra, 'ab-0042').map((p) => p.id)).toEqual([9]);
   });
 
+  it('na lista do superusuário, encontra pelo nome de quem atendeu, sem diferenciar acentos', () => {
+    const deTodos = [
+      paciente({ id: 1, attendedBy: 'Ana Carolina Souza' }),
+      paciente({ id: 2, attendedBy: 'Paulo Henrique Rocha' }),
+    ];
+
+    expect(filterPatients(deTodos, 'PAULO').map((p) => p.id)).toEqual([2]);
+    expect(filterPatients(deTodos, 'carolina').map((p) => p.id)).toEqual([1]);
+  });
+
   it('devolve todos quando a busca está vazia', () => {
     expect(filterPatients(lista, '   ')).toHaveLength(3);
   });
@@ -139,7 +149,15 @@ describe('resumo do cabeçalho', () => {
       paciente({ id: 2, examCount: 1, attendedBy: 'Bruno Lima' }),
     ];
 
-    expect(describeTotals(deTodos, true)).toBe('2 pacientes e 3 exames aplicados no tablet.');
+    expect(describeTotals(deTodos, true)).toBe(
+      '2 pacientes e 3 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+  });
+
+  it('para o superusuário, usa o singular com um paciente e um exame', () => {
+    expect(
+      describeTotals([paciente({ id: 1, examCount: 1, attendedBy: 'Bruno Lima' })], true),
+    ).toBe('1 paciente e 1 exame deste tablet. Só o responsável pela pesquisa vê esta lista.');
   });
 
   it('para o superusuário sem exame no tablet, avisa do mesmo jeito', () => {

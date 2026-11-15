@@ -141,7 +141,9 @@ export default function HomeScreen({
             <Text style={styles.professionalName} numberOfLines={1}>
               {professional.name}
             </Text>
-            <Text style={styles.professionalCrm}>CRM {formatCrm(professional)}</Text>
+            <Text style={styles.professionalCrm}>
+              {allProfessionals ? 'Responsável pela pesquisa' : `CRM ${formatCrm(professional)}`}
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -162,7 +164,7 @@ export default function HomeScreen({
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
             <Text accessibilityRole="header" style={styles.title}>
-              {allProfessionals ? 'Pacientes de todos os profissionais' : 'Seus pacientes'}
+              {allProfessionals ? 'Todos os pacientes' : 'Seus pacientes'}
             </Text>
             {/* Enquanto carrega, o aviso fica só no cartão da lista, para não ser lido duas vezes. */}
             {!loading && (
@@ -182,8 +184,12 @@ export default function HomeScreen({
           {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
           {hasPatients && (
             <TextInput
-              accessibilityLabel="Buscar paciente"
-              placeholder="Buscar por nome, ficha ou CPF"
+              accessibilityLabel={
+                allProfessionals ? 'Buscar paciente ou profissional' : 'Buscar paciente'
+              }
+              placeholder={
+                allProfessionals ? 'Nome, ficha ou profissional' : 'Buscar por nome, ficha ou CPF'
+              }
               placeholderTextColor={theme.placeholder}
               value={query}
               onChangeText={setQuery}
@@ -230,7 +236,9 @@ export default function HomeScreen({
             <FlatList
               data={visible}
               keyExtractor={(patient) => String(patient.id)}
-              ListHeaderComponent={isWide ? <ColumnHeader styles={styles} /> : null}
+              ListHeaderComponent={
+                isWide ? <ColumnHeader styles={styles} showAttendedBy={allProfessionals} /> : null
+              }
               ListEmptyComponent={
                 <Text style={styles.noResults}>
                   Nenhum paciente encontrado para “{query.trim()}”.
@@ -264,11 +272,20 @@ export default function HomeScreen({
   );
 }
 
-function ColumnHeader({ styles }: { styles: HomeStyles }) {
+type ColumnHeaderProps = {
+  styles: HomeStyles;
+  /** Coluna de quem atendeu, só na lista do superusuário (#49). */
+  showAttendedBy: boolean;
+};
+
+function ColumnHeader({ styles, showAttendedBy }: ColumnHeaderProps) {
   return (
     <View style={styles.columnHeader}>
       <Text style={[styles.columnLabel, styles.colName]}>PACIENTE</Text>
       <Text style={[styles.columnLabel, styles.colRecord]}>FICHA</Text>
+      {showAttendedBy && (
+        <Text style={[styles.columnLabel, styles.colAttendedBy]}>ATENDIDO POR</Text>
+      )}
       <Text style={[styles.columnLabel, styles.colLastExam]}>ÚLTIMO EXAME</Text>
       <Text style={[styles.columnLabel, styles.colCount]}>EXAMES</Text>
     </View>
@@ -311,12 +328,16 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
             {!isWide && <Text style={styles.cellSecondary}>Ficha {patient.recordNumber}</Text>}
           </View>
           {isWide && <Text style={[styles.record, styles.colRecord]}>{patient.recordNumber}</Text>}
+          {/* No tablet deitado, quem atendeu tem coluna própria, como no protótipo (#49). */}
+          {isWide && patient.attendedBy !== undefined && (
+            <Text style={[styles.record, styles.colAttendedBy]}>{patient.attendedBy}</Text>
+          )}
           <View style={styles.colLastExam}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
               <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
             )}
-            {patient.attendedBy ? (
+            {!isWide && patient.attendedBy ? (
               <Text style={styles.cellSecondary}>Atendido por {patient.attendedBy}</Text>
             ) : null}
           </View>

@@ -201,13 +201,15 @@ describe('Cenário: responsável vê todos os atendimentos', () => {
   it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', async () => {
     renderInicio(admin);
 
-    expect(
-      await screen.findByRole('header', { name: 'Pacientes de todos os profissionais' }),
-    ).toBeOnTheScreen();
+    expect(await screen.findByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
     expect(await screen.findByText('Maria das Dores')).toBeOnTheScreen();
     expect(screen.getByText('José Alves Martins')).toBeOnTheScreen();
     expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
-    expect(screen.getByText('3 pacientes e 4 exames aplicados no tablet.')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        '3 pacientes e 4 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+      ),
+    ).toBeOnTheScreen();
 
     const maria = screen.getByRole('button', { name: /^Maria das Dores, ficha/ });
     expect(within(maria).getByText('Atendido por Bruno Lima')).toBeOnTheScreen();

@@ -152,6 +152,7 @@ export function createHomeStyles(theme: ThemeColors) {
     },
     colName: { flex: 2.4 },
     colRecord: { flex: 1.1 },
+    colAttendedBy: { flex: 1.8 },
     colLastExam: { flex: 1.4, alignItems: 'flex-start', gap: 4 },
     colCount: { flex: 0.6, textAlign: 'center' },
     patientName: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },

@@ -158,7 +158,8 @@ export function cpfDigitsOf(query: string): string | null {
 /**
  * Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, pelo número
  * da ficha ou pelos primeiros dígitos do CPF. O CPF é comparado pelo começo, e
- * não por qualquer trecho, como a equipe combinou na #99.
+ * não por qualquer trecho, como a equipe combinou na #99. Na lista do
+ * superusuário, também pelo nome de quem atendeu (#49).
  */
 export function filterPatients(
   patients: readonly PatientSummary[],
@@ -174,6 +175,7 @@ export function filterPatients(
     (patient) =>
       normalize(patient.name).includes(term) ||
       normalize(patient.recordNumber).includes(term) ||
+      (patient.attendedBy !== undefined && normalize(patient.attendedBy).includes(term)) ||
       matchesCpf(patient),
   );
 }
@@ -182,10 +184,12 @@ export function countExams(patients: readonly PatientSummary[]): number {
   return patients.reduce((total, patient) => total + patient.examCount, 0);
 }
 
+const ONLY_SUPERUSER_SEES = 'Só o responsável pela pesquisa vê esta lista.';
+
 /**
  * Resumo do cabeçalho, por exemplo "8 pacientes e 12 exames aplicados por você."
  * Para o superusuário, que vê a lista de todos os profissionais (#49), os exames
- * são do tablet: "... aplicados no tablet."
+ * são do tablet, e o resumo lembra que só ele vê a lista, como no protótipo.
  */
 export function describeTotals(
   patients: readonly PatientSummary[],
@@ -194,9 +198,12 @@ export function describeTotals(
   if (patients.length === 0) return 'Nenhum exame aplicado ainda.';
   const exams = countExams(patients);
   const pacientes = patients.length === 1 ? '1 paciente' : `${patients.length} pacientes`;
+  if (allProfessionals) {
+    const doTablet = exams === 1 ? '1 exame' : `${exams} exames`;
+    return `${pacientes} e ${doTablet} deste tablet. ${ONLY_SUPERUSER_SEES}`;
+  }
   const exames = exams === 1 ? '1 exame aplicado' : `${exams} exames aplicados`;
-  const autoria = allProfessionals ? 'no tablet' : 'por você';
-  return `${pacientes} e ${exames} ${autoria}.`;
+  return `${pacientes} e ${exames} por você.`;
 }
 
 const twoDigits = (value: number) => String(value).padStart(2, '0');
