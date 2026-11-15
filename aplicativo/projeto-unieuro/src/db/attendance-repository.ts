@@ -39,6 +39,31 @@ export type AttendedPatientRecord = {
   lastState: string;
 };
 
+/** Exame (atendimento) aplicado pelo profissional, como a tela do paciente o mostra. */
+export type PatientExamRecord = {
+  id: number;
+  /** Início do atendimento, em ISO 8601. */
+  startedAt: string;
+  /** Estado do atendimento, como está na coluna `avaliacao.estado`. */
+  state: string;
+};
+
+/**
+ * Paciente com os exames que um profissional aplicou nele. Não traz o CPF: ele
+ * só é decifrado por `listAttendedPatientCpfs`, quando a busca da tela inicial pede.
+ */
+export type PatientWithExamsRecord = {
+  id: number;
+  name: string;
+  recordNumber: string;
+  /** AAAA-MM-DD. */
+  birthDate: string;
+  schoolingYears: number;
+  sex: 'feminino' | 'masculino' | null;
+  /** Do mais recente para o mais antigo. */
+  exams: PatientExamRecord[];
+};
+
 type AttendedPatientRow = {
   id: number;
   nome: string;
@@ -47,6 +72,17 @@ type AttendedPatientRow = {
   ultimo_inicio: string;
   ultimo_estado: string;
 };
+
+type PatientRow = {
+  id: number;
+  nome: string;
+  numero_ficha: string;
+  data_nascimento: string;
+  escolaridade_anos: number;
+  sexo: 'feminino' | 'masculino' | null;
+};
+
+type ExamRow = { id: number; data_hora_inicio: string; estado: string };
 
 // Só os atendimentos do profissional informado entram na contagem e no mais
 // recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
@@ -66,6 +102,21 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE a.id_profissional = ?
   GROUP BY p.id`;
+
+// O paciente só existe para o profissional que o atendeu: um médico não vê o que
+// outro coletou no mesmo tablet. Quem pede um paciente que não atendeu recebe o
+// mesmo resultado de quem pede um que não existe.
+const FIND_PATIENT_OF_PROFESSIONAL = `SELECT p.id, p.nome, p.numero_ficha, p.data_nascimento,
+    p.escolaridade_anos, p.sexo
+  FROM paciente p
+  WHERE p.id = ?
+    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id AND a.id_profissional = ?)`;
+
+// Mesmo critério da lista: `data_hora_inicio` é comparada como texto, o que só
+// ordena certo com datas no formato de `toISOString()`, em UTC.
+const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado FROM avaliacao
+  WHERE id_paciente = ? AND id_profissional = ?
+  ORDER BY data_hora_inicio DESC, id DESC`;
 
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
@@ -178,6 +229,35 @@ export function createAttendanceRepository(
         lastStartedAt: row.ultimo_inicio,
         lastState: row.ultimo_estado,
       }));
+    },
+
+    async findPatientWithExams(
+      professionalId: number,
+      patientId: number,
+    ): Promise<PatientWithExamsRecord | null> {
+      const database = await open();
+      const patient = await database.getFirstAsync<PatientRow>(FIND_PATIENT_OF_PROFESSIONAL, [
+        patientId,
+        professionalId,
+      ]);
+      if (!patient) return null;
+      const exams = await database.getAllAsync<ExamRow>(LIST_EXAMS_OF_PATIENT, [
+        patientId,
+        professionalId,
+      ]);
+      return {
+        id: patient.id,
+        name: patient.nome,
+        recordNumber: patient.numero_ficha,
+        birthDate: patient.data_nascimento,
+        schoolingYears: patient.escolaridade_anos,
+        sex: patient.sexo,
+        exams: exams.map((exam) => ({
+          id: exam.id,
+          startedAt: exam.data_hora_inicio,
+          state: exam.estado,
+        })),
+      };
     },
 
     async listAttendedPatientCpfs(
