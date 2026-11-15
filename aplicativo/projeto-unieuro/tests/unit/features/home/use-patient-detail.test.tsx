@@ -24,14 +24,21 @@ const jose: PatientWithExams = {
   exams: [{ id: 1, startedAt: '2026-10-13T09:10:00.000Z', state: 'concluida' }],
 };
 
-const repositoryWith = (...answers: (PatientWithExams | null | Error)[]) => {
+const findWith = (answers: (PatientWithExams | null | Error)[]) => {
   const find = jest.fn<Promise<PatientWithExams | null>, [number, number]>();
   for (const answer of answers) {
     if (answer instanceof Error) find.mockRejectedValueOnce(answer);
     else find.mockResolvedValueOnce(answer);
   }
-  return { findPatientWithExams: find } satisfies PatientDetailRepository;
+  return find;
 };
+
+// As duas consultas respondem igual; cada teste confere qual delas a sessão usou.
+const repositoryWith = (...answers: (PatientWithExams | null | Error)[]) =>
+  ({
+    findPatientWithExams: findWith(answers),
+    findAnyPatientWithExams: findWith(answers),
+  }) satisfies PatientDetailRepository;
 
 function renderWithSession(
   repository: PatientDetailRepository,
@@ -60,9 +67,31 @@ describe('exames do paciente', () => {
 
     await waitFor(() => expect(result.current.patient).not.toBeNull());
     expect(repository.findPatientWithExams).toHaveBeenCalledWith(7, 3);
+    expect(repository.findAnyPatientWithExams).not.toHaveBeenCalled();
     expect(result.current.patient).toMatchObject({ name: 'José Alves Martins' });
     expect(result.current.patient?.exams[0]).toMatchObject({ status: 'concluido' });
     expect(result.current).toMatchObject({ loading: false, loadFailed: false, notFound: false });
+  });
+
+  it('para o superusuário, lê o paciente com os exames de todos os médicos (#49)', async () => {
+    const repository = repositoryWith({
+      ...jose,
+      exams: [
+        {
+          id: 1,
+          startedAt: '2026-10-13T09:10:00.000Z',
+          state: 'concluida',
+          appliedBy: 'Paulo Henrique Rocha',
+        },
+      ],
+    });
+
+    const { result } = renderWithSession(repository, { ...ana, superuser: true });
+
+    await waitFor(() => expect(result.current.patient).not.toBeNull());
+    expect(repository.findAnyPatientWithExams).toHaveBeenCalledWith(7, 3);
+    expect(repository.findPatientWithExams).not.toHaveBeenCalled();
+    expect(result.current.patient?.exams[0]).toMatchObject({ appliedBy: 'Paulo Henrique Rocha' });
   });
 
   it('mostra que está carregando até a primeira leitura terminar', async () => {
@@ -128,6 +157,7 @@ describe('exames do paciente', () => {
       findPatientWithExams: jest.fn(
         () => new Promise<PatientWithExams | null>((r) => (terminar = r)),
       ),
+      findAnyPatientWithExams: jest.fn(),
     } satisfies PatientDetailRepository;
     const { result, unmount } = renderWithSession(repository, ana);
 

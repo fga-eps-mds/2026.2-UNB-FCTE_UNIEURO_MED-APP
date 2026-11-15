@@ -187,16 +187,19 @@ function ExamRow({
   professionalName: string;
   styles: PatientDetailStyles;
 }) {
+  // Para o superusuário, o exame pode ser de outro médico (#49); para o médico
+  // comum, todos os exames da tela foram aplicados por ele.
+  const appliedBy = exam.appliedBy ?? professionalName;
   // A linha é um só item para o leitor de tela, com a frase completa.
   return (
     <View
       testID="exame"
       accessible
-      accessibilityLabel={describeExamForReader(exam, professionalName)}
+      accessibilityLabel={describeExamForReader(exam, appliedBy)}
       style={styles.exam}>
       <View style={styles.examWhen}>
         <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
-        <Text style={styles.examBy}>Aplicado por {professionalName}</Text>
+        <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
       </View>
       <ExamStatusChip tone={exam.tone} label={exam.label} />
     </View>

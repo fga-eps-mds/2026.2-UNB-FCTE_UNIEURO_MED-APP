@@ -55,6 +55,11 @@ export type PatientExamRecord = {
   startedAt: string;
   /** Estado do atendimento, como está na coluna `avaliacao.estado`. */
   state: string;
+  /**
+   * Nome de quem aplicou o exame. Só vem na consulta do superusuário (#49); na do
+   * médico comum, todos os exames foram aplicados por ele.
+   */
+  appliedBy?: string;
 };
 
 /**
@@ -92,6 +97,15 @@ type PatientRow = {
 };
 
 type ExamRow = { id: number; data_hora_inicio: string; estado: string };
+
+const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'> => ({
+  id: row.id,
+  name: row.nome,
+  recordNumber: row.numero_ficha,
+  birthDate: row.data_nascimento,
+  schoolingYears: row.escolaridade_anos,
+  sex: row.sexo,
+});
 
 // Só os atendimentos do profissional informado entram na contagem e no mais
 // recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
@@ -155,6 +169,25 @@ const LIST_ALL_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE ${REQUESTER_IS_SUPERUSER}`;
 
+// Paciente atendido por qualquer profissional, para a tela do paciente do
+// superusuário. Para outro profissional, não há paciente: o mesmo resultado de
+// um id que não existe.
+const FIND_ANY_ATTENDED_PATIENT = `SELECT p.id, p.nome, p.numero_ficha, p.data_nascimento,
+    p.escolaridade_anos, p.sexo
+  FROM paciente p
+  WHERE p.id = ?
+    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id)
+    AND ${REQUESTER_IS_SUPERUSER}`;
+
+// Exames do paciente aplicados por todos os profissionais, com o nome de quem
+// aplicou, na mesma ordem da consulta do médico. A trava do superusuário se repete
+// aqui para a consulta não depender de ser chamada só depois da anterior.
+const LIST_ALL_EXAMS_OF_PATIENT = `SELECT a.id, a.data_hora_inicio, a.estado, m.nome AS aplicado_por
+  FROM avaliacao a
+  JOIN profissional m ON m.id = a.id_profissional
+  WHERE a.id_paciente = ? AND ${REQUESTER_IS_SUPERUSER}
+  ORDER BY a.data_hora_inicio DESC, a.id DESC`;
+
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
@@ -196,9 +229,9 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  * (#77). Essa consulta não lê o CPF: ele só é decifrado por
  * `listAttendedPatientCpfs`, quando a busca da tela inicial pede (#99).
  *
- * As consultas `listAll...` trazem os pacientes de todos os profissionais, para o
- * superusuário (#49). Elas recebem quem está pedindo e só respondem a um
- * superusuário com a conta ativa.
+ * As consultas `listAll...` e `findAnyPatientWithExams` trazem os pacientes e os
+ * exames de todos os profissionais, para o superusuário (#49). Elas recebem quem
+ * está pedindo e só respondem a um superusuário com a conta ativa.
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -287,12 +320,7 @@ export function createAttendanceRepository(
         professionalId,
       ]);
       return {
-        id: patient.id,
-        name: patient.nome,
-        recordNumber: patient.numero_ficha,
-        birthDate: patient.data_nascimento,
-        schoolingYears: patient.escolaridade_anos,
-        sex: patient.sexo,
+        ...toPatientRecord(patient),
         exams: exams.map((exam) => ({
           id: exam.id,
           startedAt: exam.data_hora_inicio,
@@ -350,6 +378,35 @@ export function createAttendanceRepository(
           cpf: await protector.decrypt(row.cpf_cifrado),
         })),
       );
+    },
+
+    /**
+     * Paciente com os exames de todos os profissionais, cada um com quem o
+     * aplicou. Só para o superusuário: para os demais, devolve `null`.
+     */
+    async findAnyPatientWithExams(
+      requesterId: number,
+      patientId: number,
+    ): Promise<PatientWithExamsRecord | null> {
+      const database = await open();
+      const patient = await database.getFirstAsync<PatientRow>(FIND_ANY_ATTENDED_PATIENT, [
+        patientId,
+        requesterId,
+      ]);
+      if (!patient) return null;
+      const exams = await database.getAllAsync<ExamRow & { aplicado_por: string }>(
+        LIST_ALL_EXAMS_OF_PATIENT,
+        [patientId, requesterId],
+      );
+      return {
+        ...toPatientRecord(patient),
+        exams: exams.map((exam) => ({
+          id: exam.id,
+          startedAt: exam.data_hora_inicio,
+          state: exam.estado,
+          appliedBy: exam.aplicado_por,
+        })),
+      };
     },
 
     async createAttendance({

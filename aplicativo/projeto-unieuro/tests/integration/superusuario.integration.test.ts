@@ -6,6 +6,10 @@ import { migrate } from '@/db/database';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
 import {
+  findPatientWithExamsFor,
+  type PatientDetailRepository,
+} from '@/features/home/patient-detail';
+import {
   listPatientCpfsFor,
   listPatientsFor,
   type PatientListRepository,
@@ -403,5 +407,80 @@ describe('atendimentos de todos os profissionais', () => {
     expect(temp.rawContains(JOSE.cpf)).toBe(false);
     expect(temp.rawContains(MARIA.cpf)).toBe(false);
     database = temp.open();
+  });
+
+  describe('tela do paciente', () => {
+    // O repositório do atendimento atende ao contrato da tela do paciente.
+    let detalhe: PatientDetailRepository;
+    const idDe = async (cpf: string) => (await attendances.findPatientByCpf(cpf))!.id;
+
+    beforeEach(() => {
+      detalhe = attendances;
+    });
+
+    it('o superusuário abre o paciente de outro médico, com os exames de todos e quem aplicou', async () => {
+      const jose = await findPatientWithExamsFor(tauil, detalhe, await idDe(JOSE.cpf));
+
+      expect(jose).toMatchObject({ name: JOSE.name, recordNumber: '2026-0001' });
+      expect(jose!.exams).toEqual([
+        {
+          id: expect.any(Number),
+          startedAt: '2026-10-05T17:32:00.000Z',
+          state: 'concluida',
+          appliedBy: PAULO.name,
+        },
+        {
+          id: expect.any(Number),
+          startedAt: '2026-10-02T12:00:00.000Z',
+          state: 'aguardando_consentimento',
+          appliedBy: ANA.name,
+        },
+      ]);
+    });
+
+    it('o detalhe do superusuário tem os mesmos exames que a lista conta', async () => {
+      const pacientes = await listPatientsFor(tauil, lista);
+
+      for (const paciente of pacientes) {
+        const aberto = await findPatientWithExamsFor(tauil, detalhe, paciente.id);
+        expect(aberto!.exams).toHaveLength(paciente.attendanceCount);
+      }
+    });
+
+    it('o médico comum abre só os pacientes dele, com os exames que ele aplicou', async () => {
+      const joseDaAna = await findPatientWithExamsFor(ana, detalhe, await idDe(JOSE.cpf));
+      const mariaParaAna = await findPatientWithExamsFor(ana, detalhe, await idDe(MARIA.cpf));
+
+      expect(joseDaAna!.exams).toHaveLength(1);
+      expect(joseDaAna!.exams[0]).not.toHaveProperty('appliedBy');
+      expect(mariaParaAna).toBeNull();
+    });
+
+    it('a consulta de todos não abre paciente para um médico comum, nem chamada direto', async () => {
+      await expect(
+        attendances.findAnyPatientWithExams(ana.id, await idDe(MARIA.cpf)),
+      ).resolves.toBeNull();
+    });
+
+    it('a consulta de todos não abre paciente para um superusuário desativado nem para quem não existe', async () => {
+      const maria = await idDe(MARIA.cpf);
+      await professionals.deactivate(tauil.id, AGORA);
+
+      await expect(attendances.findAnyPatientWithExams(tauil.id, maria)).resolves.toBeNull();
+      await expect(attendances.findAnyPatientWithExams(9999, maria)).resolves.toBeNull();
+    });
+
+    it('o superusuário recebe "não encontrado" para um paciente que não existe', async () => {
+      await expect(findPatientWithExamsFor(tauil, detalhe, 9999)).resolves.toBeNull();
+    });
+
+    it('quem foi promovido passa a abrir os pacientes de outros médicos', async () => {
+      await professionals.promoteToSuperuser(ana.id, tauil.id, AGORA);
+      const promovida = (await professionals.findById(ana.id))!;
+
+      const maria = await findPatientWithExamsFor(promovida, detalhe, await idDe(MARIA.cpf));
+
+      expect(maria!.exams.map((exame) => exame.appliedBy)).toEqual([PAULO.name]);
+    });
   });
 });

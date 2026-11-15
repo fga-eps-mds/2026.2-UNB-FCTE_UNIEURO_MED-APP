@@ -2,10 +2,12 @@ import {
   ageInYears,
   describeAge,
   describeExams,
+  findPatientWithExamsFor,
   formatDateTime,
   formatSchooling,
   SEX_LABEL,
   toPatientDetail,
+  type PatientDetailRepository,
   type PatientWithExams,
 } from '@/features/home/patient-detail';
 
@@ -22,7 +24,50 @@ const registro: PatientWithExams = {
   ],
 };
 
+describe('findPatientWithExamsFor (#49)', () => {
+  const repositorio = () =>
+    ({
+      findPatientWithExams: jest.fn().mockResolvedValue(registro),
+      findAnyPatientWithExams: jest.fn().mockResolvedValue(registro),
+    }) satisfies PatientDetailRepository;
+
+  it('o superusuário lê o paciente com os exames de todos', async () => {
+    const repo = repositorio();
+
+    await expect(findPatientWithExamsFor({ id: 4, superuser: true }, repo, 7)).resolves.toBe(
+      registro,
+    );
+    expect(repo.findAnyPatientWithExams).toHaveBeenCalledWith(4, 7);
+    expect(repo.findPatientWithExams).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['médico comum', { id: 4, superuser: false }],
+    ['sessão sem o perfil', { id: 4 }],
+  ])('o %s lê só os exames que aplicou', async (_caso, viewer) => {
+    const repo = repositorio();
+
+    await findPatientWithExamsFor(viewer, repo, 7);
+
+    expect(repo.findPatientWithExams).toHaveBeenCalledWith(4, 7);
+    expect(repo.findAnyPatientWithExams).not.toHaveBeenCalled();
+  });
+});
+
 describe('toPatientDetail', () => {
+  it('mantém quem aplicou o exame, quando a consulta traz (#49)', () => {
+    const { exams } = toPatientDetail({
+      ...registro,
+      exams: [
+        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida', appliedBy: 'Paulo' },
+        { id: 2, startedAt: '2026-10-04T14:32:00', state: 'concluida' },
+      ],
+    });
+
+    expect(exams[0].appliedBy).toBe('Paulo');
+    expect(exams[1]).not.toHaveProperty('appliedBy');
+  });
+
   it('mantém os dados do paciente e a ordem dos exames', () => {
     const detalhe = toPatientDetail(registro);
 
