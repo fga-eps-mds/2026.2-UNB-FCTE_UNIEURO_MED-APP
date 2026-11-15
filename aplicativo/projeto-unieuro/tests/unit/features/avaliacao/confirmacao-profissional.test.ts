@@ -31,8 +31,9 @@ describe('confirmarProfissional', () => {
       motivo: 'incorreto',
       mensagem: DIGITOS_INCORRETOS,
     });
-    expect(DIGITOS_INCORRETOS).not.toContain('1114');
-    expect(DIGITOS_INCORRETOS).not.toContain(CPF_PROTEGIDO);
+    if (resultado.confirmado) throw new Error('A confirmação deveria falhar.');
+    expect(resultado.mensagem).not.toContain('1114');
+    expect(resultado.mensagem).not.toContain(CPF_PROTEGIDO);
   });
 
   it.each([
