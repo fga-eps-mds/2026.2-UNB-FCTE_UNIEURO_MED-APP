@@ -1,14 +1,14 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { createSyncRepository } from '@/db/sync-repository';
+import { syncFailure } from '@/features/sincronizacao/error-codes';
 import {
   createNearbySession,
-  NEARBY_MESSAGES,
   tabletName,
   type NearbySession,
   type NearbyState,
 } from '@/features/sincronizacao/nearby-session';
-import { REFUSAL_MESSAGES, createSyncService } from '@/features/sincronizacao/sync-service';
+import { createSyncService } from '@/features/sincronizacao/sync-service';
 
 import { FakeAir, type FakeNearby, until } from '../test-support/fake-nearby';
 import { abrirTablet, protetorComChave, type TabletDeTeste } from '../test-support/tablet';
@@ -156,7 +156,7 @@ describe('sincronização com tablet próximo', () => {
     expect(anaTablet.session.getState()).toMatchObject({
       phase: 'confirming',
       checking: false,
-      error: NEARBY_MESSAGES.wrongPassword,
+      error: syncFailure(202),
     });
     expect(anaTablet.radio.accepted.size).toBe(0);
   });
@@ -168,7 +168,10 @@ describe('sincronização com tablet próximo', () => {
     await brunoTablet.session.cancel();
     await until(() => phase(anaTablet) === 'failed');
 
-    expect(anaTablet.session.getState()).toMatchObject({ message: NEARBY_MESSAGES.rejected });
+    // 8004: o Nearby avisa que o outro lado recusou.
+    expect(anaTablet.session.getState()).toMatchObject({
+      failure: syncFailure(204, { nearby: 8004 }),
+    });
     expect(brunoTablet.session.getState()).toMatchObject({ phase: 'searching' });
     expect(await professionals(anaTablet)).toHaveLength(1);
   });
@@ -216,7 +219,7 @@ describe('sincronização com tablet próximo', () => {
 
     expect(brunoTablet.session.getState()).toMatchObject({
       phase: 'failed',
-      message: NEARBY_MESSAGES.droppedBefore,
+      failure: syncFailure(206),
     });
     expect(await professionals(brunoTablet)).toHaveLength(1);
   });
@@ -236,6 +239,8 @@ describe('sincronização com tablet próximo', () => {
     });
     expect(await professionals(anaTablet)).toHaveLength(2);
     expect(await professionals(brunoTablet)).toHaveLength(2);
+    // Nenhum lote do A foi confirmado.
+    expect(await logReasons(anaTablet, 'envio')).toEqual([{ resultado: 'erro', motivo: '341' }]);
   });
 
   it('tablets com versões diferentes do aplicativo não trocam dados', async () => {
@@ -246,10 +251,9 @@ describe('sincronização com tablet próximo', () => {
     await brunoTablet.session.confirm('senha-do-bruno');
     await until(() => phase(anaTablet) === 'failed' && phase(brunoTablet) === 'failed');
 
+    // Cada um detecta a diferença ao ler a apresentação do outro.
     for (const tablet of [anaTablet, brunoTablet]) {
-      expect(tablet.session.getState()).toMatchObject({
-        message: REFUSAL_MESSAGES.versao_incompativel,
-      });
+      expect(tablet.session.getState()).toMatchObject({ failure: { code: 301 } });
       expect(await professionals(tablet)).toHaveLength(1);
     }
   });
@@ -263,7 +267,7 @@ describe('sincronização com tablet próximo', () => {
     anaTablet.radio.emit('onMessage', { endpointId: 'tablet-b', text: 'lixo sem cabeçalho' });
     await until(() => phase(anaTablet) === 'failed');
 
-    expect(anaTablet.session.getState()).toMatchObject({ message: NEARBY_MESSAGES.protocol });
+    expect(anaTablet.session.getState()).toMatchObject({ failure: syncFailure(304) });
     expect(await professionals(anaTablet)).toHaveLength(1);
   });
 
@@ -271,17 +275,18 @@ describe('sincronização com tablet próximo', () => {
     const receive = brunoTablet.service.receiveBatches;
     brunoTablet.service.receiveBatches = () => ({
       ...receive(),
-      apply: async () => ({ ok: false, reason: 'erro', message: REFUSAL_MESSAGES.erro }),
+      apply: async () => ({ ok: false, reason: 'erro', failure: syncFailure(313) }),
     });
     await connect(anaTablet, brunoTablet);
     await anaTablet.session.confirm('senha-da-ana');
     await brunoTablet.session.confirm('senha-do-bruno');
     await until(() => phase(anaTablet) === 'failed' && phase(brunoTablet) === 'failed');
 
+    // O A recebeu o lote do B antes da falha, por isso avisa que ele ficou.
     expect(anaTablet.session.getState()).toMatchObject({
-      message: expect.stringContaining(NEARBY_MESSAGES.peerFailed),
+      failure: syncFailure(320, { kept: true }),
     });
-    expect(brunoTablet.session.getState()).toMatchObject({ message: REFUSAL_MESSAGES.erro });
+    expect(brunoTablet.session.getState()).toMatchObject({ failure: syncFailure(313) });
     expect(await professionals(brunoTablet)).toHaveLength(1);
     brunoTablet.service.receiveBatches = receive;
   });
@@ -315,6 +320,12 @@ function validCpf(base: string): string {
   const first = digit(base);
   return base + first + digit(base + first);
 }
+
+const logReasons = (tablet: Tablet, direction: string) =>
+  tablet.database.getAllAsync<{ resultado: string; motivo: string | null }>(
+    'SELECT resultado, motivo FROM sync_log WHERE direcao = ? ORDER BY id',
+    [direction],
+  );
 
 const logResults = (tablet: Tablet, direction: string) =>
   tablet.database.getAllAsync<{ resultado: string }>(
@@ -399,8 +410,11 @@ describe('envio em lotes', () => {
       summary: { professionals: { inserted: 2 } },
     });
     expect(await professionals(brunoTablet)).toHaveLength(3);
-    expect(await logResults(brunoTablet, 'recebimento')).toEqual([{ resultado: 'parcial' }]);
-    expect(await logResults(anaTablet, 'envio')).toEqual([{ resultado: 'parcial' }]);
+    expect(await logReasons(brunoTablet, 'recebimento')).toEqual([
+      { resultado: 'parcial', motivo: '340' },
+    ]);
+    // O A recebeu tudo do B; só o B ficou sem o resto, então o A registra 341.
+    expect(await logReasons(anaTablet, 'envio')).toEqual([{ resultado: 'parcial', motivo: '341' }]);
 
     air.dropWhen = () => false;
     air.sent.length = 0;
@@ -431,12 +445,15 @@ describe('envio em lotes', () => {
     await until(() => phase(brunoTablet) === 'failed');
 
     expect(brunoTablet.session.getState()).toMatchObject({
-      message: `${NEARBY_MESSAGES.protocol} ${NEARBY_MESSAGES.keptPartial}`,
+      failure: syncFailure(305, { kept: true }),
     });
     // Só o lote 0 do A entrou: a Ana, além do próprio Bruno.
     expect(await professionals(brunoTablet)).toHaveLength(2);
-    expect(await logResults(brunoTablet, 'recebimento')).toEqual([{ resultado: 'parcial' }]);
+    expect(await logReasons(brunoTablet, 'recebimento')).toEqual([
+      { resultado: 'parcial', motivo: '305' },
+    ]);
   });
+
   it('uma confirmação fora de ordem para a troca', async () => {
     const original = brunoTablet.radio.sendMessage;
     brunoTablet.radio.sendMessage = (endpointId, text) =>
@@ -447,9 +464,7 @@ describe('envio em lotes', () => {
     await synchronize();
     await until(() => phase(anaTablet) === 'failed');
 
-    expect(anaTablet.session.getState()).toMatchObject({
-      message: expect.stringContaining(NEARBY_MESSAGES.protocol),
-    });
+    expect(anaTablet.session.getState()).toMatchObject({ failure: { code: 306 } });
   });
 
   it('se gravar um lote falha depois de outros gravados, avisa que os anteriores ficaram', async () => {
@@ -461,20 +476,20 @@ describe('envio em lotes', () => {
         apply: async (json, coverage) =>
           real.applied() === 0
             ? real.apply(json, coverage)
-            : { ok: false, reason: 'erro', message: REFUSAL_MESSAGES.erro },
+            : { ok: false, reason: 'erro', failure: syncFailure(313, { kept: true }) },
       };
     };
     await synchronize();
     await until(() => phase(brunoTablet) === 'failed');
 
     expect(brunoTablet.session.getState()).toMatchObject({
-      message: `${NEARBY_MESSAGES.batchFailed} ${NEARBY_MESSAGES.keptPartial}`,
+      failure: syncFailure(313, { kept: true }),
     });
     expect(await professionals(brunoTablet)).toHaveLength(2);
     brunoTablet.service.receiveBatches = receive;
   });
 
-  it('um erro inesperado ao ler um lote para a troca com a mensagem genérica', async () => {
+  it('um erro inesperado ao preparar os lotes para a troca com o código próprio', async () => {
     const prepare = anaTablet.service.prepareBatchesFor;
     anaTablet.service.prepareBatchesFor = async () => {
       throw new Error('disco cheio');
@@ -482,9 +497,8 @@ describe('envio em lotes', () => {
     await synchronize();
     await until(() => phase(anaTablet) === 'failed');
 
-    expect(anaTablet.session.getState()).toMatchObject({
-      message: expect.stringContaining(REFUSAL_MESSAGES.erro),
-    });
+    // Sem "Nenhum dado foi alterado": o A pode já ter gravado lotes do B.
+    expect(anaTablet.session.getState()).toMatchObject({ failure: { code: 330 } });
     anaTablet.service.prepareBatchesFor = prepare;
   });
 
@@ -501,9 +515,7 @@ describe('envio em lotes', () => {
     await synchronize();
     await until(() => phase(anaTablet) === 'failed');
 
-    expect(anaTablet.session.getState()).toMatchObject({
-      message: expect.stringContaining(NEARBY_MESSAGES.protocol),
-    });
+    expect(anaTablet.session.getState()).toMatchObject({ failure: { code: 307 } });
   });
 });
 
@@ -516,7 +528,7 @@ describe('antes de procurar', () => {
     expect(anaTablet.session.getState()).toEqual({
       phase: 'blocked',
       reason: 'permissions',
-      message: NEARBY_MESSAGES.permissions,
+      failure: syncFailure(101),
     });
     expect(anaTablet.radio.advertising).toBe(false);
   });
@@ -529,7 +541,7 @@ describe('antes de procurar', () => {
     expect(anaTablet.session.getState()).toEqual({
       phase: 'blocked',
       reason: 'bluetooth',
-      message: NEARBY_MESSAGES.bluetooth,
+      failure: syncFailure(102),
     });
   });
 
@@ -543,7 +555,7 @@ describe('antes de procurar', () => {
       expect(anaTablet.session.getState()).toEqual({
         phase: 'blocked',
         reason: 'location',
-        message: NEARBY_MESSAGES.location,
+        failure: syncFailure(103),
       });
       expect(anaTablet.radio.advertising).toBe(false);
     },
@@ -563,10 +575,7 @@ describe('antes de procurar', () => {
 
     await anaTablet.session.start();
 
-    expect(anaTablet.session.getState()).toEqual({
-      phase: 'failed',
-      message: NEARBY_MESSAGES.start,
-    });
+    expect(anaTablet.session.getState()).toEqual({ phase: 'failed', failure: syncFailure(119) });
     expect(consoleErro).toHaveBeenCalledWith(
       'Falha ao começar a procurar tablets',
       expect.any(Error),
@@ -575,26 +584,25 @@ describe('antes de procurar', () => {
   });
 
   it.each([
-    [8037, 'Dispositivos próximos'],
-    [8029, 'Dispositivos próximos'],
-    [8036, 'permissão de localização'],
-    [8025, 'Ative a localização'],
-    [8007, 'Desligue e ligue os dois'],
-    [8032, 'permissão de Wi-Fi'],
-    [8050, 'Outro aplicativo'],
-    [2, 'desatualizado'],
-    [3, 'desativado'],
-  ])('explica a causa quando o Nearby recusa com o código %i', async (status, trecho) => {
+    [8037, 110],
+    [8029, 110],
+    [8036, 111],
+    [8025, 112],
+    [8007, 113],
+    [8032, 114],
+    [8050, 115],
+    [2, 116],
+    [3, 117],
+  ] as const)('o código %i do Nearby ao procurar vira o código %i', async (status, code) => {
     const consoleErro = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     anaTablet.radio.startErrors = [status];
 
     await anaTablet.session.start();
 
-    const state = anaTablet.session.getState();
-    expect(state.phase).toBe('failed');
-    if (state.phase !== 'failed') return;
-    expect(state.message).toContain(trecho);
-    expect(state.message.endsWith(`(código ${status})`)).toBe(true);
+    expect(anaTablet.session.getState()).toEqual({
+      phase: 'failed',
+      failure: syncFailure(code, { nearby: status }),
+    });
     consoleErro.mockRestore();
   });
 
@@ -606,7 +614,7 @@ describe('antes de procurar', () => {
 
     expect(anaTablet.session.getState()).toEqual({
       phase: 'failed',
-      message: `${NEARBY_MESSAGES.start} (código 9999)`,
+      failure: syncFailure(119, { nearby: 9999 }),
     });
     consoleErro.mockRestore();
   });
@@ -629,7 +637,7 @@ describe('antes de procurar', () => {
 
     expect(anaTablet.session.getState()).toEqual({
       phase: 'failed',
-      message: `${NEARBY_MESSAGES.start} (código 8002)`,
+      failure: syncFailure(119, { nearby: 8002 }),
     });
     consoleErro.mockRestore();
   });
@@ -648,7 +656,7 @@ describe('antes de procurar', () => {
     expect(anaTablet.session.getState()).toMatchObject({
       phase: 'searching',
       connecting: null,
-      notice: NEARBY_MESSAGES.connect,
+      notice: syncFailure(201, { nearby: 8012 }),
     });
   });
 

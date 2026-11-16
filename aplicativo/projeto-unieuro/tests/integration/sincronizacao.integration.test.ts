@@ -937,7 +937,11 @@ describe('pacotes recusados', () => {
 
     const result = await tabletB.sync.importPackage(pacote.contents, 'ZZZZ-ZZZZ-ZZZZ');
 
-    expect(result).toEqual({ ok: false, reason: 'codigo_incorreto', message: expect.any(String) });
+    expect(result).toEqual({
+      ok: false,
+      reason: 'codigo_incorreto',
+      failure: { code: 413, nearby: null, kept: false },
+    });
     expect(await professionals(tabletB)).toEqual([]);
   });
 

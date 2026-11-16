@@ -6,20 +6,21 @@ import { useRouter } from 'expo-router';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
+import {
+  syncFailure,
+  type SyncErrorCode,
+  type SyncFailure,
+} from '@/features/sincronizacao/error-codes';
+import { FailureMessage } from '@/features/sincronizacao/failure-message';
 import { fileTransport, type PackageTransport } from '@/features/sincronizacao/file-transport';
 import type { NearbyApi } from '@/features/sincronizacao/nearby-module';
-import { NEARBY_MESSAGES } from '@/features/sincronizacao/nearby-session';
 import NearbySyncCard from '@/features/sincronizacao/nearby-sync-card';
 import { normalizeTransferCode } from '@/features/sincronizacao/package-crypto';
 import type { ConfirmPassword } from '@/features/sincronizacao/password-confirmation';
 import { describeSummary, plural } from '@/features/sincronizacao/summary-text';
 import { ActionButton, LabeledInput } from '@/features/sincronizacao/sync-controls';
 import { createSyncStyles } from '@/features/sincronizacao/sync.styles';
-import {
-  REFUSAL_MESSAGES,
-  type ImportResult,
-  type SyncService,
-} from '@/features/sincronizacao/sync-service';
+import type { ImportResult, SyncService } from '@/features/sincronizacao/sync-service';
 import { useTheme } from '@/hooks/use-theme';
 
 type SyncScreenProps = {
@@ -42,15 +43,9 @@ type TaskState<T> =
   | { status: 'idle' }
   | { status: 'working' }
   | ({ status: 'done' } & T)
-  | { status: 'failed'; message: string };
+  | { status: 'failed'; failure: SyncFailure };
 
-const MESSAGES = {
-  missingPassword: 'Digite a sua senha para continuar.',
-  wrongPassword: NEARBY_MESSAGES.wrongPassword,
-  invalidCode: 'Digite o código de 12 caracteres exibido no outro tablet.',
-  exportFailed: 'Não foi possível gerar ou enviar o pacote.',
-  readFailed: 'Não foi possível ler o arquivo escolhido.',
-};
+const failed = (code: SyncErrorCode) => ({ status: 'failed' as const, failure: syncFailure(code) });
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
@@ -114,50 +109,63 @@ export default function SyncScreen({
 
   if (!professional) return null;
 
-  /** Mensagem de erro, ou `null` se a senha confere. */
-  async function checkPassword(password: string): Promise<string | null> {
-    if (password.length === 0) return MESSAGES.missingPassword;
-    return (await confirmForSession(password)) ? null : MESSAGES.wrongPassword;
+  /** Código de erro, ou `null` se a senha confere. */
+  async function checkPassword(password: string): Promise<SyncErrorCode | null> {
+    if (password.length === 0) return 401;
+    try {
+      return (await confirmForSession(password)) ? null : 402;
+    } catch (error) {
+      logFailure('conferir a senha', error);
+      return 405;
+    }
   }
 
+  // Cada etapa com o seu código: a senha, gerar o pacote e enviá-lo.
   async function handleExport() {
     if (exportState.status === 'working') return;
     setExportState({ status: 'working' });
+    const passwordError = await checkPassword(exportPassword);
+    if (passwordError) {
+      setExportState(failed(passwordError));
+      return;
+    }
+    let result;
     try {
-      const passwordError = await checkPassword(exportPassword);
-      if (passwordError) {
-        setExportState({ status: 'failed', message: passwordError });
-        return;
-      }
-      const result = await service.exportPackage();
-      setExportPassword('');
-      setExportState({ status: 'done', code: result.code, sent: result.sent });
+      result = await service.exportPackage();
+    } catch (error) {
+      logFailure('gerar o pacote', error);
+      setExportState(failed(403));
+      return;
+    }
+    setExportPassword('');
+    setExportState({ status: 'done', code: result.code, sent: result.sent });
+    try {
       await transport.send(result.fileName, result.contents);
     } catch (error) {
-      logFailure('gerar ou enviar o pacote', error);
-      setExportState({ status: 'failed', message: MESSAGES.exportFailed });
+      logFailure('enviar o pacote', error);
+      setExportState(failed(404));
     }
   }
 
   async function handleImport() {
     if (importState.status === 'working') return;
     if (!normalizeTransferCode(code)) {
-      setImportState({ status: 'failed', message: MESSAGES.invalidCode });
+      setImportState(failed(410));
       return;
     }
     setImportState({ status: 'working' });
 
+    const passwordError = await checkPassword(importPassword);
+    if (passwordError) {
+      setImportState(failed(passwordError));
+      return;
+    }
     let contents: string | null;
     try {
-      const passwordError = await checkPassword(importPassword);
-      if (passwordError) {
-        setImportState({ status: 'failed', message: passwordError });
-        return;
-      }
       contents = await transport.receive();
     } catch (error) {
       logFailure('ler o arquivo escolhido', error);
-      setImportState({ status: 'failed', message: MESSAGES.readFailed });
+      setImportState(failed(411));
       return;
     }
     if (contents === null) {
@@ -170,11 +178,11 @@ export default function SyncScreen({
       result = await service.importPackage(contents, code);
     } catch (error) {
       logFailure('importar o pacote', error);
-      setImportState({ status: 'failed', message: REFUSAL_MESSAGES.erro });
+      setImportState(failed(417));
       return;
     }
     if (!result.ok) {
-      setImportState({ status: 'failed', message: result.message });
+      setImportState({ status: 'failed', failure: result.failure });
       return;
     }
     setImportState({ status: 'done', lines: describeSummary(result.summary) });
@@ -280,9 +288,7 @@ export default function SyncScreen({
                   </Text>
                 </View>
               )}
-              {exportState.status === 'failed' && (
-                <FeedbackMessage kind="error" message={exportState.message} />
-              )}
+              {exportState.status === 'failed' && <FailureMessage failure={exportState.failure} />}
             </View>
 
             <View style={styles.card}>
@@ -326,9 +332,7 @@ export default function SyncScreen({
                   ))}
                 </View>
               )}
-              {importState.status === 'failed' && (
-                <FeedbackMessage kind="error" message={importState.message} />
-              )}
+              {importState.status === 'failed' && <FailureMessage failure={importState.failure} />}
             </View>
           </View>
         </View>

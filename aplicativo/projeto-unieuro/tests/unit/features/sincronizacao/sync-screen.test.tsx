@@ -5,7 +5,14 @@ import { SessionProvider, type SessionProfessional } from '@/features/auth/sessi
 import { emptySummary, type ImportSummary } from '@/features/sincronizacao/apply-package';
 import type { PackageTransport } from '@/features/sincronizacao/file-transport';
 import SyncScreen from '@/features/sincronizacao/sync-screen';
-import { REFUSAL_MESSAGES, type ImportResult } from '@/features/sincronizacao/sync-service';
+import {
+  describeFailure,
+  syncFailure,
+  type SyncErrorCode,
+} from '@/features/sincronizacao/error-codes';
+import type { ImportResult } from '@/features/sincronizacao/sync-service';
+
+const headline = (code: SyncErrorCode) => describeFailure(syncFailure(code)).headline;
 
 // A tela recebe o serviço pronto; banco e Keystore não são usados.
 jest.mock('@/db/database', () => ({ getDatabase: jest.fn() }));
@@ -199,7 +206,8 @@ describe('SyncScreen', () => {
 
       await gerar(user);
 
-      expect(await screen.findByText('Digite a sua senha para continuar.')).toBeOnTheScreen();
+      expect(await screen.findByText(headline(401))).toBeOnTheScreen();
+      expect(screen.getByText('Digite a sua senha para continuar.')).toBeOnTheScreen();
       expect(confirmPassword).not.toHaveBeenCalled();
       expect(service.exportPackage).not.toHaveBeenCalled();
     });
@@ -210,12 +218,12 @@ describe('SyncScreen', () => {
 
       await gerar(user, 'senha-errada');
 
-      expect(await screen.findByText(/Senha incorreta/)).toBeOnTheScreen();
+      expect(await screen.findByText(headline(402))).toBeOnTheScreen();
       expect(service.exportPackage).not.toHaveBeenCalled();
       expect(transport.send).not.toHaveBeenCalled();
     });
 
-    it('avisa quando não consegue gerar ou enviar', async () => {
+    it('avisa com o código 404 quando não consegue enviar o pacote gerado', async () => {
       const user = userEvent.setup();
       const transport = createTransport();
       transport.send.mockRejectedValueOnce(new Error('sem compartilhamento'));
@@ -224,10 +232,35 @@ describe('SyncScreen', () => {
 
       await gerar(user, SENHA);
 
-      expect(
-        await screen.findByText('Não foi possível gerar ou enviar o pacote.'),
-      ).toBeOnTheScreen();
-      expect(log).toHaveBeenCalled();
+      expect(await screen.findByText(headline(404))).toBeOnTheScreen();
+      expect(log).toHaveBeenCalledWith('Falha ao enviar o pacote', expect.any(Error));
+      log.mockRestore();
+    });
+
+    it('avisa com o código 403 quando não consegue gerar o pacote, sem abrir o compartilhamento', async () => {
+      const user = userEvent.setup();
+      const service = createService();
+      service.exportPackage.mockRejectedValueOnce(new Error('disco cheio'));
+      const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { transport } = renderTela({ service });
+
+      await gerar(user, SENHA);
+
+      expect(await screen.findByText(headline(403))).toBeOnTheScreen();
+      expect(transport.send).not.toHaveBeenCalled();
+      log.mockRestore();
+    });
+
+    it('avisa com o código 405 quando a conferência da senha falha', async () => {
+      const user = userEvent.setup();
+      confirmPassword.mockRejectedValueOnce(new Error('banco fechado'));
+      const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { service } = renderTela();
+
+      await gerar(user, SENHA);
+
+      expect(await screen.findByText(headline(405))).toBeOnTheScreen();
+      expect(service.exportPackage).not.toHaveBeenCalled();
       log.mockRestore();
     });
   });
@@ -271,9 +304,7 @@ describe('SyncScreen', () => {
 
       await importar(user, { code: 'ABC' });
 
-      expect(
-        await screen.findByText('Digite o código de 12 caracteres exibido no outro tablet.'),
-      ).toBeOnTheScreen();
+      expect(await screen.findByText(headline(410))).toBeOnTheScreen();
       expect(transport.receive).not.toHaveBeenCalled();
     });
 
@@ -283,7 +314,7 @@ describe('SyncScreen', () => {
 
       await importar(user, { senha: 'senha-errada' });
 
-      expect(await screen.findByText(/Senha incorreta/)).toBeOnTheScreen();
+      expect(await screen.findByText(headline(402))).toBeOnTheScreen();
       expect(transport.receive).not.toHaveBeenCalled();
     });
 
@@ -306,13 +337,14 @@ describe('SyncScreen', () => {
         service: createService({
           ok: false,
           reason: 'codigo_incorreto',
-          message: REFUSAL_MESSAGES.codigo_incorreto,
+          failure: syncFailure(413),
         }),
       });
 
       await importar(user);
 
-      expect(await screen.findByText(REFUSAL_MESSAGES.codigo_incorreto)).toBeOnTheScreen();
+      expect(await screen.findByText(headline(413))).toBeOnTheScreen();
+      expect(screen.getByText('Confira o código exibido no outro tablet.')).toBeOnTheScreen();
     });
 
     it('não faz nada quando o profissional desiste de escolher o arquivo', async () => {
@@ -339,9 +371,7 @@ describe('SyncScreen', () => {
 
       await importar(user);
 
-      expect(
-        await screen.findByText('Não foi possível ler o arquivo escolhido.'),
-      ).toBeOnTheScreen();
+      expect(await screen.findByText(headline(411))).toBeOnTheScreen();
       log.mockRestore();
     });
 
@@ -354,7 +384,7 @@ describe('SyncScreen', () => {
 
       await importar(user);
 
-      expect(await screen.findByText(REFUSAL_MESSAGES.erro)).toBeOnTheScreen();
+      expect(await screen.findByText(headline(417))).toBeOnTheScreen();
       log.mockRestore();
     });
   });

@@ -14,6 +14,11 @@ import {
   type ImportSummary,
 } from '@/features/sincronizacao/apply-package';
 import {
+  syncFailure,
+  type SyncErrorCode,
+  type SyncFailure,
+} from '@/features/sincronizacao/error-codes';
+import {
   generateTransferCode,
   openPackage,
   sealPackage,
@@ -44,9 +49,11 @@ export type ExportResult = {
   sent: number;
 };
 
+export type RefusalOrError = RefusalReason | 'erro';
+
 export type ImportResult =
   | { ok: true; summary: ImportSummary }
-  | { ok: false; reason: RefusalReason | 'erro'; message: string };
+  | { ok: false; reason: RefusalOrError; failure: SyncFailure };
 
 export type LocalDescription = {
   deviceId: string;
@@ -54,20 +61,32 @@ export type LocalDescription = {
   vector: VersionVector;
 };
 
-export const REFUSAL_MESSAGES: Record<RefusalReason | 'erro', string> = {
-  arquivo_invalido: 'O arquivo escolhido não é um pacote de sincronização do MED.',
-  codigo_incorreto:
-    'O código não confere com este pacote. Confira o código exibido no outro tablet.',
-  versao_incompativel:
-    'Os dois tablets estão com versões diferentes do aplicativo. Atualize os dois e gere um novo pacote.',
-  mesmo_tablet: 'Este pacote foi gerado neste mesmo tablet.',
-  tablet_revogado: 'O tablet que gerou este pacote foi bloqueado e não pode mais enviar dados.',
-  erro: 'Não foi possível importar o pacote. Nenhum dado foi alterado.',
+/** Código de erro de cada recusa, por arquivo. */
+export const FILE_ERROR_CODES: Record<RefusalOrError, SyncErrorCode> = {
+  arquivo_invalido: 412,
+  codigo_incorreto: 413,
+  versao_incompativel: 414,
+  mesmo_tablet: 415,
+  tablet_revogado: 416,
+  // Não acontece num arquivo, que vem inteiro de um tablet só.
+  origem_trocada: 412,
+  erro: 417,
+};
+
+/** Código de erro de cada recusa, pelo Nearby. */
+export const NEARBY_ERROR_CODES: Record<RefusalOrError, SyncErrorCode> = {
+  arquivo_invalido: 304,
+  // O Nearby não usa código de transferência.
+  codigo_incorreto: 304,
+  versao_incompativel: 301,
+  mesmo_tablet: 303,
+  tablet_revogado: 311,
+  origem_trocada: 312,
+  erro: 313,
 };
 
 /** Parte dos lotes do arquivo entrou antes da falha. */
-export const PARTIAL_IMPORT_MESSAGE =
-  'Só parte dos dados foi importada. O que entrou continua salvo: importe o mesmo pacote de novo para completar.';
+export const PARTIAL_IMPORT_CODE = 418;
 
 /** Lotes que chegam numa troca pelo Nearby. Cada um é gravado numa transação. */
 export type IncomingBatches = {
@@ -76,8 +95,11 @@ export type IncomingBatches = {
   applied(): number;
   /** A soma dos lotes gravados. */
   summary(): ImportSummary;
-  /** Grava o histórico da troca. Depois de uma falha, ele já foi gravado. */
-  finish(complete: boolean): Promise<void>;
+  /**
+   * Grava o histórico da troca. Depois de uma falha de gravação, ele já foi
+   * gravado. `code`: o código de erro, se a troca parou antes do fim.
+   */
+  finish(complete: boolean, code?: SyncErrorCode): Promise<void>;
 };
 
 /** Lotes que este tablet manda numa troca pelo Nearby. */
@@ -85,8 +107,11 @@ export type OutgoingBatches = {
   total: number;
   /** Lê do banco só as avaliações do lote pedido. */
   read(index: number): Promise<{ pacote: string; cobertura: VersionVector }>;
-  /** Grava o histórico do envio: `sent` lotes confirmados pelo outro tablet. */
-  finish(sent: number): Promise<void>;
+  /**
+   * Grava o histórico do envio: `sent` lotes confirmados pelo outro tablet.
+   * `code`: o código de erro, se o envio parou antes do fim.
+   */
+  finish(sent: number, code?: SyncErrorCode): Promise<void>;
 };
 
 type LogResult = 'sucesso' | 'parcial' | 'recusado' | 'erro';
@@ -133,15 +158,16 @@ export function createSyncService({
    * Cada lote numa transação própria: se um falhar, os anteriores ficam, e o
    * vetor só avançou até onde eles cobrem. Um registro só no histórico por troca.
    */
-  function createReceiver() {
+  function createReceiver(codes: Record<RefusalOrError, SyncErrorCode>) {
     const startedAt = now();
     let peerId: string | null = null;
     let summary = emptySummary();
     let applied = 0;
     let closed = false;
 
-    async function log(result: LogResult, reason?: string) {
+    async function log(result: LogResult, code?: SyncErrorCode) {
       closed = true;
+      const reason = code === undefined ? undefined : String(code);
       await (
         await repository.direct()
       ).writeLog({
@@ -157,13 +183,19 @@ export function createSyncService({
       });
     }
 
+    const refusal = (reason: RefusalOrError): ImportResult => ({
+      ok: false,
+      reason,
+      failure: syncFailure(codes[reason], { kept: applied > 0 }),
+    });
+
     async function apply(read: () => Promise<PackageBatch>): Promise<ImportResult> {
-      if (closed) return { ok: false, reason: 'erro', message: REFUSAL_MESSAGES.erro };
+      if (closed) return refusal('erro');
       try {
         const { pacote: syncPackage, cobertura } = await read();
         // Todos os lotes de uma troca vêm do mesmo tablet.
         if (peerId !== null && syncPackage.origem !== peerId) {
-          throw new PackageRefusedError('arquivo_invalido');
+          throw new PackageRefusedError('origem_trocada');
         }
         peerId = syncPackage.origem;
         const batch = await repository.inTransaction(async (operations) => {
@@ -182,8 +214,8 @@ export function createSyncService({
         const reason = error instanceof PackageRefusedError ? error.reason : 'erro';
         let result: LogResult = reason === 'erro' ? 'erro' : 'recusado';
         if (applied > 0) result = 'parcial';
-        await log(result, reason);
-        return { ok: false, reason, message: REFUSAL_MESSAGES[reason] };
+        await log(result, codes[reason]);
+        return refusal(reason);
       }
     }
 
@@ -191,9 +223,9 @@ export function createSyncService({
       apply,
       applied: () => applied,
       summary: () => summary,
-      async finish(complete: boolean) {
+      async finish(complete: boolean, code?: SyncErrorCode) {
         if (closed || applied === 0) return;
-        await log(complete ? 'sucesso' : 'parcial');
+        await log(complete ? 'sucesso' : 'parcial', complete ? undefined : code);
       },
     };
   }
@@ -236,7 +268,7 @@ export function createSyncService({
 
     /** Grava o arquivo lote por lote. Importar o mesmo arquivo de novo completa o que faltou. */
     async importPackage(contents: string, transferCode: string): Promise<ImportResult> {
-      const receiver = createReceiver();
+      const receiver = createReceiver(FILE_ERROR_CODES);
       let rest: PackageBatch[] = [];
       let result = await receiver.apply(async () => {
         const [first, ...others] = splitPackage(
@@ -251,7 +283,9 @@ export function createSyncService({
         result = await receiver.apply(async () => batch);
       }
       if (!result.ok) {
-        return receiver.applied() > 0 ? { ...result, message: PARTIAL_IMPORT_MESSAGE } : result;
+        return receiver.applied() > 0
+          ? { ...result, failure: syncFailure(PARTIAL_IMPORT_CODE) }
+          : result;
       }
       await receiver.finish(true);
       return { ok: true, summary: receiver.summary() };
@@ -327,7 +361,7 @@ export function createSyncService({
           };
         },
 
-        async finish(sent) {
+        async finish(sent, code) {
           let result: LogResult = sent > 0 ? 'parcial' : 'erro';
           if (sent >= batches.length) result = 'sucesso';
           await (
@@ -339,6 +373,7 @@ export function createSyncService({
             finishedAt: now().toISOString(),
             sent: batches.slice(0, sent).reduce((total, batch) => total + batch.entries.length, 0),
             result,
+            reason: result === 'sucesso' || code === undefined ? undefined : String(code),
           });
         },
       };
@@ -346,7 +381,7 @@ export function createSyncService({
 
     /** Recebe os lotes de uma troca pelo Nearby. */
     receiveBatches(): IncomingBatches {
-      const receiver = createReceiver();
+      const receiver = createReceiver(NEARBY_ERROR_CODES);
       return {
         apply: (json, coverage) =>
           receiver.apply(async () => ({

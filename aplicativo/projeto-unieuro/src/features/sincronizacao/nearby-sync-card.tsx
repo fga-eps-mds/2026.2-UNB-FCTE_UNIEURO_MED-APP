@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { syncFailure } from '@/features/sincronizacao/error-codes';
+import { FailureMessage } from '@/features/sincronizacao/failure-message';
 import {
   openLocationSettings as openSystemLocationSettings,
   type NearbyApi,
 } from '@/features/sincronizacao/nearby-module';
 import {
   createNearbySession,
-  NEARBY_MESSAGES,
   type NearbyState,
   type SyncProgress,
 } from '@/features/sincronizacao/nearby-session';
@@ -113,7 +114,7 @@ function NearbySession({
 
       {state.phase === 'blocked' && (
         <>
-          <FeedbackMessage kind="error" message={state.message} />
+          <FailureMessage failure={state.failure} />
           <View style={styles.actions}>
             {state.reason === 'location' && (
               <ActionButton
@@ -164,7 +165,7 @@ function NearbySession({
               ))
             )}
           </View>
-          {state.notice && <FeedbackMessage kind="error" message={state.notice} />}
+          {state.notice && <FailureMessage failure={state.notice} />}
           <View style={styles.actions}>
             <ActionButton
               label="Parar de procurar"
@@ -211,10 +212,7 @@ function NearbySession({
       {state.phase === 'done' && (
         <>
           {state.partial ? (
-            <FeedbackMessage
-              kind="info"
-              message={`A conexão com o ${state.peerName} caiu antes do fim. ${NEARBY_MESSAGES.keptPartial}`}
-            />
+            <FailureMessage failure={syncFailure(340)} />
           ) : (
             <FeedbackMessage
               kind="success"
@@ -226,19 +224,14 @@ function NearbySession({
               {line}
             </Text>
           ))}
-          {!state.partial && !state.peerConfirmed && (
-            <Text style={styles.hint}>
-              A conexão caiu antes da confirmação do outro tablet. Os dados recebidos aqui foram
-              salvos; confira no outro tablet se ele também terminou.
-            </Text>
-          )}
+          {!state.partial && !state.peerConfirmed && <FailureMessage failure={syncFailure(341)} />}
           <ActionButton label="Sincronizar de novo" onPress={start} styles={styles} />
         </>
       )}
 
       {state.phase === 'failed' && (
         <>
-          <FeedbackMessage kind="error" message={state.message} />
+          <FailureMessage failure={state.failure} />
           <ActionButton label="Tentar de novo" onPress={start} styles={styles} />
         </>
       )}
@@ -280,7 +273,7 @@ function ConfirmStep({ state, onConfirm, onCancel, styles, placeholderColor }: C
         styles={styles}
         value={password}
       />
-      {state.error && <FeedbackMessage kind="error" message={state.error} />}
+      {state.error && <FailureMessage failure={state.error} />}
       <View style={styles.actions}>
         <ActionButton
           label="O código é diferente: cancelar"

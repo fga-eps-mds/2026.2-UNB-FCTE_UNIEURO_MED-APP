@@ -4,10 +4,11 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { Colors } from '@/constants/theme';
 import { createSyncRepository } from '@/db/sync-repository';
 import {
-  createNearbySession,
-  NEARBY_MESSAGES,
-  type NearbySession,
-} from '@/features/sincronizacao/nearby-session';
+  describeFailure,
+  syncFailure,
+  type SyncErrorCode,
+} from '@/features/sincronizacao/error-codes';
+import { createNearbySession, type NearbySession } from '@/features/sincronizacao/nearby-session';
 import NearbySyncCard from '@/features/sincronizacao/nearby-sync-card';
 import { createSyncStyles } from '@/features/sincronizacao/sync.styles';
 import { createSyncService } from '@/features/sincronizacao/sync-service';
@@ -102,7 +103,9 @@ function renderCard({
   return { onReceived, openLocationSettings };
 }
 
-const error = (message: string) => screen.findByLabelText(`Erro. ${message}`, undefined, SLOW);
+/** Pelo rótulo que o leitor de tela lê, com o código por extenso. */
+const error = (code: SyncErrorCode) =>
+  screen.findByLabelText(`Erro. ${describeFailure(syncFailure(code)).spoken}`, undefined, SLOW);
 
 async function reachConfirmation(user: ReturnType<typeof userEvent.setup>) {
   await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
@@ -156,7 +159,8 @@ describe('sincronizar com tablet próximo', () => {
     await user.type(screen.getByLabelText('Sua senha'), 'senha-errada');
     await user.press(screen.getByRole('button', { name: 'Confirmar e sincronizar' }));
 
-    expect(await error(NEARBY_MESSAGES.wrongPassword)).toBeOnTheScreen();
+    expect(await error(202)).toBeOnTheScreen();
+    expect(screen.getByText('Senha incorreta (Cód. de Erro: 202)')).toBeOnTheScreen();
     expect(radioA.accepted.size).toBe(0);
   });
 
@@ -196,7 +200,7 @@ describe('sincronizar com tablet próximo', () => {
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
 
-    expect(await error(NEARBY_MESSAGES.permissions)).toBeOnTheScreen();
+    expect(await error(101)).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Abrir configurações de localização' })).toBeNull();
     radioA.permissionsGranted = true;
     await user.press(screen.getByRole('button', { name: 'Tentar de novo' }));
@@ -211,7 +215,7 @@ describe('sincronizar com tablet próximo', () => {
     const { openLocationSettings } = renderCard();
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
-    expect(await error(NEARBY_MESSAGES.location)).toBeOnTheScreen();
+    expect(await error(103)).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Abrir configurações de localização' }));
 
     expect(openLocationSettings).toHaveBeenCalled();
@@ -250,7 +254,7 @@ describe('sincronizar com tablet próximo', () => {
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
 
-    expect(await error(NEARBY_MESSAGES.start)).toBeOnTheScreen();
+    expect(await error(119)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeOnTheScreen();
     consoleErro.mockRestore();
   });
@@ -263,7 +267,11 @@ describe('sincronizar com tablet próximo', () => {
     await confirmBoth(user);
 
     expect(
-      await screen.findByText(/confira no outro tablet se ele também terminou/, undefined, SLOW),
+      await screen.findByText(
+        'O outro tablet não confirmou o fim da troca (Cód.: 341)',
+        undefined,
+        SLOW,
+      ),
     ).toBeOnTheScreen();
   });
 
@@ -296,12 +304,12 @@ describe('sincronizar com tablet próximo', () => {
 
     expect(
       await screen.findByLabelText(
-        new RegExp(`caiu antes do fim\\. ${NEARBY_MESSAGES.keptPartial}`),
+        `Informação. ${describeFailure(syncFailure(340)).spoken}`,
         undefined,
         SLOW,
       ),
     ).toBeOnTheScreen();
-    expect(screen.queryByText(/confira no outro tablet/)).toBeNull();
+    expect(screen.queryByText(/Cód\.: 341/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Sincronizar de novo' })).toBeOnTheScreen();
     expect(onReceived).toHaveBeenCalled();
     const names = await databaseA.getAllAsync<{ nome: string }>(

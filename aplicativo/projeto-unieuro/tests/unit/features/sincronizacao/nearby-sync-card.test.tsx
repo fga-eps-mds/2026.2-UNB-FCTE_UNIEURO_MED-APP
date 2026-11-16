@@ -1,9 +1,11 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 
 import { Colors } from '@/constants/theme';
-import { NEARBY_MESSAGES } from '@/features/sincronizacao/nearby-session';
+import { describeFailure, syncFailure } from '@/features/sincronizacao/error-codes';
 import NearbySyncCard, { describeProgress } from '@/features/sincronizacao/nearby-sync-card';
 import { createSyncStyles } from '@/features/sincronizacao/sync.styles';
+
+const spokenError = (code: 102 | 103) => `Erro. ${describeFailure(syncFailure(code)).spoken}`;
 
 import { FakeAir, type FakeNearby } from '../../../test-support/fake-nearby';
 
@@ -61,7 +63,7 @@ describe('NearbySyncCard', () => {
     const openLocationSettings = renderCard(radio);
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
-    expect(await screen.findByLabelText(`Erro. ${NEARBY_MESSAGES.location}`)).toBeOnTheScreen();
+    expect(await screen.findByLabelText(spokenError(103))).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Abrir configurações de localização' }));
 
     expect(openLocationSettings).toHaveBeenCalled();
@@ -76,7 +78,7 @@ describe('NearbySyncCard', () => {
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
 
-    expect(await screen.findByLabelText(`Erro. ${NEARBY_MESSAGES.bluetooth}`)).toBeOnTheScreen();
+    expect(await screen.findByLabelText(spokenError(102))).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Abrir configurações de localização' })).toBeNull();
   });
 

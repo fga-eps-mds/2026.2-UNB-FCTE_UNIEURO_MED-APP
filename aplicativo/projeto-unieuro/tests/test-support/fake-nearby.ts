@@ -100,7 +100,9 @@ export class FakeNearby implements NearbyApi {
   };
 
   requestConnection = async (name: string, endpointId: string) => {
-    if (this.failRequest) throw new Error('ERR_NEARBY_8012');
+    if (this.failRequest) {
+      throw Object.assign(new Error('Nearby recusou: 8012'), { code: 'ERR_NEARBY_8012' });
+    }
     const peer = this.peer(endpointId);
     const digits = this.air.digits;
     later(() => {

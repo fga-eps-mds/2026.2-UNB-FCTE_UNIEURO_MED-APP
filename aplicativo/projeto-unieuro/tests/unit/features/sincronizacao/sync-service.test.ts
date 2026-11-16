@@ -5,12 +5,8 @@ import { migrate } from '@/db/database';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { SCHEMA_VERSION } from '@/db/schema';
 import { createSyncRepository, type SyncRepository } from '@/db/sync-repository';
-import {
-  PARTIAL_IMPORT_MESSAGE,
-  REFUSAL_MESSAGES,
-  createSyncService,
-  packageFileName,
-} from '@/features/sincronizacao/sync-service';
+import { syncFailure } from '@/features/sincronizacao/error-codes';
+import { createSyncService, packageFileName } from '@/features/sincronizacao/sync-service';
 
 import { createTempDatabase, type TempDatabase } from '../../../test-support/real-sqlite';
 import { webCryptoAesGcm } from '../../../test-support/web-crypto-aes-gcm';
@@ -176,19 +172,18 @@ describe('recebimento em lotes', () => {
   it('recusa o que não é pacote e registra a recusa', async () => {
     const result = await service().receiveBatches().apply('não é json', {});
 
+    // Pelo Nearby, o pacote ilegível é o código 304.
     expect(result).toEqual({
       ok: false,
       reason: 'arquivo_invalido',
-      message: REFUSAL_MESSAGES.arquivo_invalido,
+      failure: syncFailure(304),
     });
     await expect(
       database.getAllAsync('SELECT direcao, resultado, motivo FROM sync_log'),
-    ).resolves.toEqual([
-      { direcao: 'recebimento', resultado: 'recusado', motivo: 'arquivo_invalido' },
-    ]);
+    ).resolves.toEqual([{ direcao: 'recebimento', resultado: 'recusado', motivo: '304' }]);
   });
 
-  it('um erro inesperado no banco desfaz o lote e vira a mensagem genérica', async () => {
+  it('um erro inesperado no banco desfaz o lote e vira o código 313', async () => {
     const failing: SyncRepository = {
       ...repository,
       inTransaction: async () => {
@@ -200,17 +195,19 @@ describe('recebimento em lotes', () => {
       .receiveBatches()
       .apply(await batchFrom(PEER), {});
 
-    expect(result).toEqual({ ok: false, reason: 'erro', message: REFUSAL_MESSAGES.erro });
+    expect(result).toEqual({ ok: false, reason: 'erro', failure: syncFailure(313) });
     await expect(
-      database.getFirstAsync("SELECT resultado FROM sync_log WHERE direcao = 'recebimento'"),
-    ).resolves.toEqual({ resultado: 'erro' });
+      database.getFirstAsync(
+        "SELECT resultado, motivo FROM sync_log WHERE direcao = 'recebimento'",
+      ),
+    ).resolves.toEqual({ resultado: 'erro', motivo: '313' });
   });
 
   it('o vetor avança só até a cobertura do lote', async () => {
     const receiver = service().receiveBatches();
 
     const result = await receiver.apply(await batchFrom(PEER), { [PEER]: 0 });
-    await receiver.finish(false);
+    await receiver.finish(false, 340);
 
     expect(result).toMatchObject({ ok: true, summary: { professionals: { inserted: 1 } } });
     expect(receiver.applied()).toBe(1);
@@ -218,8 +215,8 @@ describe('recebimento em lotes', () => {
       database.getAllAsync('SELECT origem_id FROM sync_vetor WHERE ultimo_seq_recebido > 0'),
     ).resolves.toEqual([]);
     await expect(
-      database.getAllAsync("SELECT resultado FROM sync_log WHERE direcao = 'recebimento'"),
-    ).resolves.toEqual([{ resultado: 'parcial' }]);
+      database.getAllAsync("SELECT resultado, motivo FROM sync_log WHERE direcao = 'recebimento'"),
+    ).resolves.toEqual([{ resultado: 'parcial', motivo: '340' }]);
   });
 
   it('a cobertura não passa do vetor de quem enviou', async () => {
@@ -257,11 +254,19 @@ describe('recebimento em lotes', () => {
     const after = await receiver.apply(await batchFrom(PEER), {});
     await receiver.finish(true);
 
-    expect(intruder).toMatchObject({ ok: false, reason: 'arquivo_invalido' });
-    expect(after).toEqual({ ok: false, reason: 'erro', message: REFUSAL_MESSAGES.erro });
+    expect(intruder).toEqual({
+      ok: false,
+      reason: 'origem_trocada',
+      failure: syncFailure(312, { kept: true }),
+    });
+    expect(after).toEqual({
+      ok: false,
+      reason: 'erro',
+      failure: syncFailure(313, { kept: true }),
+    });
     await expect(
       database.getAllAsync("SELECT resultado, motivo FROM sync_log WHERE direcao = 'recebimento'"),
-    ).resolves.toEqual([{ resultado: 'parcial', motivo: 'arquivo_invalido' }]);
+    ).resolves.toEqual([{ resultado: 'parcial', motivo: '312' }]);
   });
 
   it('sem nenhum lote gravado, não registra nada ao terminar', async () => {
@@ -296,11 +301,7 @@ describe('importação do arquivo', () => {
     const count = async () =>
       (await otherDatabase.getAllAsync('SELECT uuid FROM profissional')).length;
 
-    expect(partial).toEqual({
-      ok: false,
-      reason: 'erro',
-      message: PARTIAL_IMPORT_MESSAGE,
-    });
+    expect(partial).toEqual({ ok: false, reason: 'erro', failure: syncFailure(418) });
     expect(await count()).toBe(1);
 
     const again = await createSyncService({
@@ -313,9 +314,15 @@ describe('importação do arquivo', () => {
       summary: { professionals: { inserted: 1 }, skipped: 1 },
     });
     expect(await count()).toBe(2);
+    // O histórico guarda o código da causa: 417, erro ao gravar.
     await expect(
-      otherDatabase.getAllAsync("SELECT resultado FROM sync_log WHERE direcao = 'recebimento'"),
-    ).resolves.toEqual([{ resultado: 'parcial' }, { resultado: 'sucesso' }]);
+      otherDatabase.getAllAsync(
+        "SELECT resultado, motivo FROM sync_log WHERE direcao = 'recebimento'",
+      ),
+    ).resolves.toEqual([
+      { resultado: 'parcial', motivo: '417' },
+      { resultado: 'sucesso', motivo: null },
+    ]);
     await otherDatabase.closeAsync();
     other.cleanup();
   });

@@ -40,7 +40,9 @@ export type RefusalReason =
   | 'codigo_incorreto'
   | 'versao_incompativel'
   | 'mesmo_tablet'
-  | 'tablet_revogado';
+  | 'tablet_revogado'
+  /** Um lote de outro tablet no meio de uma troca. */
+  | 'origem_trocada';
 
 /** Nada do pacote é gravado. */
 export class PackageRefusedError extends Error {

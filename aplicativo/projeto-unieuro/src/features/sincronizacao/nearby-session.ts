@@ -1,5 +1,13 @@
 import type { ImportSummary } from '@/features/sincronizacao/apply-package';
-import type { NearbyApi, Subscription } from '@/features/sincronizacao/nearby-module';
+import {
+  nearbyStatus,
+  STATUS_CONNECTION_REJECTED,
+  startFailure,
+  syncFailure,
+  type SyncErrorCode,
+  type SyncFailure,
+} from '@/features/sincronizacao/error-codes';
+import type { NearbyApi, RadioState, Subscription } from '@/features/sincronizacao/nearby-module';
 import {
   createAssembler,
   frameMessage,
@@ -8,12 +16,11 @@ import {
   ProtocolError,
   type ProtocolMessage,
 } from '@/features/sincronizacao/nearby-protocol';
-import {
-  REFUSAL_MESSAGES,
-  type IncomingBatches,
-  type LocalDescription,
-  type OutgoingBatches,
-  type SyncService,
+import type {
+  IncomingBatches,
+  LocalDescription,
+  OutgoingBatches,
+  SyncService,
 } from '@/features/sincronizacao/sync-service';
 
 export type NearbyEndpoint = { endpointId: string; name: string };
@@ -23,21 +30,21 @@ export type BlockReason = 'permissions' | 'bluetooth' | 'location';
 export type NearbyState =
   | { phase: 'idle' }
   | { phase: 'starting' }
-  | { phase: 'blocked'; reason: BlockReason; message: string }
+  | { phase: 'blocked'; reason: BlockReason; failure: SyncFailure }
   | {
       phase: 'searching';
       localName: string;
       endpoints: NearbyEndpoint[];
       connecting: string | null;
       wifiOff: boolean;
-      notice: string | null;
+      notice: SyncFailure | null;
     }
   | {
       phase: 'confirming';
       peerName: string;
       digits: string;
       checking: boolean;
-      error: string | null;
+      error: SyncFailure | null;
     }
   | { phase: 'waiting'; peerName: string }
   | ({ phase: 'syncing'; peerName: string } & SyncProgress)
@@ -50,7 +57,7 @@ export type NearbyState =
       /** A conexão caiu antes de chegarem todos os lotes do outro tablet. */
       partial: boolean;
     }
-  | { phase: 'failed'; message: string };
+  | { phase: 'failed'; failure: SyncFailure };
 
 /** Lotes confirmados e gravados. O total fica `null` até se saber. */
 export type SyncProgress = {
@@ -68,85 +75,21 @@ type Dependencies = {
   wait?: (ms: number) => Promise<void>;
 };
 
-export const NEARBY_MESSAGES = {
-  permissions:
-    'Permita o acesso a dispositivos próximos para sincronizar. Se negou antes, libere nas configurações do Android, em Apps → MED → Permissões.',
-  bluetooth: 'Ative o Bluetooth para sincronizar com um tablet próximo.',
-  location: 'Ative a localização do tablet. Ela é necessária para encontrar tablets próximos.',
-  start: 'Não foi possível começar a procurar tablets. Confira o Bluetooth e tente de novo.',
-  connect:
-    'Não foi possível conectar a este tablet. Confira se ele está com a tela de sincronização aberta e tente de novo.',
-  wrongPassword: 'Senha incorreta. Digite a senha com que você entrou no aplicativo.',
-  rejected: 'A conexão não foi concluída. O outro tablet cancelou ou ainda não confirmou.',
-  protocol:
-    'O outro tablet mandou dados que este não reconhece. Atualize o aplicativo nos dois tablets.',
-  peerFailed: 'O outro tablet não conseguiu gravar os dados.',
-  batchFailed: 'Não foi possível gravar parte dos dados recebidos.',
-  keptPartial:
-    'Os dados recebidos até ali foram salvos. Sincronize de novo para receber o restante.',
-  droppedBefore: 'A conexão caiu antes de terminar. Nada foi alterado neste tablet.',
-} as const;
-
-/** Código de `ERR_NEARBY_<código>`, ou `null` se o erro não veio do Nearby. */
-export function nearbyStatus(error: unknown): number | null {
-  const code =
-    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
-  const match = typeof code === 'string' ? /^ERR_NEARBY_(-?\d+)$/.exec(code) : null;
-  return match ? Number(match[1]) : null;
-}
-
 // Busca anterior ainda ativa.
 const ALREADY_RUNNING = new Set([8001, 8002, 8008]);
 
-const START_FAILURES: { codes: number[]; message: string }[] = [
-  {
-    codes: [8029, 8030, 8031, 8037, 8038, 8039],
-    message:
-      'O Android não liberou a permissão de "Dispositivos próximos" para o aplicativo. Libere em Configurações → Apps → MED → Permissões e tente de novo.',
-  },
-  {
-    codes: [8034, 8036],
-    message:
-      'O Android não liberou a permissão de localização, que esta versão exige para procurar tablets. Libere em Configurações → Apps → MED → Permissões e tente de novo.',
-  },
-  {
-    codes: [8025],
-    message:
-      'Ative a localização do tablet nas configurações rápidas. Ela é necessária para procurar tablets por Bluetooth.',
-  },
-  {
-    codes: [8007],
-    message:
-      'O Bluetooth ou o Wi-Fi do tablet não respondeu. Desligue e ligue os dois e tente de novo.',
-  },
-  {
-    codes: [8032, 8033],
-    message:
-      'Falta ao aplicativo uma permissão de Wi-Fi. Instale a versão mais recente do aplicativo.',
-  },
-  {
-    codes: [8050],
-    message:
-      'Outro aplicativo está usando a busca por aparelhos próximos, como o Compartilhamento por proximidade. Feche-o e tente de novo.',
-  },
-  {
-    codes: [2],
-    message:
-      'O Google Play Services deste tablet está desatualizado. Atualize-o pela Play Store e tente de novo.',
-  },
-  {
-    codes: [3],
-    message:
-      'O Google Play Services está desativado neste tablet. Ative-o em Configurações → Apps e tente de novo.',
-  },
-];
-
-/** Sempre mostra o código, para o suporte. */
-export function startFailureMessage(status: number | null): string {
-  const known = START_FAILURES.find(({ codes }) => status !== null && codes.includes(status));
-  const message = known?.message ?? NEARBY_MESSAGES.start;
-  return status === null ? message : `${message} (código ${status})`;
+/** Mensagem válida no lugar errado da troca. */
+class OrderError extends ProtocolError {
+  constructor(
+    message: string,
+    readonly code: SyncErrorCode,
+  ) {
+    super(message);
+  }
 }
+
+// Mensagem que nem chega a ser lida.
+const UNREADABLE_MESSAGE = 304;
 
 /** Sem dado pessoal: só o começo do id do tablet. */
 export const tabletName = (deviceId: string) => `Tablet ${deviceId.slice(0, 4).toUpperCase()}`;
@@ -196,7 +139,7 @@ export function createNearbySession({
   // Evita o estreitamento de tipo de antes de um `await`.
   const phase = (): NearbyState['phase'] => state.phase;
 
-  function searching(notice: string | null = null): NearbyState {
+  function searching(notice: SyncFailure | null = null): NearbyState {
     return { phase: 'searching', localName, endpoints: found, connecting: null, wifiOff, notice };
   }
 
@@ -236,9 +179,9 @@ export function createNearbySession({
     }
   }
 
-  function fail(message: string) {
+  function fail(failure: SyncFailure) {
     release();
-    setState({ phase: 'failed', message });
+    setState({ phase: 'failed', failure });
   }
 
   async function send(message: ProtocolMessage) {
@@ -269,21 +212,22 @@ export function createNearbySession({
     });
   }
 
-  // Um registro de envio e um de recebimento por troca, mesmo quando ela para no meio.
-  async function writeLogs() {
+  // Um registro de envio e um de recebimento por troca, mesmo quando ela para no
+  // meio. `code` vai para o motivo do registro que não terminou.
+  async function writeLogs(code?: SyncErrorCode) {
     const pending = outgoing;
     if (pending && !outgoingLogged) {
       outgoingLogged = true;
-      await pending.finish(acknowledged).catch(() => undefined);
+      await pending.finish(acknowledged, code).catch(() => undefined);
     }
-    await incoming?.finish(incomingDone).catch(() => undefined);
+    await incoming?.finish(incomingDone, code).catch(() => undefined);
   }
 
-  /** Avisa que os lotes já gravados ficam, se houver algum. */
-  async function stop(message: string) {
+  /** Para a troca com `code`. A mensagem avisa se os lotes já gravados ficam. */
+  async function stop(code: SyncErrorCode) {
     const kept = appliedBatches() > 0;
-    await writeLogs();
-    fail(kept ? `${message} ${NEARBY_MESSAGES.keptPartial}` : message);
+    await writeLogs(code);
+    fail(syncFailure(code, { kept }));
   }
 
   async function sendBatch(index: number) {
@@ -309,14 +253,14 @@ export function createNearbySession({
         if (!local) return;
         if (message.versao_esquema !== local.schemaVersion) {
           await sendError('versao_incompativel');
-          fail(REFUSAL_MESSAGES.versao_incompativel);
+          fail(syncFailure(301));
           return;
         }
         if (message.dispositivo === local.deviceId) {
-          fail(REFUSAL_MESSAGES.mesmo_tablet);
+          fail(syncFailure(303));
           return;
         }
-        if (outgoing) throw new ProtocolError('Apresentação repetida.');
+        if (outgoing) throw new OrderError('Apresentação repetida.', 307);
         outgoing = await sync.prepareBatchesFor(message.vetor, message.dispositivo);
         showProgress();
         await sendBatch(0);
@@ -328,13 +272,13 @@ export function createNearbySession({
           message.indice !== appliedBatches() ||
           (toReceive !== null && message.total !== toReceive)
         ) {
-          throw new ProtocolError('Lote fora de ordem.');
+          throw new OrderError('Lote fora de ordem.', 305);
         }
         toReceive = message.total;
         const result = await incoming.apply(message.pacote, message.cobertura);
         if (!result.ok) {
           await sendError(result.reason);
-          await stop(appliedBatches() > 0 ? NEARBY_MESSAGES.batchFailed : result.message);
+          await stop(result.failure.code);
           return;
         }
         // Já está gravado, mesmo que a confirmação não chegue ao outro lado.
@@ -346,7 +290,7 @@ export function createNearbySession({
       }
       case 'lote_ok': {
         if (!outgoing || message.indice !== acknowledged || outgoingDone) {
-          throw new ProtocolError('Confirmação fora de ordem.');
+          throw new OrderError('Confirmação fora de ordem.', 306);
         }
         acknowledged += 1;
         outgoingDone = acknowledged === outgoing.total;
@@ -359,11 +303,7 @@ export function createNearbySession({
         return;
       }
       case 'erro':
-        await stop(
-          message.motivo === 'versao_incompativel'
-            ? REFUSAL_MESSAGES.versao_incompativel
-            : NEARBY_MESSAGES.peerFailed,
-        );
+        await stop(message.motivo === 'versao_incompativel' ? 302 : 320);
         return;
     }
   }
@@ -379,9 +319,10 @@ export function createNearbySession({
       } catch (error) {
         if (error instanceof ProtocolError) {
           await sendError('mensagem_invalida');
-          await stop(NEARBY_MESSAGES.protocol);
+          await stop(error instanceof OrderError ? error.code : UNREADABLE_MESSAGE);
         } else if (!connectionLost) {
-          await stop(REFUSAL_MESSAGES.erro);
+          // Ler o banco para montar o lote seguinte é o que sobra aqui.
+          await stop(330);
         }
       }
     });
@@ -408,10 +349,11 @@ export function createNearbySession({
     setState({ phase: 'confirming', peerName, digits: event.digits, checking: false, error: null });
   }
 
-  function onConnectionResult(event: { endpointId: string; ok: boolean }) {
+  function onConnectionResult(event: { endpointId: string; ok: boolean; statusCode: number }) {
     if (event.endpointId !== endpointId) return;
     if (!event.ok) {
-      fail(NEARBY_MESSAGES.rejected);
+      const code = event.statusCode === STATUS_CONNECTION_REJECTED ? 204 : 205;
+      fail(syncFailure(code, { nearby: event.statusCode }));
       return;
     }
     if (!local) return;
@@ -425,7 +367,9 @@ export function createNearbySession({
       versao_esquema: local.schemaVersion,
       vetor: local.vector,
     };
-    queue = queue.then(() => send(hello)).catch(() => fail(NEARBY_MESSAGES.droppedBefore));
+    queue = queue
+      .then(() => send(hello))
+      .catch((error: unknown) => fail(syncFailure(206, { nearby: nearbyStatus(error) })));
   }
 
   function onDisconnected(event: { endpointId: string }) {
@@ -437,16 +381,17 @@ export function createNearbySession({
   async function handleDisconnect(disconnected: string) {
     if (disconnected !== endpointId) return;
     if (state.phase === 'done') return;
-    await writeLogs();
     if (!incoming || appliedBatches() === 0) {
-      fail(NEARBY_MESSAGES.droppedBefore);
+      await writeLogs(206);
+      fail(syncFailure(206));
       return;
     }
     // Os lotes gravados ficam. A próxima troca manda só o que faltou.
-    const summary = incoming.summary();
-    const name = peerName;
     const confirmed = outgoingDone;
     const partial = !incomingDone;
+    await writeLogs(partial ? 340 : 341);
+    const summary = incoming.summary();
+    const name = peerName;
     release();
     setState({ phase: 'done', peerName: name, summary, peerConfirmed: confirmed, partial });
   }
@@ -473,24 +418,39 @@ export function createNearbySession({
       release();
       setState({ phase: 'starting' });
 
-      if (!(await api.requestPermissions())) {
-        setState({ phase: 'blocked', reason: 'permissions', message: NEARBY_MESSAGES.permissions });
+      let radios: RadioState;
+      try {
+        if (!(await api.requestPermissions())) {
+          setState({ phase: 'blocked', reason: 'permissions', failure: syncFailure(101) });
+          return;
+        }
+        radios = api.getRadioState();
+      } catch (error) {
+        fail(startFailure(nearbyStatus(error)));
         return;
       }
-      const radios = api.getRadioState();
       if (radios.bluetooth === false) {
-        setState({ phase: 'blocked', reason: 'bluetooth', message: NEARBY_MESSAGES.bluetooth });
+        setState({ phase: 'blocked', reason: 'bluetooth', failure: syncFailure(102) });
         return;
       }
       if (radios.location === false) {
-        setState({ phase: 'blocked', reason: 'location', message: NEARBY_MESSAGES.location });
+        setState({ phase: 'blocked', reason: 'location', failure: syncFailure(103) });
         return;
       }
       wifiOff = radios.wifi === false;
 
       try {
         local = await sync.describeLocal();
-        localName = tabletName(local.deviceId);
+      } catch (error) {
+        if (__DEV__) {
+          console.error('Falha ao ler os dados do tablet', error);
+        }
+        fail(syncFailure(104));
+        return;
+      }
+      localName = tabletName(local.deviceId);
+
+      try {
         subscriptions = [
           api.addListener('onEndpointFound', onEndpointFound),
           api.addListener('onEndpointLost', onEndpointLost),
@@ -504,7 +464,7 @@ export function createNearbySession({
         if (__DEV__) {
           console.error('Falha ao começar a procurar tablets', error);
         }
-        fail(startFailureMessage(nearbyStatus(error)));
+        fail(startFailure(nearbyStatus(error)));
         return;
       }
 
@@ -516,8 +476,10 @@ export function createNearbySession({
       setState({ ...state, connecting: target, notice: null });
       try {
         await api.requestConnection(localName, target);
-      } catch {
-        if (phase() === 'searching') setState(searching(NEARBY_MESSAGES.connect));
+      } catch (error) {
+        if (phase() === 'searching') {
+          setState(searching(syncFailure(201, { nearby: nearbyStatus(error) })));
+        }
       }
     },
 
@@ -525,18 +487,23 @@ export function createNearbySession({
       if (state.phase !== 'confirming' || state.checking || !endpointId) return;
       setState({ ...state, checking: true, error: null });
 
-      const confirmed = await confirmPassword(password);
+      let failure: SyncFailure | null = null;
+      try {
+        if (!(await confirmPassword(password))) failure = syncFailure(202);
+      } catch {
+        failure = syncFailure(207);
+      }
       // O outro pode ter cancelado durante a conferência.
       if (state.phase !== 'confirming') return;
-      if (!confirmed) {
-        setState({ ...state, checking: false, error: NEARBY_MESSAGES.wrongPassword });
+      if (failure) {
+        setState({ ...state, checking: false, error: failure });
         return;
       }
       setState({ phase: 'waiting', peerName });
       try {
         await api.acceptConnection(endpointId);
-      } catch {
-        fail(NEARBY_MESSAGES.rejected);
+      } catch (error) {
+        fail(syncFailure(203, { nearby: nearbyStatus(error) }));
       }
     },
 
