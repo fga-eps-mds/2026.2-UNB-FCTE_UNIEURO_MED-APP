@@ -35,7 +35,7 @@ export type ExameRepository = {
   buscarExame(profissionalId: number, atendimentoId: number): Promise<ExameGravado | null>;
 };
 
-// O que a tela mostra de cada tarefa. Sem desenho gravado, 
+// O que a tela mostra de cada tarefa. Sem desenho gravado,
 // a imagem e a hora ficam `null`.
 export type DesenhoDaConsulta = {
   ordem: number;
@@ -45,7 +45,7 @@ export type DesenhoDaConsulta = {
   confirmadoAs: string | null;
 };
 
-// o exame como a tela mostra, com a data e a hora
+// O exame como a tela mostra, com a data e a hora já no fuso do tablet.
 export type ExameDaConsulta = {
   id: number;
   pacienteNome: string;

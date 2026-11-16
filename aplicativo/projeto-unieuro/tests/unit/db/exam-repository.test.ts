@@ -71,8 +71,8 @@ const desenho = (
   imagemPng,
 });
 
-
-// o teste troca o estado direto no banco.
+// Ainda não existe código que conclua ou interrompa o exame, então o teste troca o
+// estado direto no banco.
 const mudarEstado = (atendimentoId: number, estado: string) =>
   tablet.database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [estado, atendimentoId]);
 
@@ -153,7 +153,7 @@ describe('só os exames do profissional', () => {
     await drawings.salvarDesenho(desenho(doBruno, 1, PNG_RELOGIO));
 
     await expect(repository.buscarExame(tablet.anaId, doBruno)).resolves.toBeNull();
-    
+
     await expect(repository.buscarExame(brunoId, doBruno)).resolves.toMatchObject({
       profissionalNome: BRUNO.name,
     });
