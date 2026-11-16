@@ -6,6 +6,8 @@
  * aparelho físico ou de dado real de paciente, conforme o `CONTRIBUTING.md`.
  */
 
+import { bloquearRede, exigirSemChamadasDeRede } from './tests/test-support/sem-rede';
+
 // Rotas e navegação. As funções são compartilhadas entre `useRouter` e
 // `router`, para que um teste possa afirmar sobre a navegação de qualquer uma
 // das duas formas. O nome precisa começar com `mock`: o Jest içá as chamadas de
@@ -87,6 +89,12 @@ jest.mock('@shopify/react-native-skia', () => ({
   },
 }));
 
+// Nenhum dado sai do tablet (#16). Qualquer `fetch`, `XMLHttpRequest` ou `WebSocket`
+// vira erro, e o teste que o provocar reprova no fim, ainda que o aplicativo engula a
+// exceção. Como os testes de sistema percorrem o fluxo real, eles provam que ele não usa a rede.
+bloquearRede();
+
 afterEach(() => {
+  exigirSemChamadasDeRede();
   jest.clearAllMocks();
 });
