@@ -7,12 +7,12 @@ import { migrate } from '@/db/database';
 import { formatHlc, parseHlc } from '@/db/hlc';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
-import { SCHEMA_V9 } from '@/db/sync-migration';
+import { SCHEMA_V10 } from '@/db/sync-migration';
 
 import { createTempDatabase, type TempDatabase } from '../../test-support/real-sqlite';
 import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
 
-// Migração 9 com SQLite real.
+// Migração 10 com SQLite real.
 
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
@@ -77,10 +77,10 @@ const stampOf = (table: string, where = '1 = 1', params: (string | number)[] = [
     origem_seq: number;
   }>(`SELECT uuid, versao_hlc, origem_id, origem_seq FROM ${table} WHERE ${where}`, params);
 
-describe('versão 9', () => {
+describe('versão 10', () => {
   it('é o último passo da lista e cria as tabelas de controle', async () => {
-    expect(MIGRATIONS[8]).toBe(SCHEMA_V9);
-    expect(SCHEMA_VERSION).toBe(9);
+    expect(MIGRATIONS[9]).toBe(SCHEMA_V10);
+    expect(SCHEMA_VERSION).toBe(10);
     const tables = await database.getAllAsync<{ name: string }>(
       "SELECT name FROM sqlite_master WHERE type = 'table'",
     );
@@ -415,7 +415,7 @@ describe('avaliação finalizada', () => {
 
 describe('banco que já existia', () => {
   it('marca os registros antigos como deste tablet, e o contador continua depois deles', async () => {
-    // Banco na versão 8, como nos tablets hoje.
+    // Banco na versão 8, como nos tablets com a versão 2.1.2 ou anterior.
     const legacyTemp = createTempDatabase();
     const legacy = legacyTemp.open();
     await legacy.execAsync('PRAGMA foreign_keys = ON;');

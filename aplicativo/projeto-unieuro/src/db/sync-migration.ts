@@ -1,5 +1,5 @@
 /**
- * Versão 9: sincronização entre tablets. O `id` continua sendo a chave local e o
+ * Versão 10: sincronização entre tablets. O `id` continua sendo a chave local e o
  * `uuid` identifica o registro entre tablets.
  *
  * - `dispositivo`: este tablet (`local = 1`) e os que já mandaram dados.
@@ -176,7 +176,7 @@ const MAX_PROFESSIONAL = '(SELECT coalesce(max(id), 0) FROM profissional)';
 const MAX_PATIENT = '(SELECT coalesce(max(id), 0) FROM paciente)';
 const MAX_ATTENDANCE = '(SELECT coalesce(max(id), 0) FROM avaliacao)';
 
-export const SCHEMA_V9 = `
+export const SCHEMA_V10 = `
 CREATE TABLE IF NOT EXISTS dispositivo (
     id TEXT PRIMARY KEY,
     apelido TEXT,

@@ -23,7 +23,29 @@ let database: SQLiteDatabase;
 let repository: ConsentimentoRepository;
 let atendimentoId: number;
 
-async function criarAtendimento(databaseToUse: SQLiteDatabase) {
+// O banco de uma versão antiga ainda não tem a coluna `perfil` (versão 9), que o
+// repositório atual lê e grava. Nele o profissional entra por SQL, como o
+// aplicativo daquela versão gravava.
+async function inserirProfissionalLegado(databaseToUse: SQLiteDatabase) {
+  const { lastInsertRowId } = await databaseToUse.runAsync(
+    `INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      'Ana Carolina Souza',
+      'ana.souza@unieuro.com.br',
+      '12345',
+      'DF',
+      await protector.encrypt('11144477735'),
+      await protector.blindIndex('11144477735'),
+      'hash-da-senha',
+      INICIO,
+      INICIO,
+    ],
+  );
+  return { id: lastInsertRowId };
+}
+
+async function inserirProfissional(databaseToUse: SQLiteDatabase) {
   const professionals = createProfessionalRepository(async () => databaseToUse, protector);
   await professionals.insert({
     name: 'Ana Carolina Souza',
@@ -34,7 +56,13 @@ async function criarAtendimento(databaseToUse: SQLiteDatabase) {
     passwordHash: 'hash-da-senha',
     createdAt: INICIO,
   });
-  const professional = await professionals.findByEmail('ana.souza@unieuro.com.br');
+  return professionals.findByEmail('ana.souza@unieuro.com.br');
+}
+
+async function criarAtendimento(databaseToUse: SQLiteDatabase, { legado = false } = {}) {
+  const professional = legado
+    ? await inserirProfissionalLegado(databaseToUse)
+    : await inserirProfissional(databaseToUse);
   const attendances = createAttendanceRepository(async () => databaseToUse, protector);
   return (
     await attendances.createAttendance({
@@ -143,7 +171,7 @@ describe('migrations do consentimento', () => {
       else await step(legacy, protector);
     }
     await legacy.execAsync('PRAGMA user_version = 4');
-    const legacyAttendanceId = await criarAtendimento(legacy);
+    const legacyAttendanceId = await criarAtendimento(legacy, { legado: true });
 
     await migrate(legacy, protector);
 
@@ -168,7 +196,7 @@ describe('migrations do consentimento', () => {
     await legacy.execAsync('PRAGMA user_version = 6');
 
     // Dois atendimentos do mesmo profissional: um aceito, com assinatura, e uma recusa.
-    const aceitoId = await criarAtendimento(legacy);
+    const aceitoId = await criarAtendimento(legacy, { legado: true });
     const professional = await legacy.getFirstAsync<{ id: number }>(
       'SELECT id FROM profissional LIMIT 1',
     );
@@ -368,7 +396,7 @@ describe('CPF do responsável legal (migration da versão 8)', () => {
       else await step(legacy, protector);
     }
     await legacy.execAsync('PRAGMA user_version = 7');
-    const legacyAttendanceId = await criarAtendimento(legacy);
+    const legacyAttendanceId = await criarAtendimento(legacy, { legado: true });
     // Aceite antigo pelo responsável legal: foi gravado sem nenhum identificador dele.
     await legacy.runAsync(
       `INSERT INTO consentimento

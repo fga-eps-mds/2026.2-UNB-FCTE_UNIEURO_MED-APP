@@ -1,10 +1,14 @@
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 import { BackHandler } from 'react-native';
 
-import type { CredentialsRepository } from '@/features/auth/authentication';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import { SENHA_INCORRETA } from '@/features/avaliacao/confirmacao-profissional';
+import {
+  DIGITOS_INCOMPLETOS,
+  DIGITOS_INCORRETOS,
+  DIGITOS_VAZIOS,
+  type ProfessionalCpfRepository,
+} from '@/features/avaliacao/confirmacao-profissional';
 import TelaFinalScreen, {
   AGRADECIMENTO,
   BOTAO_PROFISSIONAL,
@@ -12,12 +16,8 @@ import TelaFinalScreen, {
   ORIENTACAO,
 } from '@/features/avaliacao/tela-final-screen';
 
-jest.mock('@/features/auth/password', () => ({
-  DUMMY_PASSWORD_HASH: 'hash-ficticio',
-  verifyPassword: jest.fn(
-    async (password: string, hash: string) => hash === 'hash-real' && password === 'senhaForte123',
-  ),
-}));
+const ROTULO_CPF = 'Quatro primeiros dígitos do CPF';
+const CPF_PROTEGIDO = '11144477735';
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -28,8 +28,8 @@ const profissional: SessionProfessional = {
 };
 
 const repositorio = {
-  findByEmail: jest.fn(async () => ({ ...profissional, active: true, passwordHash: 'hash-real' })),
-} satisfies CredentialsRepository;
+  getCpf: jest.fn(async () => CPF_PROTEGIDO as string | null),
+} satisfies ProfessionalCpfRepository;
 
 function renderizarTela(professional: SessionProfessional | null = profissional) {
   render(
@@ -55,48 +55,84 @@ describe('TelaFinalScreen', () => {
     expect(screen.queryByText(/escore|pontua|faixa|resultado|nota/i)).toBeNull();
   });
 
-  it('resultado protegido: pede a senha do profissional antes de sair da tela', async () => {
+  it('pede quatro dígitos numéricos do CPF, e não a senha', async () => {
     await pedirConfirmacao();
 
-    expect(screen.getByLabelText('Senha do profissional')).toBeOnTheScreen();
-    expect(useRouter().replace).not.toHaveBeenCalled();
+    const campo = screen.getByLabelText(ROTULO_CPF);
+    expect(campo).toBeOnTheScreen();
+    expect(campo).toHaveProp('inputMode', 'numeric');
+    expect(campo).toHaveProp('keyboardType', 'number-pad');
+    expect(campo).toHaveProp('maxLength', 4);
+    expect(campo).toHaveProp('secureTextEntry', true);
+    expect(screen.queryByText(/senha/i)).toBeNull();
     expect(useRouter().dismissTo).not.toHaveBeenCalled();
   });
 
-  it('resultado protegido: com a senha certa, volta à área do profissional', async () => {
+  it('remove caracteres não numéricos e limita a entrada a quatro dígitos', async () => {
     const user = await pedirConfirmacao();
 
-    await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1a1149');
+
+    expect(screen.getByLabelText(ROTULO_CPF)).toHaveDisplayValue('1114');
+  });
+
+  it('com os quatro dígitos corretos, volta à área do profissional', async () => {
+    const user = await pedirConfirmacao();
+
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    // Volta à tela inicial que já está na pilha, em vez de abrir outra por cima.
+    expect(repositorio.getCpf).toHaveBeenCalledWith(profissional.id);
     expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
     expect(useRouter().replace).not.toHaveBeenCalled();
   });
 
-  it('resultado protegido: com a senha errada, avisa e continua na tela final', async () => {
+  it('com dígitos incorretos, avisa, permanece na tela final e permite nova tentativa', async () => {
     const user = await pedirConfirmacao();
 
-    await user.type(screen.getByLabelText('Senha do profissional'), 'chute123');
+    await user.type(screen.getByLabelText(ROTULO_CPF), '9999');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(await screen.findByLabelText(`Erro. ${SENHA_INCORRETA}`)).toBeOnTheScreen();
-    expect(useRouter().replace).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Senha do profissional')).toHaveDisplayValue('');
+    expect(await screen.findByLabelText(`Erro. ${DIGITOS_INCORRETOS}`)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: AGRADECIMENTO })).toBeOnTheScreen();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(ROTULO_CPF)).toHaveDisplayValue('');
+
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu'));
   });
 
-  it('cancelar a confirmação volta ao agradecimento, sem senha guardada', async () => {
+  it.each([
+    ['', DIGITOS_VAZIOS],
+    ['111', DIGITOS_INCOMPLETOS],
+  ])('entrada %p não libera o acesso e pode ser corrigida', async (digitos, mensagem) => {
     const user = await pedirConfirmacao();
 
-    await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
-    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+    if (digitos) await user.type(screen.getByLabelText(ROTULO_CPF), digitos);
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(screen.queryByLabelText('Senha do profissional')).toBeNull();
-    await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
-    expect(screen.getByLabelText('Senha do profissional')).toHaveDisplayValue('');
+    expect(await screen.findByLabelText(`Erro. ${mensagem}`)).toBeOnTheScreen();
+    expect(repositorio.getCpf).not.toHaveBeenCalled();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
   });
 
-  it('resultado protegido: o voltar do Android não sai da tela final', () => {
+  it('cancelar preserva a tela final e descarta somente os dígitos digitados', async () => {
+    const user = await pedirConfirmacao();
+
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
+    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.getByRole('header', { name: AGRADECIMENTO })).toBeOnTheScreen();
+    expect(screen.queryByLabelText(ROTULO_CPF)).toBeNull();
+    expect(repositorio.getCpf).not.toHaveBeenCalled();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
+
+    await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
+    expect(screen.getByLabelText(ROTULO_CPF)).toHaveDisplayValue('');
+  });
+
+  it('o voltar do Android não sai da tela final', () => {
     const inscrever = jest.spyOn(BackHandler, 'addEventListener');
     renderizarTela();
 
@@ -109,19 +145,23 @@ describe('TelaFinalScreen', () => {
     inscrever.mockRestore();
   });
 
-  it('resultado protegido: com erro no banco, avisa e libera o botão sem sair da tela', async () => {
+  it('com erro de leitura, preserva a tela final e permite tentar novamente', async () => {
     const user = await pedirConfirmacao();
-    repositorio.findByEmail.mockRejectedValueOnce(new Error('banco indisponível'));
+    repositorio.getCpf.mockRejectedValueOnce(new Error('banco indisponível'));
 
-    await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(await screen.findByLabelText(`Erro. ${FALHA_NA_CONFERENCIA}`)).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: AGRADECIMENTO })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Confirmar' })).toBeEnabled();
     expect(useRouter().dismissTo).not.toHaveBeenCalled();
+
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+    await waitFor(() => expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu'));
   });
 
-  it('volta ao login quando não há médico logado', () => {
+  it('volta ao login quando não há profissional logado', () => {
     renderizarTela(null);
 
     expect(useRouter().replace).toHaveBeenCalledWith('/');
