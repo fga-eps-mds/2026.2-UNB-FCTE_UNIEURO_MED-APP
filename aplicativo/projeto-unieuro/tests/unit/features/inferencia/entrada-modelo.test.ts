@@ -1,47 +1,98 @@
+import type { Traco } from '@/features/captura/eventos-tracado';
 import {
-  areaNoQuadrado,
+  ajustarTracosNaEntrada,
   LADO_ENTRADA,
   pixelsParaEntrada,
 } from '@/features/inferencia/entrada-modelo';
 
-describe('área do desenho no quadrado da entrada', () => {
-  it.each([
-    [
-      'quadro deitado fica centralizado na vertical',
-      1200,
-      600,
-      { x: 0, y: 64, largura: 256, altura: 128 },
-    ],
-    [
-      'quadro em pé fica centralizado na horizontal',
-      600,
-      1200,
-      { x: 64, y: 0, largura: 128, altura: 256 },
-    ],
-    [
-      'quadro quadrado ocupa a entrada inteira',
-      512,
-      512,
-      { x: 0, y: 0, largura: 256, altura: 256 },
-    ],
-  ])('%s', (_caso, largura, altura, esperado) => {
-    expect(areaNoQuadrado(largura, altura)).toEqual(esperado);
+const INICIO_DA_CAIXA = 16;
+const FIM_DA_CAIXA = 239;
+const MEIO_DA_CAIXA = 127.5;
+
+const ponto = (x: number, y: number) => ({ x, y, instante: 0 });
+const coordenadas = (tracos: readonly Traco[]) =>
+  tracos.map((traco) => traco.map(({ x, y }) => [x, y]));
+
+describe('ajuste dos traços à caixa do treino', () => {
+  it('leva a caixa dos pontos para a caixa de 224 px com borda de 16 px', () => {
+    const ajustados = ajustarTracosNaEntrada([[ponto(100, 50), ponto(300, 250)]]);
+
+    expect(coordenadas(ajustados)).toEqual([
+      [
+        [INICIO_DA_CAIXA, INICIO_DA_CAIXA],
+        [FIM_DA_CAIXA, FIM_DA_CAIXA],
+      ],
+    ]);
   });
 
-  it('mantém a proporção do desenho', () => {
-    const area = areaNoQuadrado(1168, 520);
+  it('estica cada eixo separadamente, como no conjunto de treino', () => {
+    const ajustados = ajustarTracosNaEntrada([[ponto(0, 0), ponto(200, 50), ponto(400, 100)]]);
 
-    expect(area.largura / area.altura).toBeCloseTo(1168 / 520);
-    expect(area.largura).toBe(LADO_ENTRADA);
+    expect(coordenadas(ajustados)[0][1]).toEqual([MEIO_DA_CAIXA, MEIO_DA_CAIXA]);
+  });
+
+  it('mesmo desenho em outra posição e outro tamanho do quadro dá os mesmos pontos', () => {
+    const desenho = [[ponto(10, 20), ponto(60, 80)], [ponto(30, 40)]];
+    const maiorEDeslocado = desenho.map((traco) =>
+      traco.map(({ x, y }) => ponto(500 + x * 3, 200 + y * 3)),
+    );
+
+    expect(ajustarTracosNaEntrada(maiorEDeslocado)).toEqual(ajustarTracosNaEntrada(desenho));
+  });
+
+  it('usa os pontos de todos os traços para a caixa', () => {
+    const ajustados = ajustarTracosNaEntrada([[ponto(0, 0)], [ponto(100, 100)]]);
+
+    expect(coordenadas(ajustados)).toEqual([
+      [[INICIO_DA_CAIXA, INICIO_DA_CAIXA]],
+      [[FIM_DA_CAIXA, FIM_DA_CAIXA]],
+    ]);
   });
 
   it.each([
-    ['largura zero', 0, 100],
-    ['altura negativa', 100, -1],
-    ['largura infinita', Number.POSITIVE_INFINITY, 100],
-    ['altura indefinida', 100, Number.NaN],
-  ])('recusa imagem com %s', (_caso, largura, altura) => {
-    expect(() => areaNoQuadrado(largura, altura)).toThrow('sem tamanho');
+    [
+      'traço horizontal deixa a altura no meio da caixa',
+      [ponto(0, 40), ponto(80, 40)],
+      [
+        [INICIO_DA_CAIXA, MEIO_DA_CAIXA],
+        [FIM_DA_CAIXA, MEIO_DA_CAIXA],
+      ],
+    ],
+    [
+      'traço vertical deixa a largura no meio da caixa',
+      [ponto(40, 0), ponto(40, 80)],
+      [
+        [MEIO_DA_CAIXA, INICIO_DA_CAIXA],
+        [MEIO_DA_CAIXA, FIM_DA_CAIXA],
+      ],
+    ],
+    ['um ponto só fica no centro', [ponto(70, 70)], [[MEIO_DA_CAIXA, MEIO_DA_CAIXA]]],
+  ])('%s', (_caso, traco, esperado) => {
+    expect(coordenadas(ajustarTracosNaEntrada([traco]))).toEqual([esperado]);
+  });
+
+  it('mantém o instante e a pressão de cada ponto sem alterar os traços recebidos', () => {
+    const original: Traco[] = [[{ x: 0, y: 0, instante: 12, pressao: 0.4 }, ponto(10, 10)]];
+    const copia = structuredClone(original);
+
+    const [[primeiro]] = ajustarTracosNaEntrada(original);
+
+    expect(primeiro).toEqual({
+      x: INICIO_DA_CAIXA,
+      y: INICIO_DA_CAIXA,
+      instante: 12,
+      pressao: 0.4,
+    });
+    expect(original).toEqual(copia);
+  });
+
+  it.each([
+    ['nenhum traço', []],
+    ['só traços sem pontos', [[], []]],
+    ['coordenada indefinida', [[ponto(Number.NaN, 0), ponto(10, 10)]]],
+    ['coordenada infinita', [[ponto(0, Number.POSITIVE_INFINITY), ponto(10, 10)]]],
+  ])('recusa desenho com %s', (_caso, tracos) => {
+    expect(() => ajustarTracosNaEntrada(tracos as Traco[])).toThrow('sem traço válido');
   });
 });
 

@@ -1,3 +1,4 @@
+import type { Traco } from '@/features/captura/eventos-tracado';
 import {
   calcularEscoreDoExame,
   type DesenhosDoExame,
@@ -6,13 +7,15 @@ import {
 
 jest.mock('@/features/inferencia/preparo-desenho', () => ({ prepararDesenho: jest.fn() }));
 
+const tracoEm = (x: number): Traco[] => [[{ x, y: 0, instante: 0 }]];
+
 const DESENHOS: DesenhosDoExame = {
-  relogio: new Uint8Array([1]),
-  cubo: new Uint8Array([2]),
-  trilhas: new Uint8Array([3]),
+  relogio: tracoEm(1),
+  cubo: tracoEm(2),
+  trilhas: tracoEm(3),
 };
 
-const prepararFalso = (png: Uint8Array) => new Float32Array([png[0] / 10]);
+const prepararFalso = (tracos: readonly Traco[]) => new Float32Array([tracos[0][0].x / 10]);
 
 function modeloQueDevolve(probabilidade: number) {
   return { calcularProbabilidade: jest.fn(async (_entradas: EntradasDoModelo) => probabilidade) };
@@ -63,7 +66,7 @@ describe('escore do exame', () => {
 
   it.each([
     ['sem o relógio', { ...DESENHOS, relogio: undefined }],
-    ['com o cubo vazio', { ...DESENHOS, cubo: new Uint8Array() }],
+    ['com o cubo sem traços', { ...DESENHOS, cubo: [] }],
     ['sem as trilhas', { ...DESENHOS, trilhas: undefined }],
   ])('não chama o modelo com o exame %s', async (_caso, desenhos) => {
     const modelo = modeloQueDevolve(0.5);
