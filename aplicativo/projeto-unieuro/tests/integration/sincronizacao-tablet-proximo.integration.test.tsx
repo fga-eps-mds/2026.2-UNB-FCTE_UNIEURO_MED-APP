@@ -209,9 +209,25 @@ describe('sincronizar com tablet próximo', () => {
     ).toBeOnTheScreen();
   });
 
-  it('com a localização desligada, oferece abrir a configuração dela', async () => {
+  it('com o Bluetooth e a localização desligados, pede ao sistema para ligar e já procura', async () => {
+    const user = userEvent.setup();
+    radioA.radio = { ...radioA.radio, bluetooth: false, location: false };
+    renderCard();
+
+    await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
+
+    expect(
+      await screen.findByText(/Este tablet aparece para os outros como/, undefined, SLOW),
+    ).toBeOnTheScreen();
+    expect(radioA.requestEnableBluetooth).toHaveBeenCalledTimes(1);
+    expect(radioA.requestEnableLocation).toHaveBeenCalledTimes(1);
+    expect(radioA.advertising).toBe(true);
+  });
+
+  it('quando a pessoa não liga a localização, oferece abrir a configuração dela', async () => {
     const user = userEvent.setup();
     radioA.radio = { ...radioA.radio, location: false, sdkVersion: 36 };
+    radioA.allowEnabling = false;
     const { openLocationSettings } = renderCard();
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));

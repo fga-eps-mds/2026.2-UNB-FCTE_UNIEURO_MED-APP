@@ -56,10 +56,11 @@ describe('NearbySyncCard', () => {
     expect(screen.getByRole('button', { name: 'Procurar tablets próximos' })).toBeOnTheScreen();
   });
 
-  it('com a localização desligada, oferece o atalho para ligá-la', async () => {
+  it('quando a pessoa não liga a localização, oferece o atalho para ligá-la', async () => {
     const user = userEvent.setup();
     const radio = new FakeAir().device('tablet-a');
     radio.radio = { bluetooth: true, wifi: true, location: false, sdkVersion: 36 };
+    radio.allowEnabling = false;
     const openLocationSettings = renderCard(radio);
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
@@ -70,10 +71,11 @@ describe('NearbySyncCard', () => {
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeOnTheScreen();
   });
 
-  it('com o Bluetooth desligado, pede para ligar, sem o atalho da localização', async () => {
+  it('quando a pessoa não liga o Bluetooth, pede para ligar, sem o atalho da localização', async () => {
     const user = userEvent.setup();
     const radio = new FakeAir().device('tablet-a');
     radio.radio = { ...radio.radio, bluetooth: false };
+    radio.allowEnabling = false;
     renderCard(radio);
 
     await user.press(screen.getByRole('button', { name: 'Procurar tablets próximos' }));
@@ -86,6 +88,7 @@ describe('NearbySyncCard', () => {
     const user = userEvent.setup();
     const radio = new FakeAir().device('tablet-a');
     radio.radio = { ...radio.radio, location: false };
+    radio.allowEnabling = false;
     renderCard(
       radio,
       jest.fn(async () => {

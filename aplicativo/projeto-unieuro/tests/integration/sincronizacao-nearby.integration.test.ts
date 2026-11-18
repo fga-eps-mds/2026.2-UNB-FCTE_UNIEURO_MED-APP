@@ -533,8 +533,9 @@ describe('antes de procurar', () => {
     expect(anaTablet.radio.advertising).toBe(false);
   });
 
-  it('pede para ligar o Bluetooth', async () => {
+  it('quando a pessoa não liga o Bluetooth, pede para ligar', async () => {
     anaTablet.radio.radio = { ...anaTablet.radio.radio, bluetooth: false };
+    anaTablet.radio.allowEnabling = false;
 
     await anaTablet.session.start();
 
@@ -546,9 +547,10 @@ describe('antes de procurar', () => {
   });
 
   it.each([30, 34, 36])(
-    'pede a localização ligada também no Android de API %i, que o Nearby 19.3.0 exige',
+    'sem a localização ligada, para também no Android de API %i, que o Nearby 19.3.0 exige',
     async (sdkVersion) => {
       anaTablet.radio.radio = { bluetooth: true, wifi: true, location: false, sdkVersion };
+      anaTablet.radio.allowEnabling = false;
 
       await anaTablet.session.start();
 
