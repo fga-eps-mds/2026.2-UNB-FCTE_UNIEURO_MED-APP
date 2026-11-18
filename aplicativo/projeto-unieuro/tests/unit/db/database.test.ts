@@ -3,7 +3,13 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
 import { protectStoredCpfs } from '@/db/cpf-migration';
 import type { CpfProtector } from '@/db/cpf-protection';
-import { closeDatabase, getDatabase, LEGACY_DATABASE_MESSAGE, migrate } from '@/db/database';
+import {
+  closeDatabase,
+  getDatabase,
+  LEGACY_DATABASE_MESSAGE,
+  migrate,
+  withEncryptedExclusiveTransaction,
+} from '@/db/database';
 import { applyDatabaseEncryption } from '@/db/database-encryption';
 import { loadOrCreateDatabaseKey } from '@/db/database-key';
 import { DATABASE_NAME, MIGRATIONS, SCHEMA_VERSION } from '@/db/schema';
@@ -316,6 +322,95 @@ describe('getDatabase', () => {
     await loadKeyPassedToEncryption();
 
     expect(mockLoadOrCreateDatabaseKey).toHaveBeenCalledWith(undefined, undefined, false);
+  });
+});
+
+describe('withEncryptedExclusiveTransaction', () => {
+  /** A conexão principal (já migrada) e a da transação, nessa ordem. */
+  function openConnections() {
+    const main = createDatabase(SCHEMA_VERSION);
+    const txn = createDatabase(SCHEMA_VERSION);
+    mockOpenDatabaseAsync.mockResolvedValueOnce(main).mockResolvedValueOnce(txn);
+    return { main, txn };
+  }
+
+  const sqlOf = (database: ReturnType<typeof createDatabase>) =>
+    database.execAsync.mock.calls.map((call) => (call as unknown[])[0]);
+
+  it('aplica a chave na conexão da transação antes de qualquer comando', async () => {
+    // O expo-sqlite abre essa conexão sem a chave, e no tablet a sincronização
+    // falhava na primeira leitura (código 330).
+    const { main, txn } = openConnections();
+    const task = jest.fn(async () => undefined);
+
+    await withEncryptedExclusiveTransaction(task);
+
+    expect(mockOpenDatabaseAsync).toHaveBeenLastCalledWith(DATABASE_NAME, {
+      useNewConnection: true,
+    });
+    expect(mockApplyDatabaseEncryption).toHaveBeenLastCalledWith(txn, expect.any(Function));
+    expect(mockApplyDatabaseEncryption.mock.invocationCallOrder[1]).toBeLessThan(
+      txn.execAsync.mock.invocationCallOrder[0],
+    );
+    expect(sqlOf(txn)).toEqual([
+      'PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;',
+      'BEGIN IMMEDIATE',
+      'COMMIT',
+    ]);
+    expect(task).toHaveBeenCalledWith(txn);
+    expect(txn.closeAsync).toHaveBeenCalledTimes(1);
+    expect(main.closeAsync).not.toHaveBeenCalled();
+  });
+
+  it('não cria outra chave se ela sumir do cofre', async () => {
+    openConnections();
+
+    await withEncryptedExclusiveTransaction(async () => undefined);
+    await mockApplyDatabaseEncryption.mock.calls[1][1]!();
+
+    expect(mockLoadOrCreateDatabaseKey).toHaveBeenLastCalledWith(undefined, undefined, true);
+  });
+
+  it('desfaz a transação e fecha a conexão quando a tarefa falha', async () => {
+    const { txn } = openConnections();
+
+    await expect(
+      withEncryptedExclusiveTransaction(async () => {
+        throw new Error('falha no meio');
+      }),
+    ).rejects.toThrow('falha no meio');
+
+    expect(sqlOf(txn).slice(1)).toEqual(['BEGIN IMMEDIATE', 'ROLLBACK']);
+    expect(txn.closeAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém a falha original se desfazer ou fechar também falhar', async () => {
+    const { txn } = openConnections();
+    txn.execAsync.mockImplementation(async (...args: unknown[]) => {
+      if (args[0] === 'ROLLBACK') throw new Error('falha ao desfazer');
+      return undefined;
+    });
+    txn.closeAsync.mockRejectedValueOnce(new Error('falha ao fechar'));
+
+    await expect(
+      withEncryptedExclusiveTransaction(async () => {
+        throw new Error('falha no meio');
+      }),
+    ).rejects.toThrow('falha no meio');
+  });
+
+  it('não começa a transação quando a chave não pôde ser aplicada', async () => {
+    const { txn } = openConnections();
+    mockApplyDatabaseEncryption
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('cofre indisponível'));
+    const task = jest.fn(async () => undefined);
+
+    await expect(withEncryptedExclusiveTransaction(task)).rejects.toThrow('cofre indisponível');
+
+    expect(txn.execAsync).not.toHaveBeenCalled();
+    expect(task).not.toHaveBeenCalled();
+    expect(txn.closeAsync).toHaveBeenCalledTimes(1);
   });
 });
 

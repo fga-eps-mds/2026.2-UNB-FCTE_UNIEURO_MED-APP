@@ -94,6 +94,36 @@ export function getDatabase(): Promise<SQLiteDatabase> {
   return connection;
 }
 
+/**
+ * Roda `task` numa transação exclusiva, numa conexão só dela, como o
+ * `withExclusiveTransactionAsync` do expo-sqlite. Aquele abre a conexão nova sem a
+ * chave do SQLCipher, e nela a primeira consulta falha. Aqui a conexão recebe a
+ * mesma chave da principal antes de qualquer leitura.
+ */
+export async function withEncryptedExclusiveTransaction(
+  task: (txn: SQLiteDatabase) => Promise<void>,
+): Promise<void> {
+  // A conexão principal cria e migra o banco; esta só abre o que já existe.
+  await getDatabase();
+  const txn = await openDatabaseAsync(DATABASE_NAME, { useNewConnection: true });
+  try {
+    // O banco já existe: se a chave sumir do cofre, falha em vez de criar outra.
+    await applyDatabaseEncryption(txn, () => loadOrCreateDatabaseKey(undefined, undefined, true));
+    // As duas valem só para a conexão em que são ligadas.
+    await txn.execAsync('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+    await txn.execAsync('BEGIN IMMEDIATE');
+    try {
+      await task(txn);
+      await txn.execAsync('COMMIT');
+    } catch (error) {
+      await txn.execAsync('ROLLBACK').catch(() => undefined);
+      throw error;
+    }
+  } finally {
+    await txn.closeAsync().catch(() => undefined);
+  }
+}
+
 export async function closeDatabase(): Promise<void> {
   const pending = connection;
   connection = null;

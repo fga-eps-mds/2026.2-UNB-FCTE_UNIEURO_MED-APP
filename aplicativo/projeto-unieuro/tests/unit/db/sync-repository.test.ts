@@ -4,7 +4,7 @@ import { createAttendanceRepository } from '@/db/attendance-repository';
 import { bytesToBase64 } from '@/db/base64';
 import { createConsentRepository } from '@/db/consent-repository';
 import { createCpfProtector } from '@/db/cpf-protection';
-import { migrate } from '@/db/database';
+import { migrate, withEncryptedExclusiveTransaction } from '@/db/database';
 import { createDrawingRepository } from '@/db/drawing-repository';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import { createSyncRepository, type SyncOperations } from '@/db/sync-repository';
@@ -15,6 +15,13 @@ import { webCryptoAesGcm } from '../../test-support/web-crypto-aes-gcm';
 // SQLite real. As regras de junção estão em apply-package.test.ts.
 
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
+
+// A transação com a chave do SQLCipher tem teste próprio em `database.test.ts`.
+// Aqui só importa que o repositório a use com o banco do aplicativo.
+jest.mock('@/db/database', () => ({
+  ...jest.requireActual('@/db/database'),
+  withEncryptedExclusiveTransaction: jest.fn(),
+}));
 
 const protector = createCpfProtector(async () => new Uint8Array(32).fill(5), webCryptoAesGcm);
 const OTHER = 'bbbbbbbb-0000-4000-8000-000000000000';
@@ -462,5 +469,29 @@ describe('transação', () => {
     await expect(repository.inTransaction(async (txn) => txn.getLocalDeviceId())).resolves.toBe(
       await operations.getLocalDeviceId(),
     );
+  });
+
+  it('com o banco do aplicativo, usa a transação com a chave do banco cifrado', async () => {
+    jest
+      .mocked(withEncryptedExclusiveTransaction)
+      .mockImplementationOnce((task) => database.withExclusiveTransactionAsync(task));
+    const repository = createSyncRepository(undefined, protector);
+
+    await expect(repository.inTransaction(async (txn) => txn.getLocalDeviceId())).resolves.toBe(
+      await operations.getLocalDeviceId(),
+    );
+    expect(withEncryptedExclusiveTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('usa a transação que receber', async () => {
+    const exclusive = jest.fn((task: (txn: SQLiteDatabase) => Promise<void>) =>
+      database.withExclusiveTransactionAsync(task),
+    );
+    const repository = createSyncRepository(async () => database, protector, exclusive);
+
+    await repository.inTransaction(async (txn) => txn.getLocalDeviceId());
+
+    expect(exclusive).toHaveBeenCalledTimes(1);
+    expect(withEncryptedExclusiveTransaction).not.toHaveBeenCalled();
   });
 });

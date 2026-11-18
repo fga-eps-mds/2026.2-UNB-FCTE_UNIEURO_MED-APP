@@ -5,7 +5,7 @@ import { base64ToBytes, bytesToBase64 } from '@/db/base64';
 import { getLocalDeviceId, observeRemoteHlc } from '@/db/change-tracking';
 import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
-import { getDatabase } from '@/db/database';
+import { getDatabase, withEncryptedExclusiveTransaction } from '@/db/database';
 import { FINAL_ATTENDANCE_STATES } from '@/db/sync-migration';
 
 /** Último contador recebido de cada tablet. */
@@ -809,17 +809,29 @@ function syncOperations(database: SQLiteDatabase, protector: CpfProtector) {
 
 export type SyncOperations = ReturnType<typeof syncOperations>;
 
+/** Roda a tarefa numa transação exclusiva, com a conexão que a transação usa. */
+export type ExclusiveTransaction = (task: (txn: SQLiteDatabase) => Promise<void>) => Promise<void>;
+
+/**
+ * O banco do aplicativo é cifrado, e a transação precisa de uma conexão com a
+ * chave. Um banco injetado (os testes) usa a transação do próprio banco.
+ */
+function defaultTransaction(open: () => Promise<SQLiteDatabase>): ExclusiveTransaction {
+  if (open === getDatabase) return withEncryptedExclusiveTransaction;
+  return async (task) => (await open()).withExclusiveTransactionAsync(task);
+}
+
 export function createSyncRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
   protector: CpfProtector = cpfProtector,
+  exclusiveTransaction: ExclusiveTransaction = defaultTransaction(open),
 ) {
   return {
     async inTransaction<T>(task: (operations: SyncOperations) => Promise<T>): Promise<T> {
-      const database = await open();
       // Carrega a chave antes, para a transação não esperar o Keystore.
       await protector.blindIndex('');
       let result: T | undefined;
-      await database.withExclusiveTransactionAsync(async (txn) => {
+      await exclusiveTransaction(async (txn) => {
         result = await task(syncOperations(txn, protector));
       });
       return result as T;
