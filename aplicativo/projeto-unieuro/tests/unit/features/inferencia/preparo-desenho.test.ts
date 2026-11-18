@@ -9,6 +9,7 @@ const mockPincel = {
   setStrokeCap: jest.fn(),
   setStrokeJoin: jest.fn(),
   setColor: jest.fn(),
+  dispose: jest.fn(),
 };
 const mockFolha = { drawColor: jest.fn(), drawPath: jest.fn() };
 const mockDesenho = { readPixels: jest.fn(), dispose: jest.fn() };
@@ -41,13 +42,23 @@ const PIXELS_BRANCOS = new Uint8Array(LADO_ENTRADA * LADO_ENTRADA * 4).fill(255)
 
 beforeEach(() => {
   mockCriarSuperficie.mockReturnValue(mockSuperficie);
-  mockMontarCaminho.mockImplementation((svg: string) => ({ svg }));
+  mockMontarCaminho.mockImplementation((svg: string) => ({ svg, dispose: jest.fn() }));
   mockDesenho.readPixels.mockReturnValue(PIXELS_BRANCOS);
 });
+
+type CaminhoFalso = { dispose: jest.Mock };
+const caminhosCriados = (): CaminhoFalso[] =>
+  mockMontarCaminho.mock.results.map(({ value }) => value).filter(Boolean);
+
+function liberouOsTracos() {
+  expect(mockPincel.dispose).toHaveBeenCalledTimes(1);
+  for (const caminho of caminhosCriados()) expect(caminho.dispose).toHaveBeenCalledTimes(1);
+}
 
 function liberouTudo() {
   expect(mockSuperficie.dispose).toHaveBeenCalledTimes(1);
   expect(mockDesenho.dispose).toHaveBeenCalledTimes(1);
+  liberouOsTracos();
 }
 
 describe('preparo do desenho para o modelo', () => {
@@ -66,7 +77,10 @@ describe('preparo do desenho para o modelo', () => {
       ['M127.5 127.5 L127.5 127.5'],
     ]);
     expect(mockFolha.drawPath).toHaveBeenCalledTimes(2);
-    expect(mockFolha.drawPath).toHaveBeenCalledWith({ svg: 'M16 16 L239 239' }, mockPincel);
+    expect(mockFolha.drawPath).toHaveBeenCalledWith(
+      expect.objectContaining({ svg: 'M16 16 L239 239' }),
+      mockPincel,
+    );
   });
 
   it('usa traço preto de 2,5 px, com pontas arredondadas e antialias, como no conjunto de treino', () => {
@@ -120,6 +134,36 @@ describe('preparo do desenho para o modelo', () => {
     mockMontarCaminho.mockReturnValue(null);
 
     expect(() => prepararDesenho(DESENHO)).toThrow('desenhar um traço');
+    expect(mockSuperficie.dispose).toHaveBeenCalledTimes(1);
+    expect(mockPincel.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('libera cada caminho e o pincel depois de desenhar', () => {
+    prepararDesenho(DESENHO);
+
+    expect(caminhosCriados()).toHaveLength(2);
+    liberouOsTracos();
+  });
+
+  it('libera os caminhos já criados e o pincel quando um traço do meio falha', () => {
+    mockMontarCaminho
+      .mockImplementationOnce((svg: string) => ({ svg, dispose: jest.fn() }))
+      .mockReturnValueOnce(null);
+
+    expect(() => prepararDesenho([...DESENHO, [ponto(10, 10)]])).toThrow('desenhar um traço');
+    expect(caminhosCriados()).toHaveLength(1);
+    liberouOsTracos();
+    expect(mockSuperficie.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('libera o caminho quando o desenho dele falha', () => {
+    mockFolha.drawPath.mockImplementationOnce(() => {
+      throw new Error('falha nativa ao desenhar');
+    });
+
+    expect(() => prepararDesenho(DESENHO)).toThrow('falha nativa ao desenhar');
+    expect(caminhosCriados()).toHaveLength(1);
+    liberouOsTracos();
     expect(mockSuperficie.dispose).toHaveBeenCalledTimes(1);
   });
 

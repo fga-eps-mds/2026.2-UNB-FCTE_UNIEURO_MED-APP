@@ -7,6 +7,7 @@ import {
   StrokeJoin,
   type SkCanvas,
   type SkImage,
+  type SkPaint,
 } from '@shopify/react-native-skia';
 
 import { tracoParaCaminhoSvg, type Traco } from '@/features/captura/eventos-tracado';
@@ -42,13 +43,26 @@ function criarPincel() {
   return pincel;
 }
 
+function desenharTraco(folha: SkCanvas, traco: Traco, pincel: SkPaint) {
+  const caminho = Skia.Path.MakeFromSVGString(tracoParaCaminhoSvg(traco));
+  // Um traço que falta mudaria o escore sem aviso.
+  if (!caminho) throw new Error('Não foi possível desenhar um traço na entrada do modelo.');
+  try {
+    folha.drawPath(caminho, pincel);
+  } finally {
+    caminho.dispose();
+  }
+}
+
+// Pincel e caminhos também ocupam memória nativa, e um exame cria um caminho por traço.
 function desenharTracos(folha: SkCanvas, tracos: readonly Traco[]) {
   const pincel = criarPincel();
-  for (const traco of tracos.filter((pontos) => pontos.length > 0)) {
-    const caminho = Skia.Path.MakeFromSVGString(tracoParaCaminhoSvg(traco));
-    // Um traço que falta mudaria o escore sem aviso.
-    if (!caminho) throw new Error('Não foi possível desenhar um traço na entrada do modelo.');
-    folha.drawPath(caminho, pincel);
+  try {
+    for (const traco of tracos.filter((pontos) => pontos.length > 0)) {
+      desenharTraco(folha, traco, pincel);
+    }
+  } finally {
+    pincel.dispose();
   }
 }
 
