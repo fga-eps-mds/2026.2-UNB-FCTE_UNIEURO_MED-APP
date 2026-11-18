@@ -45,6 +45,10 @@ export class FakeNearby implements NearbyApi {
   readonly connected = new Set<string>();
   readonly accepted = new Set<string>();
   readonly stopAll = jest.fn(() => this.stopEverything());
+  readonly stopSearching = jest.fn(() => {
+    this.advertising = false;
+    this.discovering = false;
+  });
   private readonly listeners = new Map<string, Set<Listener>>();
 
   constructor(
@@ -67,6 +71,19 @@ export class FakeNearby implements NearbyApi {
   maxMessageBytes = () => MAX_BYTES;
 
   getRadioState = () => this.radio;
+
+  /** Resposta da pessoa aos pedidos de ligar o Bluetooth e a localização. */
+  allowEnabling = true;
+
+  readonly requestEnableBluetooth = jest.fn(async () => {
+    if (this.allowEnabling) this.radio = { ...this.radio, bluetooth: true };
+    return this.allowEnabling;
+  });
+
+  readonly requestEnableLocation = jest.fn(async () => {
+    if (this.allowEnabling) this.radio = { ...this.radio, location: true };
+    return this.allowEnabling;
+  });
 
   requestPermissions = async () => this.permissionsGranted;
 

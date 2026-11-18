@@ -30,6 +30,13 @@ export type Subscription = { remove(): void };
 export type NativeNearby = {
   maxMessageBytes(): number;
   getRadioState(): RadioState;
+  /**
+   * Pedido do sistema para ligar o Bluetooth, sem sair do app. `true` quando ele
+   * fica ligado; `false` quando a pessoa nega.
+   */
+  requestEnableBluetooth(): Promise<boolean>;
+  /** Pedido do Google Play Services para ligar a localização, como nos apps de mapa. */
+  requestEnableLocation(): Promise<boolean>;
   startAdvertising(name: string): Promise<void>;
   startDiscovery(): Promise<void>;
   requestConnection(name: string, endpointId: string): Promise<void>;
@@ -37,6 +44,8 @@ export type NativeNearby = {
   rejectConnection(endpointId: string): Promise<void>;
   sendMessage(endpointId: string, text: string): Promise<void>;
   disconnect(endpointId: string): void;
+  /** Para de anunciar e de procurar, sem derrubar a conexão em andamento. */
+  stopSearching(): void;
   stopAll(): void;
   addListener<E extends keyof NearbyEvents>(event: E, listener: NearbyEvents[E]): Subscription;
 };
@@ -92,6 +101,8 @@ export function loadNearby(
   return {
     maxMessageBytes: () => native.maxMessageBytes(),
     getRadioState: () => native.getRadioState(),
+    requestEnableBluetooth: () => native.requestEnableBluetooth(),
+    requestEnableLocation: () => native.requestEnableLocation(),
     startAdvertising: (name) => native.startAdvertising(name),
     startDiscovery: () => native.startDiscovery(),
     requestConnection: (name, endpointId) => native.requestConnection(name, endpointId),
@@ -99,6 +110,7 @@ export function loadNearby(
     rejectConnection: (endpointId) => native.rejectConnection(endpointId),
     sendMessage: (endpointId, text) => native.sendMessage(endpointId, text),
     disconnect: (endpointId) => native.disconnect(endpointId),
+    stopSearching: () => native.stopSearching(),
     stopAll: () => native.stopAll(),
     addListener: (event, listener) => native.addListener(event, listener),
     requestPermissions: () => requestNearbyPermissions(native.getRadioState().sdkVersion),

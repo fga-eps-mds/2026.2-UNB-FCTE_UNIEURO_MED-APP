@@ -98,6 +98,8 @@ describe('carregamento do módulo nativo', () => {
         location: true,
         sdkVersion: 30,
       })),
+      requestEnableBluetooth: jest.fn(async () => true),
+      requestEnableLocation: jest.fn(async () => false),
       startAdvertising: jest.fn(async () => undefined),
       startDiscovery: jest.fn(async () => undefined),
       requestConnection: jest.fn(async () => undefined),
@@ -105,6 +107,7 @@ describe('carregamento do módulo nativo', () => {
       rejectConnection: jest.fn(async () => undefined),
       sendMessage: jest.fn(async () => undefined),
       disconnect: jest.fn(),
+      stopSearching: jest.fn(),
       stopAll: jest.fn(),
       addListener: jest.fn(() => subscription),
     };
@@ -114,6 +117,8 @@ describe('carregamento do módulo nativo', () => {
 
     expect(api.maxMessageBytes()).toBe(32768);
     expect(api.getRadioState().sdkVersion).toBe(30);
+    await expect(api.requestEnableBluetooth()).resolves.toBe(true);
+    await expect(api.requestEnableLocation()).resolves.toBe(false);
     await api.startAdvertising('Tablet A1B2');
     await api.startDiscovery();
     await api.requestConnection('Tablet A1B2', 'e1');
@@ -121,6 +126,7 @@ describe('carregamento do módulo nativo', () => {
     await api.rejectConnection('e2');
     await api.sendMessage('e1', 'oi');
     api.disconnect('e1');
+    api.stopSearching();
     api.stopAll();
     expect(api.addListener('onMessage', listener)).toBe(subscription);
 
@@ -130,6 +136,7 @@ describe('carregamento do módulo nativo', () => {
     expect(native.rejectConnection).toHaveBeenCalledWith('e2');
     expect(native.sendMessage).toHaveBeenCalledWith('e1', 'oi');
     expect(native.disconnect).toHaveBeenCalledWith('e1');
+    expect(native.stopSearching).toHaveBeenCalled();
     expect(native.stopAll).toHaveBeenCalled();
     expect(native.addListener).toHaveBeenCalledWith('onMessage', listener);
 

@@ -78,6 +78,13 @@ type Dependencies = {
 // Busca anterior ainda ativa.
 const ALREADY_RUNNING = new Set([8001, 8002, 8008]);
 
+/**
+ * Depois de aceitar, quanto tempo esperar o aviso de conexão concluída. Sem ele
+ * (por exemplo, quando os dois tablets pedem a conexão ao mesmo tempo), os dois
+ * ficariam esperando um pelo outro.
+ */
+export const CONNECTION_TIMEOUT_MS = 30_000;
+
 /** Mensagem válida no lugar errado da troca. */
 class OrderError extends ProtocolError {
   constructor(
@@ -85,6 +92,15 @@ class OrderError extends ProtocolError {
     readonly code: SyncErrorCode,
   ) {
     super(message);
+  }
+}
+
+/** Falha ao mostrar o pedido conta como negado: a tela orienta a ligar à mão. */
+async function askToEnable(request: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await request();
+  } catch {
+    return false;
   }
 }
 
@@ -130,6 +146,10 @@ export function createNearbySession({
   let outgoingLogged = false;
   // A mensagem fica a cargo do aviso de desconexão, que vem em seguida.
   let connectionLost = false;
+  let connectionTimer: ReturnType<typeof setTimeout> | null = null;
+  // Muda a cada início e a cada `stop`: um início antigo que volta de uma espera
+  // (por exemplo, do pedido de ligar o Bluetooth) sabe que foi encerrado.
+  let startRun = 0;
 
   function setState(next: NearbyState) {
     state = next;
@@ -143,7 +163,13 @@ export function createNearbySession({
     return { phase: 'searching', localName, endpoints: found, connecting: null, wifiOff, notice };
   }
 
+  function clearConnectionTimer() {
+    if (connectionTimer !== null) clearTimeout(connectionTimer);
+    connectionTimer = null;
+  }
+
   function resetConnection() {
+    clearConnectionTimer();
     endpointId = null;
     peerName = '';
     assembler = createAssembler();
@@ -182,6 +208,29 @@ export function createNearbySession({
   function fail(failure: SyncFailure) {
     release();
     setState({ phase: 'failed', failure });
+  }
+
+  /**
+   * Larga a conexão em andamento e volta a anunciar e procurar. A lista fica: o
+   * outro tablet pode ainda não ter voltado a anunciar.
+   */
+  async function searchAgain(notice: SyncFailure | null) {
+    resetConnection();
+    setState(searching(notice));
+    try {
+      await startRadios();
+    } catch (error) {
+      fail(startFailure(nearbyStatus(error)));
+    }
+  }
+
+  /** Aceitou e o aviso de conexão concluída não veio. */
+  async function giveUpWaiting() {
+    connectionTimer = null;
+    if (phase() !== 'waiting' || !endpointId) return;
+    // Cancela o pedido pendente, para o outro tablet também sair da espera.
+    api.disconnect(endpointId);
+    await searchAgain(syncFailure(205));
   }
 
   async function send(message: ProtocolMessage) {
@@ -340,17 +389,29 @@ export function createNearbySession({
   }
 
   function onConnectionInitiated(event: { endpointId: string; name: string; digits: string }) {
-    if (endpointId && endpointId !== event.endpointId) {
-      api.rejectConnection(event.endpointId).catch(() => undefined);
+    if (endpointId) {
+      // Outro tablet no meio de uma conexão: recusa. O mesmo tablet de novo (os dois
+      // tocaram um no outro ao mesmo tempo): fica a conexão que já está em
+      // andamento, sem voltar à senha. Recusar este cancelaria as duas.
+      if (endpointId !== event.endpointId) {
+        api.rejectConnection(event.endpointId).catch(() => undefined);
+      }
       return;
     }
     endpointId = event.endpointId;
     peerName = event.name;
     setState({ phase: 'confirming', peerName, digits: event.digits, checking: false, error: null });
+    // Procurar pesa no rádio e deixa a conexão instável.
+    try {
+      api.stopSearching();
+    } catch {
+      // Se não parar, a conexão segue mesmo assim.
+    }
   }
 
   function onConnectionResult(event: { endpointId: string; ok: boolean; statusCode: number }) {
     if (event.endpointId !== endpointId) return;
+    clearConnectionTimer();
     if (!event.ok) {
       const code = event.statusCode === STATUS_CONNECTION_REJECTED ? 204 : 205;
       fail(syncFailure(code, { nearby: event.statusCode }));
@@ -416,38 +477,53 @@ export function createNearbySession({
         return;
       }
       release();
+      const run = ++startRun;
+      const cancelled = () => run !== startRun;
       setState({ phase: 'starting' });
 
       let radios: RadioState;
       try {
-        if (!(await api.requestPermissions())) {
+        const granted = await api.requestPermissions();
+        if (cancelled()) return;
+        if (!granted) {
           setState({ phase: 'blocked', reason: 'permissions', failure: syncFailure(101) });
           return;
         }
         radios = api.getRadioState();
       } catch (error) {
-        fail(startFailure(nearbyStatus(error)));
+        if (!cancelled()) fail(startFailure(nearbyStatus(error)));
         return;
       }
+      // Pede ao sistema para ligar o que falta. Se a pessoa negar, a tela explica.
       if (radios.bluetooth === false) {
-        setState({ phase: 'blocked', reason: 'bluetooth', failure: syncFailure(102) });
-        return;
+        const enabled = await askToEnable(api.requestEnableBluetooth);
+        if (cancelled()) return;
+        if (!enabled) {
+          setState({ phase: 'blocked', reason: 'bluetooth', failure: syncFailure(102) });
+          return;
+        }
       }
       if (radios.location === false) {
-        setState({ phase: 'blocked', reason: 'location', failure: syncFailure(103) });
-        return;
+        const enabled = await askToEnable(api.requestEnableLocation);
+        if (cancelled()) return;
+        if (!enabled) {
+          setState({ phase: 'blocked', reason: 'location', failure: syncFailure(103) });
+          return;
+        }
       }
       wifiOff = radios.wifi === false;
 
       try {
         local = await sync.describeLocal();
       } catch (error) {
+        if (cancelled()) return;
         if (__DEV__) {
           console.error('Falha ao ler os dados do tablet', error);
         }
         fail(syncFailure(104));
         return;
       }
+      if (cancelled()) return;
       localName = tabletName(local.deviceId);
 
       try {
@@ -461,10 +537,16 @@ export function createNearbySession({
         ];
         await startRadios();
       } catch (error) {
+        if (cancelled()) return;
         if (__DEV__) {
           console.error('Falha ao começar a procurar tablets', error);
         }
         fail(startFailure(nearbyStatus(error)));
+        return;
+      }
+      if (cancelled()) {
+        // A tela saiu enquanto os rádios ligavam: desliga o que acabou de ligar.
+        api.stopAll();
         return;
       }
 
@@ -500,6 +582,7 @@ export function createNearbySession({
         return;
       }
       setState({ phase: 'waiting', peerName });
+      connectionTimer = setTimeout(() => void giveUpWaiting(), CONNECTION_TIMEOUT_MS);
       try {
         await api.acceptConnection(endpointId);
       } catch (error) {
@@ -513,7 +596,7 @@ export function createNearbySession({
         const rejected = endpointId;
         resetConnection();
         await api.rejectConnection(rejected).catch(() => undefined);
-        setState(searching());
+        await searchAgain(null);
         return;
       }
       release();
@@ -521,6 +604,7 @@ export function createNearbySession({
     },
 
     stop() {
+      startRun += 1;
       release();
       setState({ phase: 'idle' });
     },
