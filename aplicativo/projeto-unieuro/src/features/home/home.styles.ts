@@ -68,6 +68,7 @@ export function createHomeStyles(theme: ThemeColors) {
     },
     logoText: { color: theme.onPrimary, fontFamily: FontFamilies.bold, fontSize: 20 },
     brandName: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 20 },
+    brandCaption: { ...label, marginTop: 2 },
     // O nome do profissional encolhe e vira reticências, para não empurrar os
     // botões de configurações e de sair para fora da tela (#97).
     account: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },

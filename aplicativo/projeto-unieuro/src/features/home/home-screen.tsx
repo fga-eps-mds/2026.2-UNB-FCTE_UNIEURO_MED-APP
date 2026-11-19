@@ -134,6 +134,8 @@ export default function HomeScreen({
           </View>
           <View>
             <Text style={styles.brandName}>MNEMA</Text>
+            {/* O cabeçalho do médico comum fica como na tela aceita na #46. */}
+            {!allProfessionals && <Text style={styles.brandCaption}>RASTREIO COGNITIVO</Text>}
           </View>
         </View>
         <View style={styles.account}>
@@ -151,6 +153,7 @@ export default function HomeScreen({
             onPress={() => router.push('/settings')}
             styles={styles}
             color={theme.primary}
+            showIcon={allProfessionals}
           />
           <HeaderLink
             icon="logout"
@@ -158,6 +161,7 @@ export default function HomeScreen({
             onPress={signOut}
             styles={styles}
             color={theme.primary}
+            showIcon={allProfessionals}
           />
         </View>
       </View>
@@ -178,8 +182,10 @@ export default function HomeScreen({
             accessibilityLabel="Novo exame"
             onPress={() => router.push('/novo-exame')}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-            <ButtonIcon name="plus" color={theme.onPrimary} />
-            <Text style={styles.primaryButtonText}>Novo exame</Text>
+            {allProfessionals && <ButtonIcon name="plus" color={theme.onPrimary} />}
+            <Text style={styles.primaryButtonText}>
+              {allProfessionals ? 'Novo exame' : '+ Novo exame'}
+            </Text>
           </Pressable>
         </View>
 
@@ -229,10 +235,12 @@ export default function HomeScreen({
                   !hasExams && styles.disabledButton,
                   pressed && styles.pressed,
                 ]}>
-                <ButtonIcon
-                  name="tray-arrow-down"
-                  color={hasExams ? theme.primary : theme.textSecondary}
-                />
+                {allProfessionals && (
+                  <ButtonIcon
+                    name="tray-arrow-down"
+                    color={hasExams ? theme.primary : theme.textSecondary}
+                  />
+                )}
                 <Text style={[styles.outlineButtonText, !hasExams && styles.disabledButtonText]}>
                   Exportar todos (XML)
                 </Text>
@@ -241,7 +249,7 @@ export default function HomeScreen({
                 accessibilityRole="button"
                 onPress={() => showNotice(PENDING.sync)}
                 style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-                <ButtonIcon name="sync" color={theme.primary} />
+                {allProfessionals && <ButtonIcon name="sync" color={theme.primary} />}
                 <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
               </Pressable>
             </View>
@@ -401,6 +409,7 @@ type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 function ButtonIcon({ name, color }: { name: IconName; color: string }) {
   return (
     <MaterialCommunityIcons
+      testID="icone-do-botao"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       name={name}
@@ -416,17 +425,19 @@ type HeaderLinkProps = {
   styles: HomeStyles;
   icon: IconName;
   color: string;
+  /** Só o cabeçalho do superusuário segue o protótipo com ícones (#49). */
+  showIcon: boolean;
 };
 
-/** Ação do cabeçalho em forma de link, com ícone, como no protótipo. */
-function HeaderLink({ label, onPress, styles, icon, color }: HeaderLinkProps) {
+/** Ação do cabeçalho em forma de link, como no protótipo. */
+function HeaderLink({ label, onPress, styles, icon, color, showIcon }: HeaderLinkProps) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-      <ButtonIcon name={icon} color={color} />
+      {showIcon && <ButtonIcon name={icon} color={color} />}
       <Text style={styles.textButtonText}>{label}</Text>
     </Pressable>
   );

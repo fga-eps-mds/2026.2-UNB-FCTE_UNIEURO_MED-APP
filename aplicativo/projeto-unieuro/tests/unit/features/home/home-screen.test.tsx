@@ -316,6 +316,16 @@ describe('HomeScreen', () => {
       expect(screen.queryByText(/^Atendido por/)).toBeNull();
     });
 
+    it('segue o protótipo no cabeçalho e nos botões, com ícones', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.queryByText('RASTREIO COGNITIVO')).toBeNull();
+      expect(screen.getByText('Novo exame')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('icone-do-botao', { includeHiddenElements: true })).toHaveLength(
+        5,
+      );
+    });
+
     it('mostra os atalhos do protótipo do responsável pela pesquisa', () => {
       renderTela(deTodos, responsavel);
 
@@ -342,6 +352,16 @@ describe('HomeScreen', () => {
   });
 
   describe('Cenário: médico comum não vê o que outro coletou', () => {
+    it('mantém o cabeçalho e os botões da tela aceita na #46, sem ícones', () => {
+      renderTela();
+
+      expect(screen.getByText('RASTREIO COGNITIVO')).toBeOnTheScreen();
+      expect(screen.getByText('+ Novo exame')).toBeOnTheScreen();
+      expect(screen.queryAllByTestId('icone-do-botao', { includeHiddenElements: true })).toEqual(
+        [],
+      );
+    });
+
     it('não mostra quem atendeu, porque todos os pacientes da lista são dele', () => {
       renderTela();
 
