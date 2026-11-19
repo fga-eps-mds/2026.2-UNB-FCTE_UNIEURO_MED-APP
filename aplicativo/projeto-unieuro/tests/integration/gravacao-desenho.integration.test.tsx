@@ -255,3 +255,27 @@ describe('Cenário: tudo ou nada', () => {
     });
   });
 });
+
+describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
+  it('confirmar as trilhas grava o desenho, tira o exame de em andamento e abre a tela final', async () => {
+    await mockTablet.database.runAsync(
+      "UPDATE avaliacao SET estado = 'em_andamento' WHERE id = ?",
+      [atendimentoId],
+    );
+    const user = abrirTarefa('3');
+    await desenharNoQuadro([
+      [500, 245],
+      [706, 54],
+    ]);
+
+    await confirmar(user);
+
+    const exame = await mockTablet.database.getFirstAsync<{ estado: string }>(
+      'SELECT estado FROM avaliacao WHERE id = ?',
+      [atendimentoId],
+    );
+    expect(exame!.estado).toBe('processando_resultado');
+    expect(await contar('desenho')).toBe(1);
+    expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
+  });
+});

@@ -71,6 +71,7 @@ const desenho = (extra: Partial<DrawingRecord> = {}): DrawingRecord => ({
   confirmadoEm: CONFIRMED_AT,
   eventos: EVENTOS,
   imagemPng: PNG,
+  encerraExame: false,
   ...extra,
 });
 
@@ -314,5 +315,58 @@ describe('Cenário: tudo ou nada', () => {
     );
 
     await nadaGravado();
+  });
+});
+
+describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
+  const mudarEstado = (estado: string) =>
+    tablet.database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [
+      estado,
+      attendanceId,
+    ]);
+  const exame = () =>
+    tablet.database.getFirstAsync<{ estado: string; last_update: string }>(
+      'SELECT estado, last_update FROM avaliacao WHERE id = ?',
+      [attendanceId],
+    );
+
+  beforeEach(async () => {
+    await mudarEstado('em_andamento');
+  });
+
+  it('a última tarefa passa o exame para processando o resultado, na hora da confirmação', async () => {
+    await repository.salvarDesenho(desenho());
+    await repository.salvarDesenho(desenho({ ordem: 2, tipo: 'cubo' }));
+    await repository.salvarDesenho(desenho({ ordem: 3, tipo: 'trilhas', encerraExame: true }));
+
+    await expect(exame()).resolves.toEqual({
+      estado: 'processando_resultado',
+      last_update: CONFIRMED_AT,
+    });
+  });
+
+  it('as tarefas anteriores deixam o exame em andamento', async () => {
+    await repository.salvarDesenho(desenho());
+    await repository.salvarDesenho(desenho({ ordem: 2, tipo: 'cubo' }));
+
+    expect((await exame())!.estado).toBe('em_andamento');
+  });
+
+  it('não muda o exame que já saiu de em andamento', async () => {
+    await mudarEstado('interrompida');
+
+    await repository.salvarDesenho(desenho({ ordem: 3, tipo: 'trilhas', encerraExame: true }));
+
+    expect((await exame())!.estado).toBe('interrompida');
+  });
+
+  it('se a última tarefa não é gravada, o exame continua em andamento', async () => {
+    await expect(
+      repository.salvarDesenho(
+        desenho({ ordem: 3, tipo: 'trilhas', encerraExame: true, imagemPng: new Uint8Array() }),
+      ),
+    ).rejects.toThrow(/CHECK/);
+
+    expect((await exame())!.estado).toBe('em_andamento');
   });
 });
