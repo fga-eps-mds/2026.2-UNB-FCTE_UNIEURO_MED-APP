@@ -355,8 +355,10 @@ describe('atendimentos de todos os profissionais', () => {
       lastState: 'concluida',
       attendedBy: PAULO.name,
       professionalIds: expect.any(Array),
+      professionalNames: expect.any(Array),
     });
     expect([...jose!.professionalIds!].sort()).toEqual([ana.id, paulo.id].sort());
+    expect([...jose!.professionalNames!].sort()).toEqual([ANA.name, PAULO.name].sort());
   });
 
   it('Cenário: médico comum não vê o que outro coletou', async () => {

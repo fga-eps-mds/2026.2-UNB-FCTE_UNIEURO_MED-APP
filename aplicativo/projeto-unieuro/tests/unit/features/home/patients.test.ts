@@ -75,6 +75,24 @@ describe('busca de paciente', () => {
     expect(filterPatients(deTodos, 'carolina').map((p) => p.id)).toEqual([1]);
   });
 
+  it('na lista do superusuário, encontra por qualquer profissional que já atendeu o paciente', () => {
+    const deTodos = [
+      paciente({
+        id: 1,
+        attendedBy: 'Paulo Henrique Rocha',
+        professionalNames: ['Ana Carolina Souza', 'Paulo Henrique Rocha'],
+      }),
+      paciente({
+        id: 2,
+        attendedBy: 'Paulo Henrique Rocha',
+        professionalNames: ['Paulo Henrique Rocha'],
+      }),
+    ];
+
+    expect(filterPatients(deTodos, 'Ana').map((p) => p.id)).toEqual([1]);
+    expect(filterPatients(deTodos, 'paulo').map((p) => p.id)).toEqual([1, 2]);
+  });
+
   it('devolve todos quando a busca está vazia', () => {
     expect(filterPatients(lista, '   ')).toHaveLength(3);
   });
@@ -266,10 +284,12 @@ describe('atendimento convertido para a lista', () => {
       lastState: 'concluida',
       attendedBy: 'Bruno Lima',
       professionalIds: [10, 11],
+      professionalNames: ['Ana Souza', 'Bruno Lima'],
     });
 
     expect(resumo.attendedBy).toBe('Bruno Lima');
     expect(resumo.professionalIds).toEqual([10, 11]);
+    expect(resumo.professionalNames).toEqual(['Ana Souza', 'Bruno Lima']);
   });
 });
 

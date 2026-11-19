@@ -231,8 +231,16 @@ describe('HomeScreen', () => {
 
   describe('Cenário: responsável vê todos os atendimentos', () => {
     const deTodos: PatientSummary[] = [
-      { ...pacientes[0], attendedBy: 'Ana Carolina Souza' },
-      { ...pacientes[1], attendedBy: 'Bruno Henrique Lima' },
+      {
+        ...pacientes[0],
+        attendedBy: 'Ana Carolina Souza',
+        professionalNames: ['Ana Carolina Souza'],
+      },
+      {
+        ...pacientes[1],
+        attendedBy: 'Bruno Henrique Lima',
+        professionalNames: ['Ana Carolina Souza', 'Bruno Henrique Lima'],
+      },
     ];
     const responsavel: SessionProfessional = { ...profissional, superuser: true };
 
@@ -269,6 +277,21 @@ describe('HomeScreen', () => {
 
       expect(botoesDePaciente()).toHaveLength(1);
       expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+    });
+
+    it('busca por qualquer profissional que atendeu, e não só por quem atendeu por último', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'ana carolina');
+
+      expect(botoesDePaciente()).toHaveLength(2);
+    });
+
+    it('diz no campo de busca que também dá para buscar pelo CPF', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByPlaceholderText('Nome, ficha, CPF ou profissional')).toBeOnTheScreen();
     });
 
     it('lê quem atendeu no texto do leitor de tela', () => {

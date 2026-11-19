@@ -22,6 +22,8 @@ export type PatientSummary = {
   attendedBy?: string;
   /** Profissionais que já atenderam o paciente. Também só na lista do superusuário. */
   professionalIds?: readonly number[];
+  /** Nome de todos os que já atenderam o paciente, para a busca do superusuário. */
+  professionalNames?: readonly string[];
   /**
    * Situação do último exame, também quando ele ainda não terminou ("Em
    * andamento"). Sem ela, a lista usa `lastExamStatus`.
@@ -58,6 +60,7 @@ export type AttendedPatient = {
   lastState: string;
   attendedBy?: string;
   professionalIds?: number[];
+  professionalNames?: string[];
 };
 
 /** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
@@ -156,6 +159,9 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     lastExamSituation: describeExamState(patient.lastState),
     ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
     ...(patient.professionalIds === undefined ? {} : { professionalIds: patient.professionalIds }),
+    ...(patient.professionalNames === undefined
+      ? {}
+      : { professionalNames: patient.professionalNames }),
   };
 }
 
@@ -196,7 +202,8 @@ export function cpfDigitsOf(query: string): string | null {
  * Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, pelo número
  * da ficha ou pelos primeiros dígitos do CPF. O CPF é comparado pelo começo, e
  * não por qualquer trecho, como a equipe combinou na #99. Na lista do
- * superusuário, também pelo nome de quem atendeu (#49).
+ * superusuário, também pelo nome de qualquer profissional que já atendeu o
+ * paciente, e não só de quem atendeu por último (#49).
  */
 export function filterPatients(
   patients: readonly PatientSummary[],
@@ -208,11 +215,15 @@ export function filterPatients(
   const cpfDigits = cpfDigitsOf(query);
   const matchesCpf = (patient: PatientSummary) =>
     cpfDigits !== null && (cpfs.get(patient.id)?.startsWith(cpfDigits) ?? false);
+  const matchesProfessional = (patient: PatientSummary) =>
+    [...(patient.professionalNames ?? []), patient.attendedBy ?? ''].some(
+      (name) => name !== '' && normalize(name).includes(term),
+    );
   return patients.filter(
     (patient) =>
       normalize(patient.name).includes(term) ||
       normalize(patient.recordNumber).includes(term) ||
-      (patient.attendedBy !== undefined && normalize(patient.attendedBy).includes(term)) ||
+      matchesProfessional(patient) ||
       matchesCpf(patient),
   );
 }

@@ -206,7 +206,7 @@ export default function HomeScreen({
                   }
                   placeholder={
                     allProfessionals
-                      ? 'Nome, ficha ou profissional'
+                      ? 'Nome, ficha, CPF ou profissional'
                       : 'Buscar por nome, ficha ou CPF'
                   }
                   placeholderTextColor={theme.placeholder}
