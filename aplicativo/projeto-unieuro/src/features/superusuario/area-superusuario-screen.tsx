@@ -16,7 +16,10 @@ export const PERFIL_SUPERUSUARIO = 'Superusuário';
 export const BOTAO_EXAMES_DE_TODOS = 'Ver exames de todos';
 
 type AreaSuperusuarioScreenProps = {
-  /** Gerenciamento das contas dos médicos: listar, criar e excluir (#119, parte do Lucas). */
+  /**
+   * Contas dos médicos: listar, criar, desativar e redefinir a senha (#119, parte do Lucas).
+   * A conta é desativada, nunca removida, e os exames dela ficam no tablet (cliente, 16/11).
+   */
   children?: ReactNode;
 };
 
