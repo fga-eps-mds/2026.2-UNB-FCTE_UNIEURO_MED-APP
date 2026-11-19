@@ -297,28 +297,16 @@ describe('HomeScreen', () => {
       renderTela(deTodos, responsavel);
 
       for (const nome of [
-        'Área do superusuário',
         'Configurações',
         'Sair',
         'Novo exame',
-        'Exportar a coleta inteira (XML)',
+        'Exportar todos (XML)',
         'Sincronizar tablets',
       ]) {
         expect(screen.getByRole('button', { name: nome })).toBeOnTheScreen();
       }
       expect(
         screen.getByText('BUSCAR PACIENTE OU PROFISSIONAL', { includeHiddenElements: true }),
-      ).toBeOnTheScreen();
-    });
-
-    it('avisa que a área do superusuário chega numa próxima entrega', async () => {
-      const user = userEvent.setup();
-      renderTela(deTodos, responsavel);
-
-      await user.press(screen.getByRole('button', { name: 'Área do superusuário' }));
-
-      expect(
-        screen.getByText('A área do superusuário chega em uma próxima entrega.'),
       ).toBeOnTheScreen();
     });
 
@@ -352,10 +340,9 @@ describe('HomeScreen', () => {
       expect(screen.queryByText('ATENDIDO POR')).toBeNull();
     });
 
-    it('não mostra a área do superusuário e busca só pelo paciente', () => {
+    it('busca só pelo paciente', () => {
       renderTela();
 
-      expect(screen.queryByRole('button', { name: 'Área do superusuário' })).toBeNull();
       expect(
         screen.getByText('BUSCAR PACIENTE', { includeHiddenElements: true }),
       ).toBeOnTheScreen();

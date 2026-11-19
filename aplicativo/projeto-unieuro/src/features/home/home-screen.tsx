@@ -64,7 +64,6 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 const PENDING = {
   export: 'A exportação em XML chega em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
-  superuserArea: 'A área do superusuário chega em uma próxima entrega.',
 };
 
 /** Tempo que o aviso rápido fica na tela, como pede o guia de identidade visual. */
@@ -146,13 +145,6 @@ export default function HomeScreen({
               {allProfessionals ? 'Responsável pela pesquisa' : `CRM ${formatCrm(professional)}`}
             </Text>
           </View>
-          {allProfessionals && (
-            <HeaderLink
-              label="Área do superusuário"
-              onPress={() => showNotice(PENDING.superuserArea)}
-              styles={styles}
-            />
-          )}
           <HeaderLink
             icon="cog-outline"
             label="Configurações"
@@ -242,7 +234,7 @@ export default function HomeScreen({
                   color={hasExams ? theme.primary : theme.textSecondary}
                 />
                 <Text style={[styles.outlineButtonText, !hasExams && styles.disabledButtonText]}>
-                  {allProfessionals ? 'Exportar a coleta inteira (XML)' : 'Exportar todos (XML)'}
+                  Exportar todos (XML)
                 </Text>
               </Pressable>
               <Pressable
@@ -422,11 +414,11 @@ type HeaderLinkProps = {
   label: string;
   onPress: () => void;
   styles: HomeStyles;
-  icon?: IconName;
-  color?: string;
+  icon: IconName;
+  color: string;
 };
 
-/** Ação do cabeçalho em forma de link, com ícone opcional, como no protótipo. */
+/** Ação do cabeçalho em forma de link, com ícone, como no protótipo. */
 function HeaderLink({ label, onPress, styles, icon, color }: HeaderLinkProps) {
   return (
     <Pressable
@@ -434,7 +426,7 @@ function HeaderLink({ label, onPress, styles, icon, color }: HeaderLinkProps) {
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-      {icon && color ? <ButtonIcon name={icon} color={color} /> : null}
+      <ButtonIcon name={icon} color={color} />
       <Text style={styles.textButtonText}>{label}</Text>
     </Pressable>
   );
