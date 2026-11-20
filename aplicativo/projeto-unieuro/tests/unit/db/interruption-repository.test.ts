@@ -80,7 +80,9 @@ const desistencia = { tarefa: 2, motivo: 'cansaco' as const, interrompidoEm: DES
 
 describe('desistência', () => {
   it('interrompe o exame em andamento com a tarefa, o motivo e a hora', async () => {
-    await expect(repository.interromper({ atendimentoId, ...desistencia })).resolves.toBe(true);
+    await expect(
+      repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia }),
+    ).resolves.toBe(true);
 
     await expect(estadoDoAtendimento()).resolves.toEqual({
       estado: 'interrompida',
@@ -90,8 +92,25 @@ describe('desistência', () => {
     });
   });
 
+  it('não interrompe o exame aplicado por outro médico', async () => {
+    const bruno = (await tablet.repository.findByEmail(BRUNO.email))!;
+
+    await expect(
+      repository.interromper({ atendimentoId, profissionalId: bruno.id, ...desistencia }),
+    ).resolves.toBe(false);
+    await expect(estadoDoAtendimento()).resolves.toMatchObject({
+      estado: 'em_andamento',
+      tarefa_interrupcao: null,
+    });
+  });
+
   it('aceita desistir sem motivo', async () => {
-    await repository.interromper({ atendimentoId, ...desistencia, motivo: null });
+    await repository.interromper({
+      atendimentoId,
+      profissionalId: tablet.anaId,
+      ...desistencia,
+      motivo: null,
+    });
 
     await expect(estadoDoAtendimento()).resolves.toMatchObject({ motivo_interrupcao: null });
   });
@@ -101,7 +120,9 @@ describe('desistência', () => {
     async (estado) => {
       await colocarEm(estado);
 
-      await expect(repository.interromper({ atendimentoId, ...desistencia })).resolves.toBe(false);
+      await expect(
+        repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia }),
+      ).resolves.toBe(false);
       await expect(estadoDoAtendimento()).resolves.toMatchObject({
         estado,
         tarefa_interrupcao: null,
@@ -111,11 +132,17 @@ describe('desistência', () => {
 
   it('recusa tarefa ou motivo fora do esquema', async () => {
     await expect(
-      repository.interromper({ atendimentoId, ...desistencia, tarefa: 4 }),
+      repository.interromper({
+        atendimentoId,
+        profissionalId: tablet.anaId,
+        ...desistencia,
+        tarefa: 4,
+      }),
     ).rejects.toThrow(/CHECK/);
     await expect(
       repository.interromper({
         atendimentoId,
+        profissionalId: tablet.anaId,
         ...desistencia,
         motivo: 'sono' as unknown as 'cansaco',
       }),
@@ -126,7 +153,7 @@ describe('desistência', () => {
 describe('exame interrompido', () => {
   it('mostra o paciente, a parada e as tarefas com desenho gravado', async () => {
     await gravarDesenho(1);
-    await repository.interromper({ atendimentoId, ...desistencia });
+    await repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia });
 
     await expect(repository.buscarInterrompido(atendimentoId, tablet.anaId)).resolves.toEqual({
       atendimentoId,
@@ -143,7 +170,7 @@ describe('exame interrompido', () => {
     const outro = await tablet.repository.findByEmail(BRUNO.email);
     await expect(repository.buscarInterrompido(atendimentoId, tablet.anaId)).resolves.toBeNull();
 
-    await repository.interromper({ atendimentoId, ...desistencia });
+    await repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia });
 
     await expect(repository.buscarInterrompido(atendimentoId, outro!.id)).resolves.toBeNull();
   });
@@ -151,7 +178,7 @@ describe('exame interrompido', () => {
 
 describe('retomada', () => {
   it('volta o exame interrompido para o andamento sem apagar a última parada', async () => {
-    await repository.interromper({ atendimentoId, ...desistencia });
+    await repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia });
 
     await expect(repository.retomar(atendimentoId, tablet.anaId, RETOMOU)).resolves.toBe(true);
     await expect(estadoDoAtendimento()).resolves.toMatchObject({
@@ -164,7 +191,7 @@ describe('retomada', () => {
     const outro = await tablet.repository.findByEmail(BRUNO.email);
     await expect(repository.retomar(atendimentoId, tablet.anaId, RETOMOU)).resolves.toBe(false);
 
-    await repository.interromper({ atendimentoId, ...desistencia });
+    await repository.interromper({ atendimentoId, profissionalId: tablet.anaId, ...desistencia });
 
     await expect(repository.retomar(atendimentoId, outro!.id, RETOMOU)).resolves.toBe(false);
     await expect(estadoDoAtendimento()).resolves.toMatchObject({ estado: 'interrompida' });

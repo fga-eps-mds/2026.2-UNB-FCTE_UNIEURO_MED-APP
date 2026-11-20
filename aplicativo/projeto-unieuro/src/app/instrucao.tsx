@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
+import { useSession } from '@/features/auth/session';
 import InstructionScreen from '@/features/avaliacao/instruction-screen';
 import { valorDoParametro } from '@/features/avaliacao/tarefas';
 import { giveUpExam } from '@/features/avaliacao/composition';
@@ -11,6 +12,7 @@ import { useConsentGate } from '@/features/avaliacao/use-consent-gate';
 // instrução com o botão voltar.
 export default function InstructionRoute() {
   const router = useRouter();
+  const { professional } = useSession();
   const { atendimento, tarefa } = useLocalSearchParams<{ atendimento?: string; tarefa?: string }>();
   const acesso = useConsentGate(atendimento);
 
@@ -31,6 +33,7 @@ export default function InstructionRoute() {
       onDesistir={async (atual, motivo) => {
         await giveUpExam({
           atendimentoId: Number(valorDoParametro(atendimento)),
+          profissionalId: professional?.id ?? 0,
           tarefa: atual.numero,
           motivo,
         });
