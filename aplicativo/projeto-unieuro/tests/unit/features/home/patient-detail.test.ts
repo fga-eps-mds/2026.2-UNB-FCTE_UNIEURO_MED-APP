@@ -201,3 +201,24 @@ describe('data e hora do exame', () => {
     expect(formatDateTime('2026-10-05T07:05:00')).toBe('05/10/2026 · 07:05');
   });
 });
+
+describe('exame com resultado (#14)', () => {
+  it('só o exame com os três desenhos tem resultado para abrir', () => {
+    const detalhe = toPatientDetail({
+      id: 7,
+      name: 'José Alves Martins',
+      recordNumber: '2026-0184',
+      birthDate: '1948-03-14',
+      schoolingYears: 5,
+      sex: 'masculino',
+      exams: [
+        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida' },
+        { id: 2, startedAt: '2026-10-04T14:32:00', state: 'processando_resultado' },
+        { id: 3, startedAt: '2026-10-03T14:32:00', state: 'em_andamento' },
+        { id: 4, startedAt: '2026-10-02T14:32:00', state: 'interrompida' },
+      ],
+    });
+
+    expect(detalhe.exams.map((exam) => exam.hasResult)).toEqual([true, true, false, false]);
+  });
+});
