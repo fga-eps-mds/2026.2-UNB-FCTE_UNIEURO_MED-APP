@@ -1,7 +1,9 @@
+import { FINALIZED_STATES } from '@/db/schema';
 import type { CredentialsRepository } from '@/features/auth/authentication';
 import type { SessionProfessional } from '@/features/auth/session';
 import {
   EXAME_FINALIZADO,
+  ESTADOS_FINALIZADOS,
   EXAME_NAO_ENCONTRADO,
   PACIENTE_COM_EXAME_FINALIZADO,
   PACIENTE_NAO_ENCONTRADO,
@@ -54,6 +56,11 @@ describe('podeExcluirExame', () => {
     'não oferece a exclusão para o exame finalizado (%s)',
     (estado) => expect(podeExcluirExame(estado)).toBe(false),
   );
+
+  it('usa a mesma lista de finalizados que os gatilhos do banco', () => {
+    // Se uma mudar sem a outra, a tela ofereceria uma exclusão que o banco recusa.
+    expect([...ESTADOS_FINALIZADOS].sort()).toEqual([...FINALIZED_STATES].sort());
+  });
 });
 
 describe('excluirExame (#58)', () => {

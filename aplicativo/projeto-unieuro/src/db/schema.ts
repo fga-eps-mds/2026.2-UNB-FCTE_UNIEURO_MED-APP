@@ -264,10 +264,20 @@ ALTER TABLE avaliacao ADD COLUMN motivo_interrupcao TEXT
 ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT;
 `;
 
-// Estados depois dos três desenhos. Ata 12 (09/11): exame finalizado faz parte da
-// pesquisa e não pode ser excluído. A regra da aplicação usa a mesma lista
-// (`ESTADOS_FINALIZADOS`, em `features/avaliacao/exclusao.ts`).
-const FINALIZADOS = `('processando_resultado', 'erro_inferencia', 'concluida')`;
+/**
+ * Estados depois dos três desenhos. Ata 12 (09/11): exame finalizado faz parte da
+ * pesquisa e não pode ser excluído. Os gatilhos da versão 11 e o repositório da
+ * exclusão usam esta lista. A regra da aplicação tem a mesma (`ESTADOS_FINALIZADOS`,
+ * em `features/avaliacao/exclusao.ts`), e um teste confere que as duas batem.
+ *
+ * Os gatilhos ficam gravados no banco do tablet quando a versão 11 roda. Mudar esta
+ * lista depois disso não muda os gatilhos já criados: é preciso uma migration nova.
+ */
+export const FINALIZED_STATES = ['processando_resultado', 'erro_inferencia', 'concluida'] as const;
+
+export const FINALIZED_STATES_SQL = `(${FINALIZED_STATES.map((estado) => `'${estado}'`).join(', ')})`;
+
+const FINALIZADOS = FINALIZED_STATES_SQL;
 
 /**
  * Versão 11: exclusão de exame (#58) e de paciente (#47). Nada é apagado de

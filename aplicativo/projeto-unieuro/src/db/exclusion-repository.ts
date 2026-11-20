@@ -1,9 +1,11 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import { ESTADOS_FINALIZADOS, type ExclusaoRepository } from '@/features/avaliacao/exclusao';
+import { FINALIZED_STATES_SQL } from '@/db/schema';
+import type { ExclusaoRepository } from '@/features/avaliacao/exclusao';
 
-const FINALIZADOS = `(${ESTADOS_FINALIZADOS.map((estado) => `'${estado}'`).join(', ')})`;
+// A mesma lista dos gatilhos do banco: o banco não importa valores da feature.
+const FINALIZADOS = FINALIZED_STATES_SQL;
 
 // Só os exames do profissional que ainda não foram excluídos.
 const RESUMO_DO_PACIENTE = `SELECT COUNT(*) AS exames, SUM(estado IN ${FINALIZADOS}) AS finalizados
@@ -13,7 +15,7 @@ const RESUMO_DO_PACIENTE = `SELECT COUNT(*) AS exames, SUM(estado IN ${FINALIZAD
 /**
  * Exclusão lógica de exame (#58) e de paciente (#47). Nada sai do banco: o exame
  * recebe `excluido_em` e `excluido_por`, e a tabela `exclusao` guarda o pedido.
- * Os gatilhos da versão 10 repetem a regra do exame finalizado.
+ * Os gatilhos da versão 11 repetem a regra do exame finalizado.
  */
 export function createExclusionRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,

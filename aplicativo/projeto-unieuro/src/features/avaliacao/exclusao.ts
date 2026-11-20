@@ -5,7 +5,8 @@ import type { EstadoAvaliacao } from '@/features/avaliacao/consentimento';
 /**
  * Estados depois dos três desenhos. Ata 12 (09/11): exame finalizado faz parte da
  * pesquisa e não pode ser excluído. O banco tem a mesma lista nos gatilhos da
- * versão 10 (`schema.ts`).
+ * versão 11 (`FINALIZED_STATES`, em `schema.ts`), e um teste confere que as duas
+ * batem. Mudar a regra exige mudar as duas e criar uma migration nova.
  */
 export const ESTADOS_FINALIZADOS: readonly EstadoAvaliacao[] = [
   'processando_resultado',
