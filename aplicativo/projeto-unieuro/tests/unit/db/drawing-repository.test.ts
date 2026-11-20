@@ -345,6 +345,13 @@ describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
     });
   });
 
+  it('sem os três desenhos gravados, a última tarefa não encerra o exame', async () => {
+    await repository.salvarDesenho(desenho());
+    await repository.salvarDesenho(desenho({ ordem: 3, tipo: 'trilhas', encerraExame: true }));
+
+    expect((await exame())!.estado).toBe('em_andamento');
+  });
+
   it('as tarefas anteriores deixam o exame em andamento', async () => {
     await repository.salvarDesenho(desenho());
     await repository.salvarDesenho(desenho({ ordem: 2, tipo: 'cubo' }));

@@ -124,10 +124,14 @@ export function createDrawingRepository(open: () => Promise<SQLiteDatabase> = ge
           [taskId, desenho.imagemPng, desenho.confirmadoEm],
         );
         if (desenho.encerraExame) {
+          // Só com os três desenhos gravados: o fluxo e a retomada já garantem a ordem, mas
+          // um exame que chegasse à última tarefa sem os anteriores continua em andamento.
           await database.runAsync(
             `UPDATE avaliacao SET estado = 'processando_resultado', last_update = ?
-             WHERE id = ? AND estado = 'em_andamento'`,
-            [desenho.confirmadoEm, desenho.atendimentoId],
+             WHERE id = ? AND estado = 'em_andamento'
+               AND (SELECT COUNT(*) FROM tarefa t JOIN desenho d ON d.id_tarefa = t.id
+                    WHERE t.id_avaliacao = ?) = 3`,
+            [desenho.confirmadoEm, desenho.atendimentoId, desenho.atendimentoId],
           );
         }
       });

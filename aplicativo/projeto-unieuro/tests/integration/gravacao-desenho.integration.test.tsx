@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import DrawingRoute from '@/app/desenho';
 import { createAttendanceRepository } from '@/db/attendance-repository';
+import { createDrawingRepository } from '@/db/drawing-repository';
 import { SessionProvider } from '@/features/auth/session';
 import { FALHA_AO_SALVAR } from '@/features/avaliacao/drawing-task-screen';
 import { gerarImagemDesenho } from '@/features/captura/imagem-desenho';
@@ -262,6 +263,26 @@ describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
       "UPDATE avaliacao SET estado = 'em_andamento' WHERE id = ?",
       [atendimentoId],
     );
+    // O relógio e o cubo já gravados, como no fluxo: só com os três desenhos o exame sai
+    // de "em andamento".
+    const desenhos = createDrawingRepository(async () => mockTablet.database);
+    for (const [ordem, tipo] of [
+      [1, 'relogio'],
+      [2, 'cubo'],
+    ] as const) {
+      await desenhos.salvarDesenho({
+        atendimentoId,
+        ordem,
+        tipo,
+        largura: QUADRO.largura,
+        altura: QUADRO.altura,
+        iniciadoEm: '2026-11-03T14:00:00.000Z',
+        confirmadoEm: '2026-11-03T14:02:00.000Z',
+        eventos: [],
+        imagemPng: PNG,
+        encerraExame: false,
+      });
+    }
     const user = abrirTarefa('3');
     await desenharNoQuadro([
       [500, 245],
@@ -275,7 +296,7 @@ describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
       [atendimentoId],
     );
     expect(exame!.estado).toBe('processando_resultado');
-    expect(await contar('desenho')).toBe(1);
+    expect(await contar('desenho')).toBe(3);
     expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
   });
 });
