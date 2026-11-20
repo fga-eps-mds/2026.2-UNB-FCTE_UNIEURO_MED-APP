@@ -1,25 +1,22 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
 
-import type { CredentialsRepository } from '@/features/auth/authentication';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import { SENHA_INCORRETA } from '@/features/avaliacao/confirmacao-profissional';
+import {
+  DIGITOS_INCOMPLETOS,
+  DIGITOS_INCORRETOS,
+  type ProfessionalCpfRepository,
+} from '@/features/avaliacao/confirmacao-profissional';
 import ExameInterrompidoScreen, {
   AVISO_LOCAL,
   BOTAO_PROFISSIONAL,
   BOTAO_RETOMAR,
   FALHA_AO_CARREGAR,
   FALHA_AO_RETOMAR,
+  FALHA_NA_CONFERENCIA,
   SEM_ANALISE,
 } from '@/features/avaliacao/exame-interrompido-screen';
 import type { ExameInterrompido } from '@/features/avaliacao/interrupcao';
-
-jest.mock('@/features/auth/password', () => ({
-  DUMMY_PASSWORD_HASH: 'hash-ficticio',
-  verifyPassword: jest.fn(
-    async (password: string, hash: string) => hash === 'hash-real' && password === 'senhaForte123',
-  ),
-}));
 
 const profissional: SessionProfessional = {
   id: 7,
@@ -29,9 +26,12 @@ const profissional: SessionProfessional = {
   crmState: 'DF',
 };
 
+// CPF fictício do profissional da sessão: a conferência usa os quatro primeiros dígitos.
+const CPF = '52998224725';
+
 const repositorio = {
-  findByEmail: jest.fn(async () => ({ ...profissional, active: true, passwordHash: 'hash-real' })),
-} satisfies CredentialsRepository;
+  getCpf: jest.fn(async () => CPF),
+} satisfies ProfessionalCpfRepository;
 
 const exame = (extra: Partial<ExameInterrompido> = {}): ExameInterrompido => ({
   atendimentoId: 12,
@@ -130,29 +130,57 @@ describe('ExameInterrompidoScreen', () => {
     expect(screen.getByRole('button', { name: BOTAO_PROFISSIONAL })).toBeOnTheScreen();
   });
 
-  it('só volta à área do profissional com a senha dele', async () => {
+  it('só volta à área do profissional com os quatro primeiros dígitos do CPF dele', async () => {
     const { user } = await renderizar();
+    const campo = () => screen.getByLabelText('Quatro primeiros dígitos do CPF');
 
     await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
-    await user.type(screen.getByLabelText('Senha do profissional'), 'errada');
+    await user.type(campo(), '1234');
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
-    expect(await screen.findByLabelText(`Erro. ${SENHA_INCORRETA}`)).toBeOnTheScreen();
+    expect(await screen.findByLabelText(`Erro. ${DIGITOS_INCORRETOS}`)).toBeOnTheScreen();
+    expect(repositorio.getCpf).toHaveBeenCalledWith(7);
     expect(useRouter().dismissTo).not.toHaveBeenCalled();
+    expect(campo()).toHaveDisplayValue('');
 
-    await user.type(screen.getByLabelText('Senha do profissional'), 'senhaForte123');
+    await user.type(campo(), CPF.slice(0, 4));
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
   });
 
-  it('cancelar a senha volta aos botões da tela', async () => {
+  it('aceita só números e avisa quando faltam dígitos, sem limpar o que foi digitado', async () => {
+    const { user } = await renderizar();
+    const campo = () => screen.getByLabelText('Quatro primeiros dígitos do CPF');
+
+    await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
+    await user.type(campo(), '5a2');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(campo()).toHaveDisplayValue('52');
+    expect(await screen.findByLabelText(`Erro. ${DIGITOS_INCOMPLETOS}`)).toBeOnTheScreen();
+    expect(useRouter().dismissTo).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando não consegue ler o CPF e libera o botão', async () => {
+    repositorio.getCpf.mockRejectedValueOnce(new Error('cofre'));
+    const { user } = await renderizar();
+
+    await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
+    await user.type(screen.getByLabelText('Quatro primeiros dígitos do CPF'), '5299');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(await screen.findByLabelText(`Erro. ${FALHA_NA_CONFERENCIA}`)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeEnabled();
+  });
+
+  it('cancelar a conferência volta aos botões da tela', async () => {
     const { user } = await renderizar();
 
     await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
     await user.press(screen.getByRole('button', { name: 'Cancelar' }));
 
-    expect(screen.queryByLabelText('Senha do profissional')).toBeNull();
+    expect(screen.queryByLabelText('Quatro primeiros dígitos do CPF')).toBeNull();
     expect(screen.getByRole('button', { name: BOTAO_RETOMAR })).toBeOnTheScreen();
   });
 

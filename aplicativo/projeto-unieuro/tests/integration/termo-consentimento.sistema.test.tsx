@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import ConsentRoute from '@/app/tcle';
@@ -78,6 +78,14 @@ const estadoDe = async (atendimentoId: number) =>
     )
   )?.estado;
 
+// O toque em "Assinar e iniciar" e em "Confirmar recusa" volta antes de a gravação
+// terminar: a tela grava a decisão no banco e só depois navega. Num computador mais
+// lento, como o da esteira, a leitura do banco chegava antes da gravação e o teste
+// falhava às vezes. Esperar a navegação garante que a gravação acabou.
+const aguardarAceiteGravado = () => waitFor(() => expect(useRouter().replace).toHaveBeenCalled());
+const aguardarRecusaGravada = () =>
+  waitFor(() => expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu'));
+
 async function abrirTermo(atendimentoId: number) {
   jest.mocked(useLocalSearchParams).mockReturnValue({ atendimento: String(atendimentoId) });
   render(
@@ -134,6 +142,7 @@ describe('Cenário: recusa do termo', () => {
 
     await user.press(screen.getByRole('button', { name: 'Recusar' }));
     await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+    await aguardarRecusaGravada();
 
     const consentimento = await consentimentoDe(atendimentoId);
     expect(consentimento).toMatchObject({
@@ -163,6 +172,7 @@ describe('Cenário: recusa do termo', () => {
     const user = await abrirTermo(atendimentoId);
     await user.press(screen.getByRole('button', { name: 'Recusar' }));
     await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+    await aguardarRecusaGravada();
     screen.unmount();
     jest.mocked(useRouter().dismissTo).mockClear();
 
@@ -188,6 +198,7 @@ describe('Cenário: aceite do termo', () => {
     await user.press(screen.getByRole('radio', { name: 'Uso das imagens: Sim' }));
     await user.press(screen.getByRole('radio', { name: 'Uso futuro: Sim' }));
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await aguardarAceiteGravado();
 
     const consentimento = await consentimentoDe(atendimentoId);
     expect(consentimento).toMatchObject({
@@ -229,6 +240,7 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
 
     fireEvent.changeText(campoCpf(), '111.444.777-35');
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await aguardarAceiteGravado();
 
     const consentimento = await consentimentoDe(atendimentoId);
     expect(consentimento).toMatchObject({
@@ -250,6 +262,7 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
 
     fireEvent.changeText(campoCpf(), CPF_RESPONSAVEL);
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await aguardarAceiteGravado();
 
     const linhas = await mockTablet.database.getAllAsync<Record<string, unknown>>(
       'SELECT * FROM consentimento',
@@ -263,6 +276,7 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
     const user = await prepararAceiteDoResponsavel(atendimentoId);
     fireEvent.changeText(campoCpf(), CPF_RESPONSAVEL);
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await aguardarAceiteGravado();
 
     await mockTablet.reabrir();
 
@@ -324,6 +338,7 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
 
     expect(screen.queryByLabelText('CPF do responsável legal')).toBeNull();
     await user.press(screen.getByRole('button', { name: 'Assinar e iniciar' }));
+    await aguardarAceiteGravado();
 
     const consentimento = await consentimentoDe(atendimentoId);
     expect(consentimento).toMatchObject({ aceito: 1, assinado_por: 'paciente' });
@@ -338,6 +353,7 @@ describe('Cenário: aceite pelo responsável legal, com o CPF dele', () => {
 
     await user.press(screen.getByRole('button', { name: 'Recusar' }));
     await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
+    await aguardarRecusaGravada();
 
     const consentimento = await consentimentoDe(atendimentoId);
     expect(consentimento).toMatchObject({ aceito: 0, assinado_por: 'responsavel_legal' });

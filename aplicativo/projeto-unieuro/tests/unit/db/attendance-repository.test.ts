@@ -51,6 +51,20 @@ async function insertProfessional() {
   return saved!.id;
 }
 
+async function insertOtherProfessional() {
+  const professionals = createProfessionalRepository(async () => database, protector);
+  await professionals.insert({
+    name: 'Bruno Lima',
+    email: 'bruno.lima@unieuro.com.br',
+    crmNumber: '54321',
+    crmState: 'GO',
+    cpf: '39053344705',
+    passwordHash: 'hash-da-senha',
+    createdAt: '2026-09-26T13:00:00.000Z',
+  });
+  return (await professionals.findByEmail('bruno.lima@unieuro.com.br'))!.id;
+}
+
 const countRows = async (table: 'paciente' | 'avaliacao') =>
   (await database.getFirstAsync<{ total: number }>(`SELECT count(*) AS total FROM ${table}`))!
     .total;
@@ -357,20 +371,6 @@ describe('pacientes atendidos pelo profissional', () => {
   const setState = (attendanceId: number, estado: string) =>
     database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [estado, attendanceId]);
 
-  async function insertOtherProfessional() {
-    const professionals = createProfessionalRepository(async () => database, protector);
-    await professionals.insert({
-      name: 'Bruno Lima',
-      email: 'bruno.lima@unieuro.com.br',
-      crmNumber: '54321',
-      crmState: 'GO',
-      cpf: '39053344705',
-      passwordHash: 'hash-da-senha',
-      createdAt: '2026-09-26T13:00:00.000Z',
-    });
-    return (await professionals.findByEmail('bruno.lima@unieuro.com.br'))!.id;
-  }
-
   it('não lista ninguém para quem ainda não atendeu', async () => {
     await expect(repository.listAttendedPatients(professionalId)).resolves.toEqual([]);
   });
@@ -510,5 +510,118 @@ describe('paciente do atendimento', () => {
 
   it('devolve nulo para um atendimento que não existe', async () => {
     await expect(repository.findPatientOfAttendance(999)).resolves.toBeNull();
+  });
+});
+
+describe('paciente com os exames do profissional', () => {
+  it('devolve os dados do paciente e os exames, do mais recente ao mais antigo', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: '2026-09-28T13:05:00.000Z',
+    });
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    await repository.createAttendance({
+      patient: { id },
+      professionalId,
+      startedAt: '2026-10-05T17:32:00.000Z',
+    });
+
+    const patient = await repository.findPatientWithExams(professionalId, id);
+
+    expect(patient).toEqual({
+      id,
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+      birthDate: '1948-03-14',
+      schoolingYears: 5,
+      sex: 'masculino',
+      exams: [
+        { id: 2, startedAt: '2026-10-05T17:32:00.000Z', state: 'aguardando_consentimento' },
+        { id: 1, startedAt: '2026-09-28T13:05:00.000Z', state: 'aguardando_consentimento' },
+      ],
+    });
+  });
+
+  it('devolve a situação gravada de cada exame', async () => {
+    const { attendanceId } = await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [
+      attendanceId,
+    ]);
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+
+    const patient = await repository.findPatientWithExams(professionalId, id);
+
+    expect(patient?.exams.map((exam) => exam.state)).toEqual(['concluida']);
+  });
+
+  it('guarda o sexo vazio como nulo', async () => {
+    await repository.createAttendance({
+      patient: newPatient({ sex: null }),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+
+    await expect(repository.findPatientWithExams(professionalId, id)).resolves.toMatchObject({
+      sex: null,
+    });
+  });
+
+  it('não mostra ao profissional os exames que outro aplicou no mesmo paciente', async () => {
+    const otherId = await insertOtherProfessional();
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: '2026-10-05T17:32:00.000Z',
+    });
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    await repository.createAttendance({
+      patient: { id },
+      professionalId: otherId,
+      startedAt: '2026-10-06T17:32:00.000Z',
+    });
+
+    const daAna = await repository.findPatientWithExams(professionalId, id);
+    const doBruno = await repository.findPatientWithExams(otherId, id);
+
+    expect(daAna?.exams).toHaveLength(1);
+    expect(daAna?.exams[0].startedAt).toBe('2026-10-05T17:32:00.000Z');
+    expect(doBruno?.exams).toHaveLength(1);
+    expect(doBruno?.exams[0].startedAt).toBe('2026-10-06T17:32:00.000Z');
+  });
+
+  it('devolve nulo para o paciente que só outro profissional atendeu', async () => {
+    const otherId = await insertOtherProfessional();
+    await repository.createAttendance({
+      patient: newPatient({ name: 'Maria das Dores', cpf: OTHER_CPF }),
+      professionalId: otherId,
+      startedAt: STARTED_AT,
+    });
+    const { id } = (await repository.findPatientByCpf(OTHER_CPF))!;
+
+    await expect(repository.findPatientWithExams(professionalId, id)).resolves.toBeNull();
+  });
+
+  it('devolve nulo para um paciente que não existe', async () => {
+    await expect(repository.findPatientWithExams(professionalId, 999)).resolves.toBeNull();
+  });
+
+  it('não devolve o CPF do paciente', async () => {
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+
+    const patient = await repository.findPatientWithExams(professionalId, id);
+
+    expect(JSON.stringify(patient)).not.toContain(PATIENT_CPF);
+    expect(Object.keys(patient!)).not.toContain('cpf');
   });
 });

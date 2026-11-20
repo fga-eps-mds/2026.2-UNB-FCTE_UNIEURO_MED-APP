@@ -16,6 +16,8 @@ export type TaskTopBarProps = {
   cores: ThemeColors;
   /** Grava a desistência na tarefa atual (#25). Sem ela, a barra não mostra o "Desistir". */
   onDesistir?: (motivo: MotivoDesistencia | null) => Promise<void>;
+  /** Letras maiores (#24). */
+  escala?: number;
 };
 
 /**
@@ -23,8 +25,8 @@ export type TaskTopBarProps = {
  * desenho (#9): um círculo por tarefa, o texto "Tarefa N de 3" e a frase de ajuda
  * (guia de identidade visual, "Telas do paciente").
  */
-export function TaskTopBar({ numero, cores, onDesistir }: Readonly<TaskTopBarProps>) {
-  const styles = useMemo(() => createInstructionStyles(cores), [cores]);
+export function TaskTopBar({ numero, cores, onDesistir, escala = 1 }: Readonly<TaskTopBarProps>) {
+  const styles = useMemo(() => createInstructionStyles(cores, undefined, escala), [cores, escala]);
   const interrupcao = useMemo(() => createInterrupcaoStyles(), []);
   const [desistindo, setDesistindo] = useState(false);
   const progresso = `Tarefa ${numero} de ${TOTAL_TAREFAS}`;

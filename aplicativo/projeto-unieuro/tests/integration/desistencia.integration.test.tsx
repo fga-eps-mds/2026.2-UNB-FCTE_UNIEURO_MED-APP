@@ -16,7 +16,6 @@ jest.mock('@/features/avaliacao/composition', () => ({
   loadInterruptedExam: jest.fn(),
   resumeExam: jest.fn(),
 }));
-jest.mock('@/features/auth/composition', () => ({ credentialsRepository: {} }));
 jest.mock('@/features/captura/composition', () => ({ confirmDrawing: jest.fn() }));
 
 const profissional: SessionProfessional = {
