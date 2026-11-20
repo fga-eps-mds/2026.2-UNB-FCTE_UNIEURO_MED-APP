@@ -1,6 +1,11 @@
 import { StyleSheet } from 'react-native';
 
-import { BrandPalette, Colors, FontFamilies } from '@/constants/theme';
+import { Colors, FontFamilies } from '@/constants/theme';
+import {
+  ampliarTexto,
+  CORES_DO_PACIENTE,
+  type CoresDoPaciente,
+} from '@/features/avaliacao/tema-do-paciente';
 
 /**
  * As telas do paciente são sempre claras, mesmo com o tablet no modo escuro, para a
@@ -18,18 +23,23 @@ export const ALTURA_BOTAO_ACAO = 84;
 export const LARGURA_LATERAL = 260;
 
 /** Texto sobre o pêssego claro e fundo do "Confirmar" pressionado (guia de identidade visual). */
-export const LARANJA_ESCURO = '#7C2D12';
+export const LARANJA_ESCURO = CORES_DO_PACIENTE.pressionado;
 
 /** Botão desabilitado (guia de identidade visual). */
-export const DESABILITADO = { fundo: '#E2E8F0', texto: '#475569' } as const;
+export const DESABILITADO = {
+  fundo: CORES_DO_PACIENTE.desabilitadoFundo,
+  texto: CORES_DO_PACIENTE.desabilitadoTexto,
+} as const;
 
 /** Fundo acolhedor das telas do paciente, atrás da figura de modelo e na tela final. */
-export const FUNDO_ACOLHEDOR = '#FFF7ED';
+export const FUNDO_ACOLHEDOR = CORES_DO_PACIENTE.fundoAcolhedor;
 
-/** Estilos da tela de desenho de cada tarefa (#9), uma tela do paciente: texto de 20 pontos ou mais. */
-export function createDrawingTaskStyles() {
-  const cores = CORES_DA_TAREFA;
-  return StyleSheet.create({
+/**
+ * Estilos da tela de desenho de cada tarefa (#9), uma tela do paciente: texto de 20 pontos
+ * ou mais. As cores e a escala vêm dos ajustes do teste (#24); sem eles, valem as do guia.
+ */
+export function createDrawingTaskStyles(cores: CoresDoPaciente = CORES_DO_PACIENTE, escala = 1) {
+  const estilos = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: cores.background },
     corpo: { flex: 1, gap: 16, paddingHorizontal: 40, paddingTop: 16, paddingBottom: 40 },
     // Deitado, o lembrete, o "Desfazer", o "Apagar tudo" e o "Confirmar" ficam numa linha,
@@ -46,7 +56,7 @@ export function createDrawingTaskStyles() {
       paddingVertical: 12,
       paddingHorizontal: 24,
       borderRadius: 16,
-      backgroundColor: BrandPalette.lightPeach,
+      backgroundColor: cores.destaque,
     },
     lembreteTitulo: {
       color: cores.primary,
@@ -55,7 +65,7 @@ export function createDrawingTaskStyles() {
       lineHeight: 32,
     },
     lembreteFrase: {
-      color: LARANJA_ESCURO,
+      color: cores.textoSobreDestaque,
       fontFamily: FontFamilies.regular,
       fontSize: 20,
       lineHeight: 28,
@@ -73,15 +83,18 @@ export function createDrawingTaskStyles() {
       borderColor: cores.primary,
       backgroundColor: cores.surface,
     },
-    botaoAcaoPressionado: { backgroundColor: BrandPalette.lightPeach },
-    botaoAcaoDesabilitado: { borderColor: DESABILITADO.fundo, backgroundColor: DESABILITADO.fundo },
+    botaoAcaoPressionado: { backgroundColor: cores.destaque },
+    botaoAcaoDesabilitado: {
+      borderColor: cores.desabilitadoFundo,
+      backgroundColor: cores.desabilitadoFundo,
+    },
     textoAcao: {
       color: cores.primary,
       fontFamily: FontFamilies.semibold,
       fontSize: 24,
       lineHeight: 30,
     },
-    textoAcaoDesabilitado: { color: DESABILITADO.texto },
+    textoAcaoDesabilitado: { color: cores.desabilitadoTexto },
     confirmar: { width: LARGURA_LATERAL, gap: 8 },
     botaoConfirmar: {
       minHeight: ALTURA_BOTAO_CONFIRMAR,
@@ -91,15 +104,15 @@ export function createDrawingTaskStyles() {
       borderRadius: 16,
       backgroundColor: cores.primary,
     },
-    botaoConfirmarPressionado: { backgroundColor: LARANJA_ESCURO },
-    botaoConfirmarDesabilitado: { backgroundColor: DESABILITADO.fundo },
+    botaoConfirmarPressionado: { backgroundColor: cores.pressionado },
+    botaoConfirmarDesabilitado: { backgroundColor: cores.desabilitadoFundo },
     textoConfirmar: {
       color: cores.onPrimary,
       fontFamily: FontFamilies.semibold,
       fontSize: 26,
       lineHeight: 32,
     },
-    textoConfirmarDesabilitado: { color: DESABILITADO.texto },
+    textoConfirmarDesabilitado: { color: cores.desabilitadoTexto },
     dica: {
       color: cores.textSecondary,
       fontFamily: FontFamilies.regular,
@@ -127,7 +140,7 @@ export function createDrawingTaskStyles() {
       fontSize: 20,
       lineHeight: 26,
     },
-    figura: { overflow: 'hidden', borderRadius: 16, backgroundColor: FUNDO_ACOLHEDOR },
+    figura: { overflow: 'hidden', borderRadius: 16, backgroundColor: cores.fundoAcolhedor },
     quadro: { flex: 1 },
 
     // Confirmação do "Apagar tudo" (#23), no padrão da confirmação de recusa do TCLE.
@@ -200,7 +213,7 @@ export function createDrawingTaskStyles() {
       borderRadius: 16,
       backgroundColor: cores.primary,
     },
-    botaoApagarPressionado: { backgroundColor: LARANJA_ESCURO },
+    botaoApagarPressionado: { backgroundColor: cores.pressionado },
     textoApagar: {
       color: cores.onPrimary,
       fontFamily: FontFamilies.semibold,
@@ -208,6 +221,7 @@ export function createDrawingTaskStyles() {
       lineHeight: 30,
     },
   });
+  return ampliarTexto(estilos, escala);
 }
 
 export type DrawingTaskStyles = ReturnType<typeof createDrawingTaskStyles>;
