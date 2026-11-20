@@ -4,7 +4,7 @@ import { BackHandler } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { REGISTRO_APAGAR, TITULO_APAGAR } from '@/features/avaliacao/apagar-desenho-dialog';
-import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
+import { DICA_CONFIRMAR, LEMBRETES } from '@/features/avaliacao/drawing-task';
 import DrawingTaskScreen, {
   FALHA_AO_SALVAR,
   type DrawingTaskScreenProps,
@@ -391,9 +391,7 @@ describe('o que a tela mostra ao paciente', () => {
 
     expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Ligue números e letras' })).toBeOnTheScreen();
-    expect(
-      screen.getByText('Uma linha só, sem levantar a caneta: 1, A, 2, B… até o E.'),
-    ).toBeOnTheScreen();
+    expect(screen.getByText(LEMBRETES[3].frase)).toBeOnTheScreen();
     expect(screen.queryByRole('image', { name: 'Cubo para copiar' })).toBeNull();
   });
 

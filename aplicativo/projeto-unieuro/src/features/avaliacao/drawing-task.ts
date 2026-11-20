@@ -18,7 +18,7 @@ export const LEMBRETES: Readonly<Record<number, Lembrete>> = {
   2: { titulo: 'Copie o cubo', frase: 'Desenhe do jeito que você consegue.' },
   3: {
     titulo: 'Ligue números e letras',
-    frase: 'Uma linha só, sem levantar a caneta: 1, A, 2, B… até o E.',
+    frase: 'Uma linha só, sem levantar a caneta ou o dedo: 1, A, 2, B… até o E.',
   },
 };
 

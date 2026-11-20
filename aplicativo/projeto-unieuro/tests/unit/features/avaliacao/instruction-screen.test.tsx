@@ -82,25 +82,11 @@ describe('Cenário: instrução antes de cada tarefa', () => {
 
 describe('Cenário: texto de cada instrução', () => {
   it.each([
-    [
-      '1',
-      'o relógio',
-      'Desenhe um relógio',
-      'Desenhe o círculo de um relógio, coloque todos os números dentro dele e desenhe os ponteiros marcando onze horas e dez minutos.',
-    ],
-    [
-      '2',
-      'a cópia do cubo',
-      'Copie este cubo',
-      'Olhe a figura que aparece ao lado e desenhe igual, do jeito que você consegue.',
-    ],
-    [
-      '3',
-      'as trilhas',
-      'Ligue números e letras',
-      'Ligue os círculos com uma linha só, sem levantar a caneta, alternando número e letra em ordem: 1, A, 2, B… até o E.',
-    ],
-  ])('quando a tarefa é %s (%s), mostra o texto combinado', (tarefa, _nome, titulo, instrucao) => {
+    ['1', 'o relógio'],
+    ['2', 'a cópia do cubo'],
+    ['3', 'as trilhas'],
+  ])('quando a tarefa é %s (%s), mostra o texto combinado', (tarefa) => {
+    const { titulo, instrucao } = TAREFAS[Number(tarefa) - 1];
     renderizarTela({ tarefa });
 
     expect(screen.getByRole('header', { name: titulo })).toBeOnTheScreen();

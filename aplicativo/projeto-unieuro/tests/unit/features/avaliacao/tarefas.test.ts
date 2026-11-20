@@ -25,7 +25,7 @@ describe('TAREFAS', () => {
     [
       3,
       'Ligue números e letras',
-      'Ligue os círculos com uma linha só, sem levantar a caneta, alternando número e letra em ordem: 1, A, 2, B… até o E.',
+      'Ligue os círculos com uma linha só, sem levantar a caneta ou o dedo, alternando número e letra em ordem: 1, A, 2, B… até o E.',
     ],
   ])('a tarefa %i tem o texto combinado com o parceiro', (numero, titulo, instrucao) => {
     expect(TAREFAS[numero - 1]).toMatchObject({ numero, titulo, instrucao });
