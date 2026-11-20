@@ -1,5 +1,6 @@
 import { createAttendanceRepository } from '@/db/attendance-repository';
 import { createExclusionRepository } from '@/db/exclusion-repository';
+import { createInterruptionRepository } from '@/db/interruption-repository';
 import type { SessionProfessional } from '@/features/auth/session';
 import {
   PACIENTE_COM_EXAME_FINALIZADO,
@@ -194,5 +195,109 @@ describe('excluir um paciente com confirmação (#47)', () => {
 
     expect(await pacientesDe(ana)).toEqual([]);
     expect(await pacientesDe(bruno)).toHaveLength(1);
+  });
+});
+
+describe('o exame excluído sai das outras consultas', () => {
+  const excluir = (atendimentoId: number) =>
+    excluirExame(
+      { atendimentoId, profissional: ana, senha: SENHA_DE_TESTE },
+      exclusoes(),
+      tablet.repository,
+    );
+  const colocarEm = (id: number, estado: string) =>
+    tablet.database.runAsync('UPDATE avaliacao SET estado = ? WHERE id = ?', [estado, id]);
+
+  async function segundoExame() {
+    return (
+      await atendimentos.createAttendance({
+        patient: { id: pacienteId },
+        professionalId: ana.id,
+        startedAt: '2026-11-12T13:00:00.000Z',
+      })
+    ).attendanceId;
+  }
+
+  async function criarSuperusuario() {
+    await tablet.repository.insertSuperuser(
+      {
+        name: 'Carlos Bernardo Tauil',
+        email: 'tauil@unieuro.com.br',
+        crmNumber: '12771',
+        crmState: 'DF',
+        cpf: '39053344705',
+        passwordHash: 'hash-da-senha',
+        createdAt: '2026-11-12T10:00:00.000Z',
+      },
+      null,
+    );
+    return (await tablet.repository.findByEmail('tauil@unieuro.com.br'))!.id;
+  }
+
+  it('a tela do paciente não mostra o exame excluído (#59)', async () => {
+    const segundo = await segundoExame();
+    await excluir(segundo);
+
+    const paciente = await atendimentos.findPatientWithExams(ana.id, pacienteId);
+
+    expect(paciente?.exams.map((exame) => exame.id)).toEqual([exameId]);
+  });
+
+  it('o paciente só com exames excluídos não abre para o médico (#59)', async () => {
+    await excluir(exameId);
+
+    await expect(atendimentos.findPatientWithExams(ana.id, pacienteId)).resolves.toBeNull();
+  });
+
+  it('as consultas do superusuário também ignoram o exame excluído (#49)', async () => {
+    const superusuario = await criarSuperusuario();
+    const segundo = await segundoExame();
+    await excluir(segundo);
+
+    const [paciente] = await atendimentos.listAllAttendedPatients(superusuario);
+    const detalhe = await atendimentos.findAnyPatientWithExams(superusuario, pacienteId);
+
+    expect(paciente).toMatchObject({
+      attendanceCount: 1,
+      lastStartedAt: '2026-11-12T12:00:00.000Z',
+    });
+    expect(detalhe?.exams.map((exame) => exame.id)).toEqual([exameId]);
+  });
+
+  it('o paciente só com exames excluídos sai das listas e da busca do superusuário (#49)', async () => {
+    const superusuario = await criarSuperusuario();
+    await excluir(exameId);
+
+    await expect(atendimentos.listAllAttendedPatients(superusuario)).resolves.toEqual([]);
+    await expect(atendimentos.listAllAttendedPatientCpfs(superusuario)).resolves.toEqual([]);
+    await expect(
+      atendimentos.findAnyPatientWithExams(superusuario, pacienteId),
+    ).resolves.toBeNull();
+  });
+
+  it('não se desiste de um exame excluído (#25)', async () => {
+    await colocarEm(exameId, 'em_andamento');
+    await excluir(exameId);
+
+    await expect(
+      createInterruptionRepository(async () => tablet.database).interromper({
+        atendimentoId: exameId,
+        profissionalId: ana.id,
+        tarefa: 1,
+        motivo: null,
+        interrompidoEm: '2026-11-12T12:05:00.000Z',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('o exame interrompido e excluído não abre nem é retomado (#25)', async () => {
+    await colocarEm(exameId, 'interrompida');
+    await excluir(exameId);
+    const interrupcoes = createInterruptionRepository(async () => tablet.database);
+
+    await expect(interrupcoes.buscarInterrompido(exameId, ana.id)).resolves.toBeNull();
+    await expect(interrupcoes.retomar(exameId, ana.id, '2026-11-12T12:10:00.000Z')).resolves.toBe(
+      false,
+    );
   });
 });
