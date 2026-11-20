@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { ConfirmarApagarAssinatura } from '@/features/avaliacao/apagar-assinatura-dialog';
 import { ConfirmarRecusa } from '@/features/avaliacao/confirm-refusal-dialog';
 import {
   createDecisaoStyles,
@@ -154,12 +155,36 @@ export function DecisaoTermoProvider({
   );
 }
 
-/** A área de assinatura. Na tela do termo, fica dentro do cartão da declaração. */
+/**
+ * A área de assinatura. Na tela do termo, fica dentro do cartão da declaração.
+ *
+ * O "Apagar assinatura" fica acima do quadro e pede confirmação (#139): embaixo, ele
+ * ficava no caminho natural da caneta e um toque sem querer apagava a assinatura.
+ */
 export function AreaAssinatura() {
   const { styles, quadro, temTraco, ocupado, limpar } = useDecisao();
+  const [confirmandoApagar, setConfirmandoApagar] = useState(false);
+  const desabilitado = !temTraco || ocupado;
 
   return (
     <View style={styles.areaAssinatura}>
+      <View style={styles.cabecalhoAssinatura}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: desabilitado }}
+          disabled={desabilitado}
+          onPress={() => setConfirmandoApagar(true)}
+          style={({ pressed }) => [
+            styles.botaoLimpar,
+            pressed && styles.botaoPressionado,
+            desabilitado && styles.botaoLimparDesabilitado,
+          ]}>
+          <Text
+            style={[styles.botaoLimparTexto, desabilitado && styles.botaoLimparTextoDesabilitado]}>
+            Apagar assinatura
+          </Text>
+        </Pressable>
+      </View>
       <View style={styles.quadroAssinatura}>
         <QuadroDesenho
           {...quadro}
@@ -174,24 +199,15 @@ export function AreaAssinatura() {
           </View>
         )}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !temTraco || ocupado }}
-        disabled={!temTraco || ocupado}
-        onPress={limpar}
-        style={({ pressed }) => [
-          styles.botaoLimpar,
-          pressed && styles.botaoPressionado,
-          (!temTraco || ocupado) && styles.botaoLimparDesabilitado,
-        ]}>
-        <Text
-          style={[
-            styles.botaoLimparTexto,
-            (!temTraco || ocupado) && styles.botaoLimparTextoDesabilitado,
-          ]}>
-          Apagar assinatura
-        </Text>
-      </Pressable>
+      <ConfirmarApagarAssinatura
+        visible={confirmandoApagar}
+        onManter={() => setConfirmandoApagar(false)}
+        onApagar={() => {
+          limpar();
+          setConfirmandoApagar(false);
+        }}
+        styles={styles}
+      />
     </View>
   );
 }
