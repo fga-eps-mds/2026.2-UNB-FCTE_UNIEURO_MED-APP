@@ -12,6 +12,8 @@ export type InterruptionReason = 'cansaco' | 'nao_quis_continuar' | 'mal_estar' 
 
 export type InterruptionRecord = {
   atendimentoId: number;
+  /** Profissional da sessão. O exame de outro médico não é interrompido. */
+  profissionalId: number;
   /** Tarefa em que o paciente parou, de 1 a 3. */
   tarefa: number;
   motivo: InterruptionReason | null;
@@ -52,13 +54,14 @@ export function createInterruptionRepository(open: () => Promise<SQLiteDatabase>
         `UPDATE avaliacao
          SET estado = 'interrompida', tarefa_interrupcao = ?, motivo_interrupcao = ?,
              data_hora_interrupcao = ?, last_update = ?
-         WHERE id = ? AND estado = 'em_andamento'`,
+         WHERE id = ? AND id_profissional = ? AND estado = 'em_andamento'`,
         [
           registro.tarefa,
           registro.motivo,
           registro.interrompidoEm,
           registro.interrompidoEm,
           registro.atendimentoId,
+          registro.profissionalId,
         ],
       );
       return resultado.changes === 1;

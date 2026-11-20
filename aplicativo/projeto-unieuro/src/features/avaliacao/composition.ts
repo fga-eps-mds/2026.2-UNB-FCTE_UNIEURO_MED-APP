@@ -5,6 +5,7 @@ import { interruptionRepository } from '@/db/interruption-repository';
 import { professionalRepository } from '@/db/professional-repository';
 import type { SessionProfessional } from '@/features/auth/session';
 import type { AttendanceRepository } from '@/features/avaliacao/attendance';
+import type { ProfessionalCpfRepository } from '@/features/avaliacao/confirmacao-profissional';
 import {
   registrarDecisaoConsentimento,
   verificarAcessoTarefas,
@@ -23,6 +24,9 @@ import {
  * de `@/db`, para respeitar a regra de camadas (o lint barra o import direto).
  */
 export const registerAttendanceRepository: AttendanceRepository = attendanceRepository;
+
+/** Lê o CPF protegido somente durante a confirmação ao final do teste. */
+export const professionalCpfRepository: ProfessionalCpfRepository = professionalRepository;
 
 /** Liga as regras do consentimento ao SQLite sem expor a camada de banco às telas. */
 export const registerConsentDecision = (input: RegistrarDecisaoInput) =>

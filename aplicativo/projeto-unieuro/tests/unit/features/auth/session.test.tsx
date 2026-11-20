@@ -29,7 +29,7 @@ describe('sessão do profissional', () => {
     const { result } = renderHook(() => useSession(), { wrapper: SessionProvider });
 
     act(() => result.current.signIn(profissional));
-    expect(result.current.professional).toEqual(profissional);
+    expect(result.current.professional).toEqual({ ...profissional, superuser: false });
 
     act(() => result.current.signOut());
     expect(result.current.professional).toBeNull();
@@ -73,7 +73,26 @@ describe('sessão do profissional', () => {
   it('copia só os campos da sessão', () => {
     const copia = toSessionProfessional({ ...profissional, cpf: '1' } as SessionProfessional);
 
-    expect(Object.keys(copia).sort()).toEqual(['crmNumber', 'crmState', 'email', 'id', 'name']);
+    expect(Object.keys(copia).sort()).toEqual([
+      'crmNumber',
+      'crmState',
+      'email',
+      'id',
+      'name',
+      'superuser',
+    ]);
+  });
+
+  it('guarda o perfil de superusuário de quem entrou (#49)', () => {
+    const { result } = renderHook(() => useSession(), { wrapper: SessionProvider });
+
+    act(() => result.current.signIn({ ...profissional, superuser: true }));
+
+    expect(result.current.professional?.superuser).toBe(true);
+  });
+
+  it('trata como médico comum quem entra sem o perfil informado', () => {
+    expect(toSessionProfessional(profissional).superuser).toBe(false);
   });
 
   it('formata o CRM com a UF', () => {

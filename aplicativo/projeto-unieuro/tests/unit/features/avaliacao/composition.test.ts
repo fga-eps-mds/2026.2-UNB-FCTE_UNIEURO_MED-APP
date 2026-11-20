@@ -7,6 +7,7 @@ import {
   deletePatient,
   getAttendancePatient,
   getTaskAccess,
+  professionalCpfRepository,
   registerAttendanceRepository,
   registerConsentDecision,
 } from '@/features/avaliacao/composition';
@@ -29,6 +30,10 @@ jest.mock('@/features/avaliacao/consentimento', () => ({
 describe('composição da feature de avaliação', () => {
   it('liga o registro do atendimento ao repositório do banco', () => {
     expect(registerAttendanceRepository).toBe(attendanceRepository);
+  });
+
+  it('liga a confirmação final à leitura protegida do CPF', () => {
+    expect(professionalCpfRepository).toBe(professionalRepository);
   });
 
   it('liga a decisão do consentimento ao repositório do banco', () => {

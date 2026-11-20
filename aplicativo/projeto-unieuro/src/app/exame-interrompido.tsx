@@ -1,7 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { credentialsRepository } from '@/features/auth/composition';
-import { loadInterruptedExam, resumeExam } from '@/features/avaliacao/composition';
+import {
+  loadInterruptedExam,
+  professionalCpfRepository,
+  resumeExam,
+} from '@/features/avaliacao/composition';
 import ExameInterrompidoScreen from '@/features/avaliacao/exame-interrompido-screen';
 
 // Tela depois da desistência (#25). A retomada abre a instrução da primeira
@@ -13,7 +16,7 @@ export default function ExameInterrompidoRoute() {
   return (
     <ExameInterrompidoScreen
       atendimento={atendimento}
-      repository={credentialsRepository}
+      repository={professionalCpfRepository}
       carregar={loadInterruptedExam}
       retomar={resumeExam}
       onRetomado={(tarefa) =>

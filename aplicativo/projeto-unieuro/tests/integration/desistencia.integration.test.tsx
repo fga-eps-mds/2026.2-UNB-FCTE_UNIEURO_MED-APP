@@ -16,7 +16,6 @@ jest.mock('@/features/avaliacao/composition', () => ({
   loadInterruptedExam: jest.fn(),
   resumeExam: jest.fn(),
 }));
-jest.mock('@/features/auth/composition', () => ({ credentialsRepository: {} }));
 jest.mock('@/features/captura/composition', () => ({ confirmDrawing: jest.fn() }));
 
 const profissional: SessionProfessional = {
@@ -51,6 +50,7 @@ describe('desistir e retomar o exame (#25)', () => {
 
     expect(giveUpExam).toHaveBeenCalledWith({
       atendimentoId: 12,
+      profissionalId: 7,
       tarefa: 2,
       motivo: 'nao_quis_continuar',
     });
@@ -65,7 +65,12 @@ describe('desistir e retomar o exame (#25)', () => {
 
     await desistir();
 
-    expect(giveUpExam).toHaveBeenCalledWith({ atendimentoId: 12, tarefa: 3, motivo: null });
+    expect(giveUpExam).toHaveBeenCalledWith({
+      atendimentoId: 12,
+      profissionalId: 7,
+      tarefa: 3,
+      motivo: null,
+    });
     expect(useRouter().replace).toHaveBeenCalledWith({
       pathname: '/exame-interrompido',
       params: { atendimento: '12' },

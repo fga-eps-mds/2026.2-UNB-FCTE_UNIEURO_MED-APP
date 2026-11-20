@@ -25,6 +25,8 @@ export const Colors = {
     errorBg: '#FEE2E2',
     success: '#166534',
     successBg: '#DCFCE7',
+    warning: '#92400E',
+    warningBg: '#FEF3C7',
     info: '#1E40AF',
     infoBg: '#DBEAFE',
   },
@@ -43,12 +45,19 @@ export const Colors = {
     errorBg: '#7F1D1D',
     success: '#86EFAC',
     successBg: '#14532D',
+    warning: '#FCD34D',
+    warningBg: '#78350F',
     info: '#93C5FD',
     infoBg: '#1E3A8A',
   },
 } as const;
 
-export type ThemeColors = (typeof Colors)[keyof typeof Colors];
+/**
+ * As chaves de uma paleta, cada uma com uma cor qualquer. O tipo não fixa os valores do
+ * claro e do escuro para que outras paletas com as mesmas chaves, como a de alto contraste
+ * das telas do paciente (#24), também sirvam.
+ */
+export type ThemeColors = { readonly [Chave in keyof (typeof Colors)['light']]: string };
 export type ThemeMode = 'system' | keyof typeof Colors;
 
 export const FontFamilies = {

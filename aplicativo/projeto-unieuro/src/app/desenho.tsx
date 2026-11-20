@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
+import { useSession } from '@/features/auth/session';
 import DrawingTaskScreen from '@/features/avaliacao/drawing-task-screen';
 import { TOTAL_TAREFAS, valorDoParametro } from '@/features/avaliacao/tarefas';
 import { giveUpExam } from '@/features/avaliacao/composition';
@@ -16,6 +17,7 @@ import { confirmDrawing } from '@/features/captura/composition';
 // só para a frente: o paciente não volta a uma tarefa já confirmada.
 export default function DrawingRoute() {
   const router = useRouter();
+  const { professional } = useSession();
   const { atendimento, tarefa } = useLocalSearchParams<{ atendimento?: string; tarefa?: string }>();
   const acesso = useConsentGate(atendimento);
 
@@ -36,6 +38,7 @@ export default function DrawingRoute() {
       onDesistir={async (atual, motivo) => {
         await giveUpExam({
           atendimentoId: Number(valorDoParametro(atendimento)),
+          profissionalId: professional?.id ?? 0,
           tarefa: atual.numero,
           motivo,
         });

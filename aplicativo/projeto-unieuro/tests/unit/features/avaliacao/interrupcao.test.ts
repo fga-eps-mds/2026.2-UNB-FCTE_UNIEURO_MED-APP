@@ -31,10 +31,15 @@ describe('desistência', () => {
   it('grava a tarefa atual, o motivo e a hora', async () => {
     const repository = repositorio();
 
-    await desistirDoExame({ atendimentoId: 7, tarefa: 2, motivo: 'mal_estar' }, repository, AGORA);
+    await desistirDoExame(
+      { atendimentoId: 7, profissionalId: 3, tarefa: 2, motivo: 'mal_estar' },
+      repository,
+      AGORA,
+    );
 
     expect(repository.interromper).toHaveBeenCalledWith({
       atendimentoId: 7,
+      profissionalId: 3,
       tarefa: 2,
       motivo: 'mal_estar',
       interrompidoEm: '2026-11-12T14:06:00.000Z',
@@ -42,8 +47,17 @@ describe('desistência', () => {
   });
 
   it.each([
-    ['atendimento inválido', { atendimentoId: 0, tarefa: 1 }, /Atendimento inválido/],
-    ['tarefa fora de 1 a 3', { atendimentoId: 7, tarefa: 4 }, /Tarefa inválida/],
+    [
+      'atendimento inválido',
+      { atendimentoId: 0, profissionalId: 3, tarefa: 1 },
+      /Atendimento inválido/,
+    ],
+    [
+      'sem profissional na sessão',
+      { atendimentoId: 7, profissionalId: 0, tarefa: 1 },
+      /Profissional inválido/,
+    ],
+    ['tarefa fora de 1 a 3', { atendimentoId: 7, profissionalId: 3, tarefa: 4 }, /Tarefa inválida/],
   ])('recusa %s sem chamar o banco', async (_caso, dados, erro) => {
     const repository = repositorio();
 
@@ -55,7 +69,7 @@ describe('desistência', () => {
     const repository = repositorio({ interromper: jest.fn(async () => false) });
 
     await expect(
-      desistirDoExame({ atendimentoId: 7, tarefa: 1, motivo: null }, repository),
+      desistirDoExame({ atendimentoId: 7, profissionalId: 3, tarefa: 1, motivo: null }, repository),
     ).rejects.toThrow(/não estava em andamento/);
   });
 

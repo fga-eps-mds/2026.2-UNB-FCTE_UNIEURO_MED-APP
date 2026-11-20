@@ -1,14 +1,16 @@
 import { StyleSheet } from 'react-native';
 
-import { BrandPalette, FontFamilies } from '@/constants/theme';
+import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 import { CORES_DA_TAREFA, FUNDO_ACOLHEDOR } from '@/features/avaliacao/drawing-task.styles';
+import { ampliarTexto } from '@/features/avaliacao/tema-do-paciente';
 
 /**
  * Diálogo de desistência e tela do exame interrompido (#25). São telas que o
- * paciente vê, então seguem as cores fixas das tarefas e textos de no mínimo 18.
+ * paciente vê, com textos de no mínimo 18. O botão "Desistir" e o diálogo ficam nas
+ * telas das tarefas e recebem as cores e a escala do tema do paciente (#24); sem elas,
+ * valem as cores fixas das tarefas.
  */
-export function createInterrupcaoStyles() {
-  const cores = CORES_DA_TAREFA;
+export function createInterrupcaoStyles(cores: ThemeColors = CORES_DA_TAREFA, escala = 1) {
   const botao = {
     minHeight: 64,
     flexGrow: 1,
@@ -20,7 +22,7 @@ export function createInterrupcaoStyles() {
   };
   const textoBotao = { fontFamily: FontFamilies.semibold, fontSize: 20, lineHeight: 26 };
 
-  return StyleSheet.create({
+  const estilos = StyleSheet.create({
     desistir: {
       minHeight: 48,
       justifyContent: 'center',
@@ -160,6 +162,7 @@ export function createInterrupcaoStyles() {
       fontSize: 18,
     },
   });
+  return ampliarTexto(estilos, escala);
 }
 
 export type InterrupcaoStyles = ReturnType<typeof createInterrupcaoStyles>;

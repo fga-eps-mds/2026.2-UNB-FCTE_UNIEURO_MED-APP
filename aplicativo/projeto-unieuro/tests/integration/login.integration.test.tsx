@@ -59,7 +59,8 @@ describe('login com SQLite real', () => {
     expect(useRouter().replace).toHaveBeenCalledWith('/menu');
     expect(screen.queryByText(CREDENCIAIS_INVALIDAS)).not.toBeOnTheScreen();
     const { id } = (await tablet.repository.findByEmail(ANA.email))!;
-    expect(JSON.parse(sessao())).toEqual({ id, ...ANA });
+    // Cadastro comum cria médico; superusuário só nasce do administrador (#49).
+    expect(JSON.parse(sessao())).toEqual({ id, ...ANA, superuser: false });
   });
 
   it('credenciais corretas: o CPF e o hash da senha não vão para a sessão', async () => {

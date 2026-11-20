@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { CredentialsRepository } from '@/features/auth/authentication';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
-import { confirmarProfissional } from '@/features/avaliacao/confirmacao-profissional';
+import {
+  confirmarProfissional,
+  type ProfessionalCpfRepository,
+} from '@/features/avaliacao/confirmacao-profissional';
 import {
   proximaTarefa,
   ROTULO_MOTIVO,
@@ -30,12 +32,13 @@ export const BOTAO_RETOMAR = 'Retomar exame';
 export const BOTAO_PROFISSIONAL = 'Sou o profissional de saúde';
 export const FALHA_AO_CARREGAR = 'Não foi possível abrir o exame interrompido.';
 export const FALHA_AO_RETOMAR = 'Não foi possível retomar o exame. Tente de novo.';
-export const FALHA_NA_CONFERENCIA = 'Não foi possível conferir a senha agora. Tente novamente.';
+export const FALHA_NA_CONFERENCIA = 'Não foi possível conferir o CPF agora. Tente novamente.';
 
 type ExameInterrompidoScreenProps = {
   /** Parâmetro `atendimento` da rota: o exame que acabou de ser interrompido. */
   atendimento: ParametroDeRota;
-  repository: CredentialsRepository;
+  /** Lê o CPF protegido só na conferência do profissional, como na tela final (#11). */
+  repository: ProfessionalCpfRepository;
   carregar: (atendimentoId: number, profissionalId: number) => Promise<ExameInterrompido | null>;
   retomar: (atendimentoId: number, profissionalId: number) => Promise<RetomadaResultado>;
   /** Abre a instrução da tarefa em que o exame continua. */
@@ -70,8 +73,8 @@ function Item({ texto, icone }: Readonly<{ texto: string; icone: 'check' | 'info
 
 /**
  * Tela depois da desistência (#25). Ainda pode estar nas mãos do paciente, então
- * não mostra resultado e só volta à área do profissional com a senha dele, como
- * a tela final (#11). "Retomar exame" continua na primeira tarefa sem desenho.
+ * não mostra resultado e só volta à área do profissional com os quatro primeiros
+ * dígitos do CPF dele, como a tela final (#11). "Retomar exame" continua na primeira tarefa sem desenho.
  */
 export default function ExameInterrompidoScreen({
   atendimento,
@@ -88,7 +91,7 @@ export default function ExameInterrompidoScreen({
   const [retomando, setRetomando] = useState(false);
   const [falhaRetomada, setFalhaRetomada] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
-  const [senha, setSenha] = useState('');
+  const [digitos, setDigitos] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [conferindo, setConferindo] = useState(false);
   useSemVoltar();
@@ -139,12 +142,12 @@ export default function ExameInterrompidoScreen({
     if (!professional || conferindo) return;
     try {
       setConferindo(true);
-      const resultado = await confirmarProfissional(senha, professional, repository);
+      const resultado = await confirmarProfissional(digitos, professional.id, repository);
       if (resultado.confirmado) {
         router.dismissTo('/menu');
         return;
       }
-      setSenha('');
+      if (resultado.motivo === 'incorreto') setDigitos('');
       setErro(resultado.mensagem);
     } catch {
       setErro(FALHA_NA_CONFERENCIA);
@@ -155,7 +158,7 @@ export default function ExameInterrompidoScreen({
 
   function cancelar() {
     setConfirmando(false);
-    setSenha('');
+    setDigitos('');
     setErro(null);
   }
 
@@ -206,21 +209,24 @@ export default function ExameInterrompidoScreen({
 
           {confirmando ? (
             <>
-              <Text style={styles.rotulo} nativeID="senha-profissional-interrompido">
-                Senha do profissional
+              <Text style={styles.rotulo} nativeID="cpf-profissional-interrompido">
+                Quatro primeiros dígitos do CPF
               </Text>
               <TextInput
-                accessibilityLabel="Senha do profissional"
-                accessibilityLabelledBy="senha-profissional-interrompido"
+                accessibilityLabel="Quatro primeiros dígitos do CPF"
+                accessibilityLabelledBy="cpf-profissional-interrompido"
                 autoFocus
+                inputMode="numeric"
+                keyboardType="number-pad"
+                maxLength={4}
                 onChangeText={(texto) => {
-                  setSenha(texto);
+                  setDigitos(texto.replace(/\D/g, '').slice(0, 4));
                   setErro(null);
                 }}
                 onSubmitEditing={confirmar}
                 secureTextEntry
                 style={styles.campo}
-                value={senha}
+                value={digitos}
               />
               {erro && <FeedbackMessage kind="error" message={erro} />}
               <View style={styles.acoes}>

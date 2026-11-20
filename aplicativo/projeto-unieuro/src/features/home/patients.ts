@@ -15,6 +15,20 @@ export type PatientSummary = {
   lastExamAt: string | null;
   lastExamStatus: ExamStatus | null;
   examCount: number;
+  /**
+   * Nome de quem atendeu por último. Só vem na lista do superusuário (#49); na
+   * do médico comum, todos os pacientes foram atendidos por ele.
+   */
+  attendedBy?: string;
+};
+
+/** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
+export type ExamTone = 'success' | 'warning' | 'error' | 'info';
+
+export const EXAM_STATUS_TONE: Record<ExamStatus, ExamTone> = {
+  concluido: 'success',
+  interrompido: 'warning',
+  recusado: 'warning',
 };
 
 export const EXAM_STATUS_LABEL: Record<ExamStatus, string> = {
@@ -35,6 +49,7 @@ export type AttendedPatient = {
   attendanceCount: number;
   lastStartedAt: string;
   lastState: string;
+  attendedBy?: string;
 };
 
 /** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
@@ -46,7 +61,39 @@ export type PatientCpf = {
 export type PatientListRepository = {
   listAttendedPatients(professionalId: number): Promise<AttendedPatient[]>;
   listAttendedPatientCpfs(professionalId: number): Promise<PatientCpf[]>;
+  /** Pacientes de todos os profissionais. Só respondem a um superusuário (#49). */
+  listAllAttendedPatients(requesterId: number): Promise<AttendedPatient[]>;
+  listAllAttendedPatientCpfs(requesterId: number): Promise<PatientCpf[]>;
 };
+
+/** Quem está pedindo a lista: o profissional da sessão. */
+export type PatientListViewer = {
+  id: number;
+  superuser?: boolean;
+};
+
+/**
+ * Pacientes que o profissional pode ver: o superusuário vê os de todos, com o
+ * nome de quem atendeu, e o médico comum vê só os que ele atendeu (#49).
+ */
+export function listPatientsFor(
+  viewer: PatientListViewer,
+  repository: PatientListRepository,
+): Promise<AttendedPatient[]> {
+  return viewer.superuser === true
+    ? repository.listAllAttendedPatients(viewer.id)
+    : repository.listAttendedPatients(viewer.id);
+}
+
+/** CPF dos pacientes que o profissional pode ver, para a busca por CPF (#99). */
+export function listPatientCpfsFor(
+  viewer: PatientListViewer,
+  repository: PatientListRepository,
+): Promise<PatientCpf[]> {
+  return viewer.superuser === true
+    ? repository.listAllAttendedPatientCpfs(viewer.id)
+    : repository.listAttendedPatientCpfs(viewer.id);
+}
 
 // Estados da avaliação que encerram o exame, conforme o diagrama de estados do
 // documento de arquitetura. Os demais (aguardando consentimento, em andamento,
@@ -71,6 +118,7 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     lastExamAt: patient.lastStartedAt,
     lastExamStatus: toExamStatus(patient.lastState),
     examCount: patient.attendanceCount,
+    ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
   };
 }
 

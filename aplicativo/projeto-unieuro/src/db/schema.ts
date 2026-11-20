@@ -7,7 +7,8 @@
  * de busca, a versão 3 cria o paciente e o atendimento, a versão 4 registra a
  * desativação da conta, a versão 5 guarda a decisão do TCLE, a versão 6 cria as
  * tarefas de desenho, o desenho e o traçado, a versão 7 guarda as autorizações dos
- * itens 9 e 10 do TCLE e a versão 8 guarda o CPF cifrado do responsável legal.
+ * itens 9 e 10 do TCLE, a versão 8 guarda o CPF cifrado do responsável legal e a
+ * versão 9 guarda o perfil do profissional (médico ou superusuário).
  * Nenhuma delas existe ainda no
  * `schema.sql` do MED-IA: as
  * duas cópias divergem a partir da versão 2 até que o repositório MED-IA seja
@@ -228,12 +229,33 @@ ALTER TABLE consentimento ADD COLUMN cpf_responsavel_cifrado TEXT
 `;
 
 /**
- * Versão 9: desistência do exame (#25). A avaliação passa a `interrompida` e
+ * Versão 9: perfil do profissional (#49). O superusuário é o responsável pela
+ * pesquisa: só ele vê os atendimentos de todos os profissionais. Toda conta,
+ * inclusive as que já existem no tablet, fica como médico. O superusuário nasce
+ * de uma conta de administrador criada para isso, e não do cadastro comum: o PO
+ * pediu um "cadastro master" e que "um superusuário só nasça de um superusuário"
+ * (reunião de 09/11). As duas regras ficam no repositório do profissional.
+ *
+ * `superusuario_por` guarda quem concedeu o perfil. Vazio num superusuário quer
+ * dizer administrador inicial; num médico, fica sempre vazio. Na sincronização
+ * entre tablets (#118), é por ela que se sabe se dois tablets criaram cada um o
+ * seu administrador, e qual deles veio primeiro. Também registra quem deu acesso
+ * aos atendimentos de todos, o que a LGPD pede.
+ */
+const SCHEMA_V9 = `
+ALTER TABLE profissional ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'
+    CHECK (perfil IN ('medico', 'superusuario'));
+ALTER TABLE profissional ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)
+    CHECK (superusuario_por IS NULL OR perfil = 'superusuario');
+`;
+
+/**
+ * Versão 10: desistência do exame (#25). A avaliação passa a `interrompida` e
  * guarda a tarefa em que parou (1 a 3), o motivo, que é opcional, e a data e hora.
  * Os desenhos já confirmados continuam gravados, e a retomada volta o estado para
  * `em_andamento` sem apagar a última interrupção.
  */
-const SCHEMA_V9 = `
+const SCHEMA_V10 = `
 ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER
     CHECK (tarefa_interrupcao IS NULL OR tarefa_interrupcao BETWEEN 1 AND 3);
 ALTER TABLE avaliacao ADD COLUMN motivo_interrupcao TEXT
@@ -248,7 +270,7 @@ ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT;
 const FINALIZADOS = `('processando_resultado', 'erro_inferencia', 'concluida')`;
 
 /**
- * Versão 10: exclusão de exame (#58) e de paciente (#47). Nada é apagado de
+ * Versão 11: exclusão de exame (#58) e de paciente (#47). Nada é apagado de
  * verdade: o exame recebe a data e o profissional da exclusão e sai das listas,
  * mas continua no tablet. Excluir um paciente marca os exames dele aplicados pelo
  * profissional, porque o mesmo paciente pode ter exames de outro médico.
@@ -258,7 +280,7 @@ const FINALIZADOS = `('processando_resultado', 'erro_inferencia', 'concluida')`;
  * qualquer caminho do código: exame finalizado não é excluído nem apagado, a
  * exclusão não é desfeita e o exame excluído não muda mais de estado.
  */
-const SCHEMA_V10 = `
+const SCHEMA_V11 = `
 ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT;
 ALTER TABLE avaliacao ADD COLUMN excluido_por INTEGER REFERENCES profissional (id);
 
@@ -329,8 +351,9 @@ export type MigrationStep =
  * conta), a posição 4 à versão 5 (consentimento), a posição 5 à versão 6
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
  * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
- * (desistência do exame), a posição 9 à versão 10 (exclusão de exame e de
- * paciente), e assim por diante. Para mudar o esquema,
+ * (perfil do profissional), a posição 9 à versão 10 (desistência do exame), a
+ * posição 10 à versão 11 (exclusão de exame e de paciente), e assim por diante.
+ * Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
  */
@@ -345,6 +368,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V8,
   SCHEMA_V9,
   SCHEMA_V10,
+  SCHEMA_V11,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

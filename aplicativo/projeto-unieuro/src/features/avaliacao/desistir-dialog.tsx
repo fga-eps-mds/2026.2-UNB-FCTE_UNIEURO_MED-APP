@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 
+import type { ThemeColors } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { MOTIVOS_DESISTENCIA, type MotivoDesistencia } from '@/features/avaliacao/interrupcao';
 import { createInterrupcaoStyles } from '@/features/avaliacao/interrupcao.styles';
@@ -14,6 +15,9 @@ type DesistirDialogProps = {
   onContinuar: () => void;
   /** Grava a desistência. Se a promessa falhar, o diálogo avisa e continua aberto. */
   onDesistir: (motivo: MotivoDesistencia | null) => Promise<void>;
+  /** Cores e escala do tema do paciente (#24), as mesmas da tela da tarefa. */
+  cores?: ThemeColors;
+  escala?: number;
 };
 
 /**
@@ -26,8 +30,10 @@ export function DesistirDialog({
   parouEm,
   onContinuar,
   onDesistir,
+  cores,
+  escala = 1,
 }: Readonly<DesistirDialogProps>) {
-  const styles = useMemo(() => createInterrupcaoStyles(), []);
+  const styles = useMemo(() => createInterrupcaoStyles(cores, escala), [cores, escala]);
   const [motivo, setMotivo] = useState<MotivoDesistencia | null>(null);
   const [gravando, setGravando] = useState(false);
   const [falhou, setFalhou] = useState(false);

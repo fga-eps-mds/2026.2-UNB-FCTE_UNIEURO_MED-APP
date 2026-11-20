@@ -3,13 +3,16 @@ import { useCallback, useState } from 'react';
 
 import { useSession } from '@/features/auth/session';
 import {
+  listPatientCpfsFor,
+  listPatientsFor,
   toPatientSummary,
   type PatientListRepository,
   type PatientSummary,
 } from '@/features/home/patients';
 
 /**
- * Pacientes atendidos pelo profissional da sessão, lidos do banco.
+ * Pacientes que o profissional da sessão pode ver, lidos do banco: os que ele
+ * atendeu ou, para o superusuário, os de todos os profissionais (#49).
  *
  * A leitura se repete sempre que a tela volta a ter foco: depois do registro do
  * atendimento, o "Voltar ao início" do termo traz a tela inicial de volta da
@@ -18,6 +21,7 @@ import {
 export function useAttendedPatients(repository: PatientListRepository) {
   const { professional } = useSession();
   const professionalId = professional?.id ?? null;
+  const superuser = professional?.superuser === true;
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   // Profissional cuja primeira leitura já terminou. Enquanto ela não termina, a
@@ -36,8 +40,7 @@ export function useAttendedPatients(repository: PatientListRepository) {
       // Uma leitura que termina depois de a tela perder o foco ou de a sessão
       // mudar não sobrescreve a lista.
       let current = true;
-      repository
-        .listAttendedPatients(professionalId)
+      listPatientsFor({ id: professionalId, superuser }, repository)
         .then((list) => {
           if (!current) return;
           setPatients(list.map(toPatientSummary));
@@ -52,7 +55,7 @@ export function useAttendedPatients(repository: PatientListRepository) {
       return () => {
         current = false;
       };
-    }, [professionalId, repository]),
+    }, [professionalId, superuser, repository]),
   );
 
   const loading = professionalId !== null && loadedFor !== professionalId;
@@ -61,8 +64,8 @@ export function useAttendedPatients(repository: PatientListRepository) {
     () =>
       professionalId === null
         ? Promise.resolve([])
-        : repository.listAttendedPatientCpfs(professionalId),
-    [professionalId, repository],
+        : listPatientCpfsFor({ id: professionalId, superuser }, repository),
+    [professionalId, superuser, repository],
   );
 
   return { patients, loadFailed, loading, loadPatientCpfs };

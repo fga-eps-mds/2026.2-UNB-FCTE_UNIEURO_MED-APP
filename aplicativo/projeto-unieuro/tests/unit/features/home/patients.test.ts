@@ -5,6 +5,7 @@ import {
   filterPatients,
   formatDate,
   sortByLastExam,
+  EXAM_STATUS_TONE,
   toExamStatus,
   toPatientSummary,
   type PatientSummary,
@@ -181,6 +182,16 @@ describe('atendimento convertido para a lista', () => {
       lastExamAt: '2026-10-13T09:10:00.000Z',
       lastExamStatus: null,
       examCount: 3,
+    });
+  });
+});
+
+describe('tom da situação do exame', () => {
+  it('usa sucesso para o exame concluído e aviso para o interrompido e a recusa', () => {
+    expect(EXAM_STATUS_TONE).toEqual({
+      concluido: 'success',
+      interrompido: 'warning',
+      recusado: 'warning',
     });
   });
 });

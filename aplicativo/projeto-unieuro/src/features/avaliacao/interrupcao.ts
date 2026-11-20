@@ -31,6 +31,7 @@ export type ExameInterrompido = {
 export type InterrupcaoRepository = {
   interromper(registro: {
     atendimentoId: number;
+    profissionalId: number;
     tarefa: number;
     motivo: MotivoDesistencia | null;
     interrompidoEm: string;
@@ -44,6 +45,8 @@ export type InterrupcaoRepository = {
 
 export type DesistenciaInput = {
   atendimentoId: number;
+  /** Profissional da sessão: só o médico que aplicou o exame pode encerrá-lo. */
+  profissionalId: number;
   tarefa: number;
   motivo: MotivoDesistencia | null;
 };
@@ -53,17 +56,21 @@ const tarefaValida = (tarefa: number) =>
 
 /** Lança erro se o exame não estava em andamento: nada muda no banco nesse caso. */
 export async function desistirDoExame(
-  { atendimentoId, tarefa, motivo }: DesistenciaInput,
+  { atendimentoId, profissionalId, tarefa, motivo }: DesistenciaInput,
   repository: InterrupcaoRepository,
   agora: () => Date = () => new Date(),
 ): Promise<void> {
   if (!Number.isInteger(atendimentoId) || atendimentoId <= 0) {
     throw new Error('Atendimento inválido ao registrar a desistência.');
   }
+  if (!Number.isInteger(profissionalId) || profissionalId <= 0) {
+    throw new Error('Profissional inválido ao registrar a desistência.');
+  }
   if (!tarefaValida(tarefa)) throw new Error('Tarefa inválida ao registrar a desistência.');
 
   const registrada = await repository.interromper({
     atendimentoId,
+    profissionalId,
     tarefa,
     motivo,
     interrompidoEm: agora().toISOString(),

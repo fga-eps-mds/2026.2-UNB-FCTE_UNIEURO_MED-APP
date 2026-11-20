@@ -193,21 +193,28 @@ describe('esquema', () => {
     expect(schemaV8).not.toMatch(/cpf_responsavel\s+TEXT/);
   });
 
-  it('chega à versão 9 com a tarefa, o motivo e a hora da desistência da #25', () => {
+  it('chega à versão 9 com o perfil do profissional, médico por padrão (#49)', () => {
     const schemaV9 = MIGRATIONS[8];
-
-    expect(schemaV9).toContain('ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER');
-    expect(schemaV9).toContain("motivo_interrupcao IN ('cansaco', 'nao_quis_continuar'");
-    expect(schemaV9).toContain('ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT');
+    expect(schemaV9).toContain("ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'");
+    expect(schemaV9).toContain("CHECK (perfil IN ('medico', 'superusuario'))");
+    expect(schemaV9).toContain('ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)');
   });
 
-  it('chega à versão 10 com a exclusão de exame (#58) e de paciente (#47)', () => {
+  it('chega à versão 10 com a tarefa, o motivo e a hora da desistência da #25', () => {
     const schemaV10 = MIGRATIONS[9];
 
-    expect(SCHEMA_VERSION).toBe(10);
-    expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
-    expect(schemaV10).toContain('CREATE TABLE IF NOT EXISTS exclusao');
-    expect(schemaV10).toContain('avaliacao_finalizada_sem_exclusao');
+    expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER');
+    expect(schemaV10).toContain("motivo_interrupcao IN ('cansaco', 'nao_quis_continuar'");
+    expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT');
+  });
+
+  it('chega à versão 11 com a exclusão de exame (#58) e de paciente (#47)', () => {
+    const schemaV11 = MIGRATIONS[10];
+
+    expect(SCHEMA_VERSION).toBe(11);
+    expect(schemaV11).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
+    expect(schemaV11).toContain('CREATE TABLE IF NOT EXISTS exclusao');
+    expect(schemaV11).toContain('avaliacao_finalizada_sem_exclusao');
   });
 });
 
