@@ -8,11 +8,14 @@ import { useTheme } from '@/hooks/use-theme';
 
 export const FALHA_AO_EXPORTAR = 'Não foi possível salvar o arquivo. Tente de novo.';
 export const NADA_A_EXPORTAR = 'Você ainda não tem exames para exportar.';
+export const NADA_NA_COLETA = 'O tablet ainda não tem exames para exportar.';
 
 type ExportarTodosDialogProps = {
   visible: boolean;
   pacientes: number;
   exames: number;
+  /** Responsável pela pesquisa: o arquivo traz a coleta inteira do tablet (#138). */
+  todosOsProfissionais?: boolean;
   exportar: () => Promise<ResultadoExportacao>;
   onCancelar: () => void;
   onSalvo: (arquivo: string) => void;
@@ -28,6 +31,7 @@ export function ExportarTodosDialog({
   visible,
   pacientes,
   exames,
+  todosOsProfissionais = false,
   exportar,
   onCancelar,
   onSalvo,
@@ -50,7 +54,8 @@ export function ExportarTodosDialog({
     try {
       const resultado = await exportar();
       if (resultado.estado === 'salvo') onSalvo(resultado.arquivo);
-      else if (resultado.estado === 'vazio') setErro(NADA_A_EXPORTAR);
+      else if (resultado.estado === 'vazio')
+        setErro(todosOsProfissionais ? NADA_NA_COLETA : NADA_A_EXPORTAR);
     } catch {
       setErro(FALHA_AO_EXPORTAR);
     } finally {
@@ -67,9 +72,12 @@ export function ExportarTodosDialog({
           </Text>
           <Text style={styles.text}>
             O arquivo XML reúne {exames === 1 ? 'o' : 'os'} {plural(exames, 'exame', 'exames')}{' '}
-            {pacientes === 1 ? 'do' : 'dos'} {plural(pacientes, 'paciente', 'pacientes')} que você
-            atendeu: termo, desenhos, traçados e situação de cada exame. O paciente aparece só por
-            um código, sem nome, CPF ou ficha.
+            {pacientes === 1 ? 'do' : 'dos'} {plural(pacientes, 'paciente', 'pacientes')}{' '}
+            {todosOsProfissionais
+              ? 'de todos os profissionais deste tablet, com quem aplicou cada exame'
+              : 'que você atendeu'}
+            : termo, desenhos, traçados e situação de cada exame. O paciente aparece só por um
+            código, sem nome, CPF ou ficha.
           </Text>
           <View style={styles.destination}>
             <Text style={styles.destinationLabel}>DESTINO</Text>

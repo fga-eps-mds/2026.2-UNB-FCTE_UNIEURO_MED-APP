@@ -67,10 +67,10 @@ afterEach(async () => {
   await tablet.fechar();
 });
 
-async function exportarTodos() {
+async function exportarTodos(sessao: SessionProfessional = ana) {
   const user = userEvent.setup();
   render(
-    <SessionProvider initialProfessional={ana}>
+    <SessionProvider initialProfessional={sessao}>
       <HomeRoute />
     </SessionProvider>,
   );
@@ -122,5 +122,48 @@ describe('exportar os dados da avaliação em XML (#22)', () => {
     await userEvent.setup().press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
 
     expect(salvos).toEqual([]);
+  });
+});
+
+describe('exportação da coleta inteira pelo responsável pela pesquisa (#138)', () => {
+  async function responsavel(): Promise<SessionProfessional> {
+    await tablet.database.runAsync("UPDATE profissional SET perfil = 'superusuario' WHERE id = ?", [
+      ana.id,
+    ]);
+    return { ...ana, superuser: true };
+  }
+
+  it('Cenário: responsável exporta a coleta inteira', async () => {
+    const arquivo = await exportarTodos(await responsavel());
+    screen.unmount();
+
+    expect(arquivo.nome).toBe('coleta_2026-11-12_1430.xml');
+    expect(arquivo.conteudo).toContain('escopo="coleta"');
+    expect(arquivo.conteudo).toContain('<profissional crm="12345" uf="DF"/>');
+    expect(arquivo.conteudo.match(/<paciente /g)).toHaveLength(3);
+    expect(arquivo.conteudo.match(/<exame /g)).toHaveLength(4);
+    expect(
+      arquivo.conteudo.match(/<aplicadoPor nome="Ana Carolina Souza" crm="12345" uf="DF"\/>/g),
+    ).toHaveLength(3);
+    expect(
+      arquivo.conteudo.match(/<aplicadoPor nome="Bruno Lima" crm="54321" uf="GO"\/>/g),
+    ).toHaveLength(1);
+    expect(arquivo.conteudo).not.toMatch(/José|Antônio|Maria|2026-000\d|12345678909|1948-10-07/);
+  });
+
+  it('arquivo válido: o XML da coleta segue o esquema', async () => {
+    const { conteudo } = await exportarTodos(await responsavel());
+    screen.unmount();
+
+    await expect(validarNoEsquema(conteudo)).resolves.toEqual([]);
+  });
+
+  it('o médico comum continua exportando só os exames dele, sem quem aplicou', async () => {
+    const { nome, conteudo } = await exportarTodos({ ...ana, superuser: false });
+
+    expect(nome).toBe('exames_2026-11-12_1430.xml');
+    expect(conteudo.match(/<exame /g)).toHaveLength(3);
+    expect(conteudo).not.toContain('aplicadoPor');
+    expect(conteudo).not.toContain('Bruno');
   });
 });
