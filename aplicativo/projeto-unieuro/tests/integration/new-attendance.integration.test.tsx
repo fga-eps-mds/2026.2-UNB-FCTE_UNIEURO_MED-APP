@@ -129,9 +129,9 @@ describe('Registro do atendimento, de ponta a ponta', () => {
     database = temp.open();
 
     expect(cpfVisible).toBe(false);
-    await expect(mockRepository.findPatientByCpf(CPF)).resolves.toEqual({
-      id: expect.any(Number),
-    });
+    await expect(mockRepository.findPatientByCpf(CPF)).resolves.toEqual(
+      expect.objectContaining({ id: expect.any(Number) }),
+    );
   });
 
   it('reaproveita o paciente que volta e cria um novo atendimento', async () => {
@@ -141,6 +141,8 @@ describe('Registro do atendimento, de ponta a ponta', () => {
     await waitFor(() => expect(useRouter().replace).toHaveBeenCalledTimes(1));
     screen.unmount();
     await registrarPaciente(user);
+    // O CPF já é do José: o aviso da #140 aparece antes de gravar o segundo exame.
+    await user.press(await screen.findByRole('button', { name: 'Continuar com esta ficha' }));
     await waitFor(() => expect(useRouter().replace).toHaveBeenCalledTimes(2));
 
     const totals = await database.getFirstAsync<{ pacientes: number; atendimentos: number }>(
@@ -148,5 +150,42 @@ describe('Registro do atendimento, de ponta a ponta', () => {
               (SELECT count(*) FROM avaliacao) AS atendimentos`,
     );
     expect(totals).toEqual({ pacientes: 1, atendimentos: 2 });
+  });
+
+  it('Cenário: CPF já cadastrado — avisa com o nome e a ficha e não muda o cadastro', async () => {
+    const user = userEvent.setup();
+    await registrarPaciente(user);
+    await waitFor(() => expect(useRouter().replace).toHaveBeenCalledTimes(1));
+    screen.unmount();
+
+    render(
+      <SessionProvider initialProfessional={professional}>
+        <NewAttendanceRoute />
+      </SessionProvider>,
+    );
+    await user.type(screen.getByLabelText('Nome completo'), 'Maria Digitada Errado');
+    await user.type(screen.getByLabelText('CPF'), CPF);
+    await user.type(screen.getByLabelText('Data de nascimento'), '01011950');
+    await user.type(screen.getByLabelText('Escolaridade (anos)'), '12');
+    await user.press(screen.getByRole('button', { name: 'Ir para o termo de consentimento' }));
+
+    expect(
+      await screen.findByText(/Este CPF já é do paciente José Alves Martins, ficha \d{4}-0001\./),
+    ).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Voltar e revisar' }));
+    expect(useRouter().replace).toHaveBeenCalledTimes(1);
+
+    await user.press(screen.getByRole('button', { name: 'Ir para o termo de consentimento' }));
+    await user.press(await screen.findByRole('button', { name: 'Continuar com esta ficha' }));
+    await waitFor(() => expect(useRouter().replace).toHaveBeenCalledTimes(2));
+
+    const pacientes = await database.getAllAsync<{ nome: string; escolaridade_anos: number }>(
+      'SELECT nome, escolaridade_anos FROM paciente',
+    );
+    expect(pacientes).toEqual([{ nome: 'José Alves Martins', escolaridade_anos: 5 }]);
+    const atendimentos = await database.getFirstAsync<{ total: number }>(
+      'SELECT count(*) AS total FROM avaliacao',
+    );
+    expect(atendimentos).toEqual({ total: 2 });
   });
 });

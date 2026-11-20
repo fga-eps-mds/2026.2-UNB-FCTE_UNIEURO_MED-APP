@@ -4,6 +4,9 @@ import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
 import { getDatabase } from '@/db/database';
 
+/** Paciente encontrado pelo CPF, com o nome e a ficha para o aviso da #140. */
+export type ExistingPatientRecord = { id: number; name: string; recordNumber: string };
+
 /**
  * Paciente pronto para gravar. Espelha o `NewPatient` da regra do atendimento:
  * o banco não importa tipos da camada de aplicação, e a `composition.ts` da
@@ -271,13 +274,14 @@ export function createAttendanceRepository(
   };
 
   return {
-    async findPatientByCpf(cpf: string): Promise<{ id: number } | null> {
+    /** Nome e ficha vão para o aviso do CPF já cadastrado (#140). Não lê o CPF. */
+    async findPatientByCpf(cpf: string): Promise<ExistingPatientRecord | null> {
       const database = await open();
-      const row = await database.getFirstAsync<{ id: number }>(
-        'SELECT id FROM paciente WHERE cpf_indice = ? LIMIT 1',
+      const row = await database.getFirstAsync<{ id: number; nome: string; numero_ficha: string }>(
+        'SELECT id, nome, numero_ficha FROM paciente WHERE cpf_indice = ? LIMIT 1',
         [await protector.blindIndex(cpf)],
       );
-      return row ? { id: row.id } : null;
+      return row ? { id: row.id, name: row.nome, recordNumber: row.numero_ficha } : null;
     },
 
     /** Nome e ficha do paciente do atendimento, para identificá-lo no termo (#21). Não lê o CPF. */

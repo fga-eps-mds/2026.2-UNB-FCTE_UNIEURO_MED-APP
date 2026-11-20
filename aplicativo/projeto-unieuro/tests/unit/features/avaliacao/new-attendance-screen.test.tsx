@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,11 +7,20 @@ import {
   waitFor,
   within,
 } from '@testing-library/react-native';
-import { Alert, ScrollView, TextInput } from 'react-native';
+import { Alert, Modal, ScrollView, TextInput } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 
-import type { AttendanceRepository, PatientField } from '@/features/avaliacao/attendance';
+import type {
+  AttendanceRepository,
+  ExistingPatient,
+  PatientField,
+} from '@/features/avaliacao/attendance';
+import {
+  BOTAO_CONTINUAR_NA_FICHA,
+  BOTAO_REVISAR,
+  TITULO_CPF_JA_CADASTRADO,
+} from '@/features/avaliacao/cpf-ja-cadastrado-dialog';
 import NewAttendanceScreen from '@/features/avaliacao/new-attendance-screen';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { MAX_NAME_LENGTH } from '@/features/shared/name';
@@ -342,6 +352,77 @@ describe('NewAttendanceScreen', () => {
 
       await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
       expect(screen.queryByLabelText(`Erro. ${FALHA_AO_SALVAR}`)).toBeNull();
+    });
+  });
+
+  describe('CPF já cadastrado (#140)', () => {
+    const jose: ExistingPatient = { id: 4, name: 'José Alves Martins', recordNumber: '2026-0004' };
+    const avisoAberto = () => screen.queryByRole('header', { name: TITULO_CPF_JA_CADASTRADO });
+
+    const comCpfCadastrado = () =>
+      criarRepositorio({ findPatientByCpf: jest.fn(async () => jose) });
+
+    it('avisa com o nome e a ficha do paciente antes de gravar', async () => {
+      const user = userEvent.setup();
+      const { repository, onRegistered } = renderizarTela({ repository: comCpfCadastrado() });
+
+      await preencherFormulario(user, { 'Nome completo': 'Outro Nome' });
+      await enviar(user);
+
+      expect(
+        await screen.findByRole('header', { name: TITULO_CPF_JA_CADASTRADO }),
+      ).toBeOnTheScreen();
+      expect(
+        screen.getByText(/Este CPF já é do paciente José Alves Martins, ficha 2026-0004\./),
+      ).toBeOnTheScreen();
+      expect(screen.getByText(/digitados não serão salvos/)).toBeOnTheScreen();
+      expect(repository.createAttendance).not.toHaveBeenCalled();
+      expect(onRegistered).not.toHaveBeenCalled();
+    });
+
+    it('"Voltar e revisar" fecha o aviso, mantém o formulário e não grava', async () => {
+      const user = userEvent.setup();
+      const { repository, onRegistered } = renderizarTela({ repository: comCpfCadastrado() });
+
+      await preencherFormulario(user);
+      await enviar(user);
+      await user.press(await screen.findByRole('button', { name: BOTAO_REVISAR }));
+
+      expect(avisoAberto()).toBeNull();
+      expect(screen.getByLabelText('Nome completo')).toHaveDisplayValue('José Alves Martins');
+      expect(screen.getByRole('button', { name: BOTAO })).toBeEnabled();
+      expect(repository.createAttendance).not.toHaveBeenCalled();
+      expect(onRegistered).not.toHaveBeenCalled();
+    });
+
+    it('o voltar do Android também fecha o aviso sem gravar', async () => {
+      const user = userEvent.setup();
+      const { repository } = renderizarTela({ repository: comCpfCadastrado() });
+
+      await preencherFormulario(user);
+      await enviar(user);
+      await screen.findByRole('header', { name: TITULO_CPF_JA_CADASTRADO });
+      const aviso = screen.UNSAFE_getAllByType(Modal).find((modal) => modal.props.visible)!;
+      act(() => aviso.props.onRequestClose());
+
+      expect(avisoAberto()).toBeNull();
+      expect(repository.createAttendance).not.toHaveBeenCalled();
+    });
+
+    it('"Continuar com esta ficha" grava o exame na ficha existente e abre o termo', async () => {
+      const user = userEvent.setup();
+      const { repository, onRegistered } = renderizarTela({ repository: comCpfCadastrado() });
+
+      await preencherFormulario(user);
+      await enviar(user);
+      await user.press(await screen.findByRole('button', { name: BOTAO_CONTINUAR_NA_FICHA }));
+
+      await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
+      expect(repository.createAttendance).toHaveBeenCalledTimes(1);
+      expect(repository.createAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({ patient: { id: jose.id }, professionalId: profissional.id }),
+      );
+      expect(avisoAberto()).toBeNull();
     });
   });
 
