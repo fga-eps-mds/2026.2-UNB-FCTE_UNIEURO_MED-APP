@@ -17,9 +17,10 @@ import {
   type ParametroDeRota,
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
+import type { MotivoDesistencia } from '@/features/avaliacao/interrupcao';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
+import { useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
-import { useTheme } from '@/hooks/use-theme';
 
 export { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 
@@ -29,6 +30,8 @@ export type InstructionScreenProps = {
   /** Parâmetro `atendimento` da rota: a avaliação em andamento. */
   atendimento: ParametroDeRota;
   onStart: (tarefa: Tarefa) => void;
+  /** Grava a desistência na tarefa atual (#25) e decide o destino. */
+  onDesistir?: (tarefa: Tarefa, motivo: MotivoDesistencia | null) => Promise<void>;
 };
 
 /**
@@ -48,13 +51,17 @@ export default function InstructionScreen({
   tarefa: tarefaParam,
   atendimento,
   onStart,
+  onDesistir,
 }: Readonly<InstructionScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
-  const theme = useTheme();
+  const { cores: theme, escala } = useTemaDoPaciente();
   const { width, height } = useWindowDimensions();
   const layout = useMemo(() => getInstructionLayout(width, height), [width, height]);
-  const styles = useMemo(() => createInstructionStyles(theme, layout), [theme, layout]);
+  const styles = useMemo(
+    () => createInstructionStyles(theme, layout, escala),
+    [theme, layout, escala],
+  );
   useSemVoltar();
 
   const tarefa = obterTarefa(tarefaParam);
@@ -71,7 +78,12 @@ export default function InstructionScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TaskTopBar numero={tarefa.numero} cores={theme} />
+      <TaskTopBar
+        numero={tarefa.numero}
+        cores={theme}
+        escala={escala}
+        onDesistir={onDesistir && ((motivo) => onDesistir(tarefa, motivo))}
+      />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View testID="cartao-instrucao" style={styles.card}>
