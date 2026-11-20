@@ -171,7 +171,8 @@ const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
       WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por,
     GROUP_CONCAT(DISTINCT a.id_profissional) AS profissionais,
     (SELECT GROUP_CONCAT(m.nome, char(31)) FROM profissional m
-      WHERE m.id IN (SELECT x.id_profissional FROM avaliacao x WHERE x.id_paciente = p.id))
+      WHERE m.id IN (SELECT x.id_profissional FROM avaliacao x
+        WHERE x.id_paciente = p.id AND x.excluido_em IS NULL))
       AS nomes_profissionais
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
