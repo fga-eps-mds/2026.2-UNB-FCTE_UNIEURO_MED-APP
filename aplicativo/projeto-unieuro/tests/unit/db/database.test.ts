@@ -203,10 +203,18 @@ describe('esquema', () => {
   it('chega à versão 10 com a tarefa, o motivo e a hora da desistência da #25', () => {
     const schemaV10 = MIGRATIONS[9];
 
-    expect(SCHEMA_VERSION).toBe(10);
     expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER');
     expect(schemaV10).toContain("motivo_interrupcao IN ('cansaco', 'nao_quis_continuar'");
     expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT');
+  });
+
+  it('chega à versão 11 com a exclusão de exame (#58) e de paciente (#47)', () => {
+    const schemaV11 = MIGRATIONS[10];
+
+    expect(SCHEMA_VERSION).toBe(11);
+    expect(schemaV11).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
+    expect(schemaV11).toContain('CREATE TABLE IF NOT EXISTS exclusao');
+    expect(schemaV11).toContain('avaliacao_finalizada_sem_exclusao');
   });
 });
 

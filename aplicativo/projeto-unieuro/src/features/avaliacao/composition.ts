@@ -1,7 +1,9 @@
 import { attendanceRepository } from '@/db/attendance-repository';
 import { consentRepository } from '@/db/consent-repository';
+import { exclusionRepository } from '@/db/exclusion-repository';
 import { interruptionRepository } from '@/db/interruption-repository';
 import { professionalRepository } from '@/db/professional-repository';
+import type { SessionProfessional } from '@/features/auth/session';
 import type { AttendanceRepository } from '@/features/avaliacao/attendance';
 import type { ProfessionalCpfRepository } from '@/features/avaliacao/confirmacao-profissional';
 import {
@@ -9,6 +11,7 @@ import {
   verificarAcessoTarefas,
   type RegistrarDecisaoInput,
 } from '@/features/avaliacao/consentimento';
+import { excluirExame, excluirPaciente } from '@/features/avaliacao/exclusao';
 import {
   desistirDoExame,
   retomarExame,
@@ -49,3 +52,27 @@ export const loadInterruptedExam = (attendanceId: number, professionalId: number
 
 export const resumeExam = (attendanceId: number, professionalId: number) =>
   retomarExame(attendanceId, professionalId, interrupcaoRepository);
+
+/** Exclusão do exame em andamento (#58), confirmada pela senha do profissional. */
+export const deleteExam = (
+  attendanceId: number,
+  professional: SessionProfessional,
+  password: string,
+) =>
+  excluirExame(
+    { atendimentoId: attendanceId, profissional: professional, senha: password },
+    exclusionRepository,
+    professionalRepository,
+  );
+
+/** Exclusão do paciente sem exame finalizado (#47), confirmada pela senha do profissional. */
+export const deletePatient = (
+  patientId: number,
+  professional: SessionProfessional,
+  password: string,
+) =>
+  excluirPaciente(
+    { pacienteId: patientId, profissional: professional, senha: password },
+    exclusionRepository,
+    professionalRepository,
+  );
