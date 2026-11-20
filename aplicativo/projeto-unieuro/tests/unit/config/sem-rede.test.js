@@ -40,6 +40,19 @@ const CAMINHOS_DE_SAIDA = [
 const BIBLIOTECAS_DE_REDE =
   /sentry|bugsnag|crashlytics|firebase|analytics|amplitude|mixpanel|segment|posthog|datadog|appcenter|instabug|logrocket|rollbar|newrelic|onesignal|expo-updates|expo-notifications|expo-network|expo-dev-client|netinfo|axios|socket\.io|apollo|urql|react-query|reactotron|flipper|nearby|bluetooth|react-native-(ble|wifi|tcp|udp)/i;
 
+// Só as bibliotecas contam. Um arquivo do próprio projeto (`./`, `../` ou o alias `@/`)
+// pode ter "nearby" ou "sync" no nome, como os da sincronização entre tablets (#118),
+// sem ser uma biblioteca de rede. O que sai por código nativo é conferido nas
+// dependências e nas permissões do APK, abaixo.
+function bibliotecasImportadas(codigo) {
+  const modulos = [
+    ...semComentarios(codigo).matchAll(/(?:from|require\()\s*['"]([^'"]+)['"]/g),
+  ].map((achado) => achado[1]);
+  return modulos
+    .filter((modulo) => !modulo.startsWith('.') && !modulo.startsWith('@/'))
+    .filter((modulo) => BIBLIOTECAS_DE_REDE.test(modulo));
+}
+
 describe('o aplicativo não envia dado para fora do tablet (#16)', () => {
   describe('código-fonte', () => {
     const arquivos = arquivosDe(path.join(RAIZ, 'src'));
@@ -57,15 +70,11 @@ describe('o aplicativo não envia dado para fora do tablet (#16)', () => {
     });
 
     it('nenhum arquivo importa biblioteca de rede, de métrica ou de relatório de erro', () => {
-      const importacoes = arquivos.flatMap((arquivo) => {
-        const codigo = semComentarios(fs.readFileSync(arquivo, 'utf8'));
-        const modulos = [...codigo.matchAll(/(?:from|require\()\s*['"]([^'"]+)['"]/g)].map(
-          (achado) => achado[1],
-        );
-        return modulos
-          .filter((modulo) => BIBLIOTECAS_DE_REDE.test(modulo))
-          .map((modulo) => `${path.relative(RAIZ, arquivo)} → ${modulo}`);
-      });
+      const importacoes = arquivos.flatMap((arquivo) =>
+        bibliotecasImportadas(fs.readFileSync(arquivo, 'utf8')).map(
+          (modulo) => `${path.relative(RAIZ, arquivo)} → ${modulo}`,
+        ),
+      );
 
       expect(importacoes).toEqual([]);
     });
@@ -76,6 +85,35 @@ describe('o aplicativo não envia dado para fora do tablet (#16)', () => {
       const embarcadas = Object.keys(packageJson.dependencies);
 
       expect(embarcadas.filter((nome) => BIBLIOTECAS_DE_REDE.test(nome))).toEqual([]);
+    });
+
+    it('importar um arquivo do próprio projeto nunca conta, mesmo com "nearby" no nome', () => {
+      const codigo = `
+        import { loadNearby } from './nearby-module';
+        import { abrirSessao } from '../sincronizacao/nearby-session';
+        import { NearbyCard } from '@/features/sincronizacao/nearby-sync-card';
+        const protocolo = require('./nearby-protocol');
+      `;
+
+      expect(bibliotecasImportadas(codigo)).toEqual([]);
+    });
+
+    it('importar uma biblioteca de rede conta, também a de escopo @', () => {
+      const codigo = `
+        import axios from 'axios';
+        import * as Sentry from '@sentry/react-native';
+        import { Nearby } from 'react-native-nearby-connections';
+        const netinfo = require('@react-native-community/netinfo');
+        import { openDatabaseAsync } from 'expo-sqlite';
+        import { useRouter } from 'expo-router';
+      `;
+
+      expect(bibliotecasImportadas(codigo)).toEqual([
+        'axios',
+        '@sentry/react-native',
+        'react-native-nearby-connections',
+        '@react-native-community/netinfo',
+      ]);
     });
 
     it('o reconhecedor de bibliotecas pega os serviços que a regra de negócio proíbe', () => {
