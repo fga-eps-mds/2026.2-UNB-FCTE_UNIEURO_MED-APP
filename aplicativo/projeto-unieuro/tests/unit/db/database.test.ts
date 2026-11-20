@@ -174,7 +174,6 @@ describe('esquema', () => {
   it('chega à versão 6 com as tarefas, o desenho e o traçado da #10', () => {
     const schemaV6 = MIGRATIONS[5];
 
-    expect(SCHEMA_VERSION).toBe(9);
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS tarefa');
     expect(schemaV6).toContain('REFERENCES avaliacao (id)');
     expect(schemaV6).toContain('CREATE TABLE IF NOT EXISTS desenho');
@@ -199,6 +198,23 @@ describe('esquema', () => {
     expect(schemaV9).toContain("ADD COLUMN perfil TEXT NOT NULL DEFAULT 'medico'");
     expect(schemaV9).toContain("CHECK (perfil IN ('medico', 'superusuario'))");
     expect(schemaV9).toContain('ADD COLUMN superusuario_por INTEGER REFERENCES profissional (id)');
+  });
+
+  it('chega à versão 10 com a tarefa, o motivo e a hora da desistência da #25', () => {
+    const schemaV10 = MIGRATIONS[9];
+
+    expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN tarefa_interrupcao INTEGER');
+    expect(schemaV10).toContain("motivo_interrupcao IN ('cansaco', 'nao_quis_continuar'");
+    expect(schemaV10).toContain('ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT');
+  });
+
+  it('chega à versão 11 com a exclusão de exame (#58) e de paciente (#47)', () => {
+    const schemaV11 = MIGRATIONS[10];
+
+    expect(SCHEMA_VERSION).toBe(11);
+    expect(schemaV11).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
+    expect(schemaV11).toContain('CREATE TABLE IF NOT EXISTS exclusao');
+    expect(schemaV11).toContain('avaliacao_finalizada_sem_exclusao');
   });
 });
 

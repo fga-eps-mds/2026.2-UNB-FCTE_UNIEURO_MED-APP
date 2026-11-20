@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
 import type { ThemeColors } from '@/constants/theme';
+import { DesistirDialog } from '@/features/avaliacao/desistir-dialog';
 import { createInstructionStyles } from '@/features/avaliacao/instruction.styles';
-import { TOTAL_TAREFAS } from '@/features/avaliacao/tarefas';
+import type { MotivoDesistencia } from '@/features/avaliacao/interrupcao';
+import { createInterrupcaoStyles } from '@/features/avaliacao/interrupcao.styles';
+import { obterTarefa, TOTAL_TAREFAS } from '@/features/avaliacao/tarefas';
 
 export const HELP_MESSAGE = 'Se precisar de ajuda, chame o profissional';
 
@@ -11,6 +14,8 @@ export type TaskTopBarProps = {
   /** Tarefa atual, de 1 a 3. */
   numero: number;
   cores: ThemeColors;
+  /** Grava a desistência na tarefa atual (#25). Sem ela, a barra não mostra o "Desistir". */
+  onDesistir?: (motivo: MotivoDesistencia | null) => Promise<void>;
   /** Letras maiores (#24). */
   escala?: number;
 };
@@ -20,8 +25,12 @@ export type TaskTopBarProps = {
  * desenho (#9): um círculo por tarefa, o texto "Tarefa N de 3" e a frase de ajuda
  * (guia de identidade visual, "Telas do paciente").
  */
-export function TaskTopBar({ numero, cores, escala = 1 }: Readonly<TaskTopBarProps>) {
+export function TaskTopBar({ numero, cores, onDesistir, escala = 1 }: Readonly<TaskTopBarProps>) {
   const styles = useMemo(() => createInstructionStyles(cores, undefined, escala), [cores, escala]);
+  const interrupcao = useMemo(() => createInterrupcaoStyles(cores, escala), [cores, escala]);
+  const [desistindo, setDesistindo] = useState(false);
+  const progresso = `Tarefa ${numero} de ${TOTAL_TAREFAS}`;
+  const titulo = obterTarefa(String(numero))?.titulo;
 
   return (
     <View style={styles.topBar}>
@@ -34,9 +43,28 @@ export function TaskTopBar({ numero, cores, escala = 1 }: Readonly<TaskTopBarPro
             <View key={indice} style={[styles.dot, indice < numero && styles.dotFilled]} />
           ))}
         </View>
-        <Text style={styles.progressText}>{`Tarefa ${numero} de ${TOTAL_TAREFAS}`}</Text>
+        <Text style={styles.progressText}>{progresso}</Text>
       </View>
       <Text style={styles.help}>{HELP_MESSAGE}</Text>
+      {onDesistir && (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Desistir do exame"
+            onPress={() => setDesistindo(true)}
+            style={({ pressed }) => [interrupcao.desistir, pressed && interrupcao.pressionado]}>
+            <Text style={interrupcao.desistirTexto}>Desistir</Text>
+          </Pressable>
+          <DesistirDialog
+            visible={desistindo}
+            parouEm={titulo ? `${progresso} · ${titulo}` : progresso}
+            onContinuar={() => setDesistindo(false)}
+            onDesistir={onDesistir}
+            cores={cores}
+            escala={escala}
+          />
+        </>
+      )}
     </View>
   );
 }

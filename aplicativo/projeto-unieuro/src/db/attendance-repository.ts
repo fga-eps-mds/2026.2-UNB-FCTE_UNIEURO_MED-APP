@@ -108,7 +108,8 @@ const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'>
 });
 
 // Só os atendimentos do profissional informado entram na contagem e no mais
-// recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
+// recente: um médico não vê o que outro coletou no mesmo tablet. Os excluídos
+// (#47 e #58) também ficam de fora. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
 //
 // O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
@@ -119,11 +120,11 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado FROM avaliacao r
-      WHERE r.id_paciente = p.id AND r.id_profissional = ?
+      WHERE r.id_paciente = p.id AND r.id_profissional = ? AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL
   GROUP BY p.id`;
 
 // O paciente só existe para o profissional que o atendeu: um médico não vê o que
@@ -133,12 +134,13 @@ const FIND_PATIENT_OF_PROFESSIONAL = `SELECT p.id, p.nome, p.numero_ficha, p.dat
     p.escolaridade_anos, p.sexo
   FROM paciente p
   WHERE p.id = ?
-    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id AND a.id_profissional = ?)`;
+    AND EXISTS (SELECT 1 FROM avaliacao a
+      WHERE a.id_paciente = p.id AND a.id_profissional = ? AND a.excluido_em IS NULL)`;
 
 // Mesmo critério da lista: `data_hora_inicio` é comparada como texto, o que só
 // ordena certo com datas no formato de `toISOString()`, em UTC.
 const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado FROM avaliacao
-  WHERE id_paciente = ? AND id_profissional = ?
+  WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
   ORDER BY data_hora_inicio DESC, id DESC`;
 
 // Só o superusuário com a conta ativa pode ver o que outro médico coletou (#49).
@@ -149,8 +151,11 @@ const REQUESTER_IS_SUPERUSER = `EXISTS (SELECT 1 FROM profissional s
 
 // Atendimento mais recente do paciente, entre os de todos os profissionais, com o
 // mesmo desempate pelo id da consulta do médico.
+//
+// As consultas "de todos" também ignoram os exames excluídos (#47 e #58): eles
+// continuam no tablet, mas saem das listas do superusuário como saem das do médico.
 const LATEST_ATTENDANCE = `FROM avaliacao r
-      WHERE r.id_paciente = p.id
+      WHERE r.id_paciente = p.id AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1`;
 
 const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
@@ -161,13 +166,13 @@ const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
       WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE ${REQUESTER_IS_SUPERUSER}
+  WHERE a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
   GROUP BY p.id`;
 
 const LIST_ALL_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE ${REQUESTER_IS_SUPERUSER}`;
+  WHERE a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}`;
 
 // Paciente atendido por qualquer profissional, para a tela do paciente do
 // superusuário. Para outro profissional, não há paciente: o mesmo resultado de
@@ -176,7 +181,7 @@ const FIND_ANY_ATTENDED_PATIENT = `SELECT p.id, p.nome, p.numero_ficha, p.data_n
     p.escolaridade_anos, p.sexo
   FROM paciente p
   WHERE p.id = ?
-    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id)
+    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id AND a.excluido_em IS NULL)
     AND ${REQUESTER_IS_SUPERUSER}`;
 
 // Exames do paciente aplicados por todos os profissionais, com o nome de quem
@@ -185,13 +190,13 @@ const FIND_ANY_ATTENDED_PATIENT = `SELECT p.id, p.nome, p.numero_ficha, p.data_n
 const LIST_ALL_EXAMS_OF_PATIENT = `SELECT a.id, a.data_hora_inicio, a.estado, m.nome AS aplicado_por
   FROM avaliacao a
   JOIN profissional m ON m.id = a.id_profissional
-  WHERE a.id_paciente = ? AND ${REQUESTER_IS_SUPERUSER}
+  WHERE a.id_paciente = ? AND a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
   ORDER BY a.data_hora_inicio DESC, a.id DESC`;
 
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?`;
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL`;
 
 const INSERT_PATIENT = `INSERT INTO paciente
   (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)
