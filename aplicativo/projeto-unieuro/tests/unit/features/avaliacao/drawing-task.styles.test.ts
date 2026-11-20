@@ -7,6 +7,7 @@ import {
   LARANJA_ESCURO,
   createDrawingTaskStyles,
 } from '@/features/avaliacao/drawing-task.styles';
+import { CORES_ALTO_CONTRASTE } from '@/features/avaliacao/tema-do-paciente';
 
 const styles = createDrawingTaskStyles();
 
@@ -115,5 +116,37 @@ describe('createDrawingTaskStyles', () => {
     expect(styles.botaoCancelar.minHeight).toBe(ALTURA_BOTAO_ACAO);
     expect(styles.botaoApagar.minHeight).toBe(ALTURA_BOTAO_ACAO);
     expect(styles.botaoApagarPressionado.backgroundColor).toBe(LARANJA_ESCURO);
+  });
+});
+
+describe('createDrawingTaskStyles com os ajustes do teste (#24)', () => {
+  const contraste = createDrawingTaskStyles(CORES_ALTO_CONTRASTE);
+  const ampliados = createDrawingTaskStyles(undefined, 1.25);
+
+  it('no alto contraste, troca as cores do lembrete, dos botões e do desabilitado', () => {
+    expect(contraste.lembrete.backgroundColor).toBe(CORES_ALTO_CONTRASTE.destaque);
+    expect(contraste.lembreteFrase.color).toBe(CORES_ALTO_CONTRASTE.textoSobreDestaque);
+    expect(contraste.botaoConfirmar.backgroundColor).toBe(CORES_ALTO_CONTRASTE.primary);
+    expect(contraste.botaoConfirmarPressionado.backgroundColor).toBe(
+      CORES_ALTO_CONTRASTE.pressionado,
+    );
+    expect(contraste.botaoConfirmarDesabilitado.backgroundColor).toBe(
+      CORES_ALTO_CONTRASTE.desabilitadoFundo,
+    );
+    expect(contraste.textoAcaoDesabilitado.color).toBe(CORES_ALTO_CONTRASTE.desabilitadoTexto);
+    expect(contraste.figura.backgroundColor).toBe(CORES_ALTO_CONTRASTE.fundoAcolhedor);
+  });
+
+  it('com as letras maiores, aumenta o texto e mantém o tamanho dos botões e do quadro', () => {
+    expect(ampliados.textoConfirmar.fontSize).toBe(33);
+    expect(ampliados.lembreteTitulo.fontSize).toBe(30);
+    expect(ampliados.dialogoTitulo.fontSize).toBe(35);
+    expect(ampliados.botaoConfirmar.minHeight).toBe(styles.botaoConfirmar.minHeight);
+    expect(ampliados.quadro).toEqual(styles.quadro);
+  });
+
+  it('sem ajustes, as cores derivadas continuam as do guia', () => {
+    expect(styles.lembrete.backgroundColor).toBe('#FFE8D6');
+    expect(styles.figura.backgroundColor).toBe('#FFF7ED');
   });
 });

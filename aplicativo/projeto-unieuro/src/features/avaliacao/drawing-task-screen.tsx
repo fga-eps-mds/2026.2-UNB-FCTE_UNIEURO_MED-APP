@@ -12,7 +12,7 @@ import {
   mostraCirculosDasTrilhas,
   mostraFiguraDoCubo,
 } from '@/features/avaliacao/drawing-task';
-import { CORES_DA_TAREFA, createDrawingTaskStyles } from '@/features/avaliacao/drawing-task.styles';
+import { createDrawingTaskStyles } from '@/features/avaliacao/drawing-task.styles';
 import {
   obterTarefa,
   valorDoParametro,
@@ -20,6 +20,7 @@ import {
   type Tarefa,
 } from '@/features/avaliacao/tarefas';
 import { TaskTopBar } from '@/features/avaliacao/task-top-bar';
+import { useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import { TrailCircles } from '@/features/avaliacao/trail-circles';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 import { QuadroDesenho } from '@/features/captura/quadro-desenho';
@@ -57,7 +58,8 @@ export default function DrawingTaskScreen({
 }: Readonly<DrawingTaskScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
-  const styles = useMemo(() => createDrawingTaskStyles(), []);
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => createDrawingTaskStyles(cores, escala), [cores, escala]);
   const registro = useRegistroTracado();
   // O segundo toque em "Confirmar" antes de a tela sair pularia uma tarefa.
   const confirmou = useRef(false);
@@ -104,7 +106,7 @@ export default function DrawingTaskScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TaskTopBar numero={tarefa.numero} cores={CORES_DA_TAREFA} />
+      <TaskTopBar numero={tarefa.numero} cores={cores} escala={escala} />
 
       <View style={styles.corpo}>
         <View style={styles.ferramentas}>
