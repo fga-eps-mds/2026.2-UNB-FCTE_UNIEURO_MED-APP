@@ -27,7 +27,7 @@ export type TaskTopBarProps = {
  */
 export function TaskTopBar({ numero, cores, onDesistir, escala = 1 }: Readonly<TaskTopBarProps>) {
   const styles = useMemo(() => createInstructionStyles(cores, undefined, escala), [cores, escala]);
-  const interrupcao = useMemo(() => createInterrupcaoStyles(), []);
+  const interrupcao = useMemo(() => createInterrupcaoStyles(cores, escala), [cores, escala]);
   const [desistindo, setDesistindo] = useState(false);
   const progresso = `Tarefa ${numero} de ${TOTAL_TAREFAS}`;
   const titulo = obterTarefa(String(numero))?.titulo;
@@ -60,6 +60,8 @@ export function TaskTopBar({ numero, cores, onDesistir, escala = 1 }: Readonly<T
             parouEm={titulo ? `${progresso} · ${titulo}` : progresso}
             onContinuar={() => setDesistindo(false)}
             onDesistir={onDesistir}
+            cores={cores}
+            escala={escala}
           />
         </>
       )}

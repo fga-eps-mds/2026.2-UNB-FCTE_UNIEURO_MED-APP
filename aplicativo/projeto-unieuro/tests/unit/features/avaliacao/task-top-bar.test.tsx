@@ -133,4 +133,25 @@ describe('desistência na barra das tarefas (#25)', () => {
     await user.press(screen.getByRole('button', { name: 'Sim, desistir' }));
     expect(onDesistir).toHaveBeenCalledTimes(2);
   });
+
+  it('o "Desistir" e a pergunta seguem as letras maiores e o alto contraste (#24)', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskTopBar
+        numero={1}
+        cores={CORES_ALTO_CONTRASTE}
+        escala={1.25}
+        onDesistir={jest.fn(async () => {})}
+      />,
+    );
+
+    expect(StyleSheet.flatten(screen.getByText('Desistir').props.style).fontSize).toBe(23);
+
+    await user.press(screen.getByRole('button', { name: 'Desistir do exame' }));
+
+    const titulo = StyleSheet.flatten(
+      screen.getByRole('header', { name: 'Desistir do exame?' }).props.style,
+    );
+    expect(titulo).toMatchObject({ fontSize: 38, color: CORES_ALTO_CONTRASTE.text });
+  });
 });
