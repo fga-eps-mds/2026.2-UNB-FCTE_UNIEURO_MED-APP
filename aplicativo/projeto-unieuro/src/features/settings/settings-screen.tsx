@@ -8,6 +8,7 @@ import type { AccountRepository } from '@/features/auth/account';
 import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { createAccountFormStyles } from '@/features/settings/account-form.styles';
+import { AjustesDoTesteCard } from '@/features/settings/ajustes-do-teste-card';
 import { DeactivateAccountDialog } from '@/features/settings/deactivate-account-dialog';
 import { createSettingsStyles, type SettingsStyles } from '@/features/settings/settings.styles';
 import { useTheme } from '@/hooks/use-theme';
@@ -84,6 +85,8 @@ export default function SettingsScreen({ repository }: SettingsScreenProps) {
               </Pressable>
             </View>
           </View>
+
+          <AjustesDoTesteCard styles={styles} />
 
           <View style={styles.card}>
             <Text accessibilityRole="header" style={styles.cardTitle}>
