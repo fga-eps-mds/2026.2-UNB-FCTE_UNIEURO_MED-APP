@@ -293,6 +293,66 @@ describe('banco da versão 8, de antes do perfil', () => {
   });
 });
 
+describe('contas listadas na área do superusuário (#119)', () => {
+  const contaDe = async (email: string) =>
+    (await professionals.listAccounts()).find((account) => account.email === email);
+
+  it('conta os exames que cada profissional aplicou', async () => {
+    const ana = await cadastrar(ANA);
+    const paulo = await cadastrar(PAULO);
+    await attendances.createAttendance({
+      patient: JOSE,
+      professionalId: ana.id,
+      startedAt: '2026-10-02T12:00:00.000Z',
+    });
+    const jose = (await attendances.findPatientByCpf(JOSE.cpf))!;
+    await attendances.createAttendance({
+      patient: { id: jose.id },
+      professionalId: ana.id,
+      startedAt: '2026-10-05T17:32:00.000Z',
+    });
+    await attendances.createAttendance({
+      patient: MARIA,
+      professionalId: paulo.id,
+      startedAt: '2026-10-03T13:00:00.000Z',
+    });
+
+    expect((await contaDe(ANA.email))?.examCount).toBe(2);
+    expect((await contaDe(PAULO.email))?.examCount).toBe(1);
+  });
+
+  it('lista com 0 exames quem ainda não aplicou nenhum', async () => {
+    await cadastrar(ANA);
+
+    expect((await contaDe(ANA.email))?.examCount).toBe(0);
+  });
+
+  it('lista em ordem alfabética, com o superusuário e as contas desativadas', async () => {
+    await criarAdministrador();
+    const paulo = await cadastrar(PAULO);
+    await cadastrar(ANA);
+    await professionals.deactivate(paulo.id, AGORA);
+
+    const contas = await professionals.listAccounts();
+
+    expect(contas.map(({ name, active, superuser }) => [name, active, superuser])).toEqual([
+      [ANA.name, true, false],
+      [TAUIL.name, true, true],
+      [PAULO.name, false, false],
+    ]);
+  });
+
+  it('não traz a senha nem o CPF de ninguém', async () => {
+    await criarAdministrador();
+    await cadastrar(ANA);
+
+    const contas = await professionals.listAccounts();
+
+    expect(JSON.stringify(contas)).not.toContain('hash-da-senha');
+    expect(JSON.stringify(contas)).not.toContain(ANA.cpf);
+  });
+});
+
 describe('atendimentos de todos os profissionais', () => {
   let tauil: { id: number; superuser: boolean };
   let ana: { id: number; superuser: boolean };

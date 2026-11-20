@@ -57,6 +57,29 @@ type ProfessionalRow = {
   superusuario_por: number | null;
 };
 
+/** Conta como a área do superusuário lista. Não traz a senha nem o CPF. */
+export type ProfessionalAccount = {
+  id: number;
+  name: string;
+  email: string;
+  crmNumber: string;
+  crmState: string;
+  active: boolean;
+  superuser: boolean;
+  examCount: number;
+};
+
+type ProfessionalAccountRow = {
+  id: number;
+  nome: string;
+  email: string;
+  crm_numero: string;
+  uf_crm: string;
+  ativo: number;
+  perfil: string;
+  exames: number;
+};
+
 const SELECT_PROFESSIONAL =
   'SELECT id, nome, email, crm_numero, uf_crm, senha_hash, criacao, last_update, ativo, desativacao, perfil, superusuario_por FROM profissional';
 
@@ -74,6 +97,15 @@ const INSERT_SUPERUSER = `INSERT INTO profissional (${INSERT_COLUMNS}, superusua
     THEN NOT EXISTS (SELECT 1 FROM profissional WHERE perfil = 'superusuario')
     ELSE EXISTS (SELECT 1 FROM profissional WHERE id = ? AND perfil = 'superusuario' AND ativo = 1)
   END`;
+
+// Uma linha por profissional, com quantos exames ele aplicou. Quem ainda não
+// aplicou nenhum também aparece, com 0.
+const LIST_ACCOUNTS = `SELECT p.id, p.nome, p.email, p.crm_numero, p.uf_crm, p.ativo, p.perfil,
+    COUNT(a.id) AS exames
+  FROM profissional p
+  LEFT JOIN avaliacao a ON a.id_profissional = p.id
+  GROUP BY p.id
+  ORDER BY p.nome`;
 
 const toProfessional = (row: ProfessionalRow): Professional => ({
   id: row.id,
@@ -280,6 +312,21 @@ export function createProfessionalRepository(
         [actorId, updatedAt, targetId, actorId],
       );
       return result.changes > 0;
+    },
+
+    async listAccounts(): Promise<ProfessionalAccount[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<ProfessionalAccountRow>(LIST_ACCOUNTS);
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.nome,
+        email: row.email,
+        crmNumber: row.crm_numero,
+        crmState: row.uf_crm,
+        active: row.ativo === 1,
+        superuser: row.perfil === 'superusuario',
+        examCount: row.exames,
+      }));
     },
 
     /**

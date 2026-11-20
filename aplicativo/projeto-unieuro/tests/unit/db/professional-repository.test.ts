@@ -36,9 +36,10 @@ const protector: CpfProtector = {
   decrypt: jest.fn(async () => CPF),
 };
 
-function createDatabase(firstRow: object | null = null) {
+function createDatabase(firstRow: object | null = null, allRows: object[] = []) {
   const database = {
     getFirstAsync: jest.fn(async () => firstRow),
+    getAllAsync: jest.fn(async () => allRows),
     runAsync: jest.fn(async () => ({ lastInsertRowId: 7, changes: 1 })),
   };
   return database as typeof database & SQLiteDatabase;
@@ -237,6 +238,78 @@ describe('consultas', () => {
     await expect(
       createRepository(createDatabase()).findByEmail('outra@unieuro.com.br'),
     ).resolves.toBeNull();
+  });
+});
+
+describe('listAccounts', () => {
+  // Consulta da área do superusuário devolve sem senha e sem CPF,
+  // com a contagem de exames.
+  const accountRow = {
+    id: 7,
+    nome: 'Ana Carolina Souza',
+    email: 'ana.souza@unieuro.com.br',
+    crm_numero: '12345',
+    uf_crm: 'DF',
+    ativo: 1,
+    perfil: 'medico',
+    exames: 12,
+  };
+
+  it('converte cada linha para a conta que a área do superusuário lista', async () => {
+    const database = createDatabase(null, [accountRow]);
+
+    await expect(createRepository(database).listAccounts()).resolves.toEqual([
+      {
+        id: 7,
+        name: 'Ana Carolina Souza',
+        email: 'ana.souza@unieuro.com.br',
+        crmNumber: '12345',
+        crmState: 'DF',
+        active: true,
+        superuser: false,
+        examCount: 12,
+      },
+    ]);
+    expect(database.getAllAsync).toHaveBeenCalledWith(
+      expect.stringMatching(/COUNT\(a\.id\) AS exames[\s\S]+LEFT JOIN avaliacao/),
+    );
+  });
+
+  it.each([
+    ['ativa', 1, true],
+    ['desativada', 0, false],
+  ])('marca a conta %s', async (_case, ativo, expected) => {
+    const database = createDatabase(null, [{ ...accountRow, ativo }]);
+
+    const [account] = await createRepository(database).listAccounts();
+
+    expect(account.active).toBe(expected);
+  });
+
+  it.each([
+    ['médico', 'medico', false],
+    ['superusuário', 'superusuario', true],
+  ])('identifica o perfil de %s', async (_case, perfil, expected) => {
+    const database = createDatabase(null, [{ ...accountRow, perfil }]);
+
+    const [account] = await createRepository(database).listAccounts();
+
+    expect(account.superuser).toBe(expected);
+  });
+
+  it('não traz a senha nem o CPF', async () => {
+    jest.mocked(protector.decrypt).mockClear();
+    const database = createDatabase(null, [accountRow]);
+
+    const [account] = await createRepository(database).listAccounts();
+
+    expect(account).not.toHaveProperty('passwordHash');
+    expect(account).not.toHaveProperty('cpf');
+    expect(protector.decrypt).not.toHaveBeenCalled();
+  });
+
+  it('devolve uma lista vazia quando não tem contas', async () => {
+    await expect(createRepository(createDatabase()).listAccounts()).resolves.toEqual([]);
   });
 });
 
