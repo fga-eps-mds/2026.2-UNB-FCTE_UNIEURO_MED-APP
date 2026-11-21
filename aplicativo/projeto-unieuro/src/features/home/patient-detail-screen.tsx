@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,11 +11,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { FeedbackMessage } from '@/features/auth/feedback-message';
-import { formatCrm, returnToLogin, useSession } from '@/features/auth/session';
+import {
+  formatCrm,
+  returnToLogin,
+  useSession,
+  type SessionProfessional,
+} from '@/features/auth/session';
+import {
+  ROTULO_MARCACAO,
+  type ResultadoMarcacao,
+  type TipoMarcacao,
+} from '@/features/avaliacao/marcacao';
 import ExamStatusChip from '@/features/home/exam-status-chip';
 import { createHomeStyles, WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
+import { MarcarExameDialog, type MarcacaoPedida } from '@/features/home/marcar-exame-dialog';
 import {
   SEX_LABEL,
+  canMarkExam,
   describeAge,
   describeExamForReader,
   describeExams,
@@ -41,7 +53,28 @@ type PatientDetailScreenProps = {
   notFound?: boolean;
   /** Dia de hoje, para calcular a idade. Os testes fixam a data. */
   today?: Date;
+  /** Marcação do exame como teste ou ensino (#58). Sem ela, a tela não oferece o botão. */
+  marking?: ExamMarking;
 };
+
+/** Gravação da marcação, ligada ao banco pela rota, e a releitura depois dela (#58). */
+export type ExamMarking = {
+  mark: (
+    examId: number,
+    professional: SessionProfessional,
+    type: TipoMarcacao | null,
+    password: string,
+  ) => Promise<ResultadoMarcacao>;
+  unmark: (
+    examId: number,
+    professional: SessionProfessional,
+    password: string,
+  ) => Promise<ResultadoMarcacao>;
+  /** Lê o paciente de novo, para a lista mostrar a marcação gravada. */
+  onChanged: () => void;
+};
+
+type MarkingRequest = { exam: PatientExam; request: MarcacaoPedida };
 
 export const LOADING_MESSAGE = 'Carregando os dados do paciente.';
 
@@ -61,6 +94,7 @@ export default function PatientDetailScreen({
   loadFailed = false,
   notFound = false,
   today,
+  marking,
 }: PatientDetailScreenProps) {
   const router = useRouter();
   const { professional } = useSession();
@@ -68,6 +102,7 @@ export default function PatientDetailScreen({
   const home = useMemo(() => createHomeStyles(theme), [theme]);
   const styles = useMemo(() => createPatientDetailStyles(theme), [theme]);
   const isWide = useWindowDimensions().width >= WIDE_LAYOUT_MIN_WIDTH;
+  const [markingRequest, setMarkingRequest] = useState<MarkingRequest | null>(null);
 
   // Como nas outras telas do profissional: sem sessão, volta ao login.
   useEffect(() => {
@@ -99,7 +134,12 @@ export default function PatientDetailScreen({
         {patient ? (
           <>
             <PatientCard patient={patient} today={today} styles={styles} />
-            <ExamsCard exams={patient.exams} professionalName={professional.name} styles={styles} />
+            <ExamsCard
+              exams={patient.exams}
+              professional={professional}
+              styles={styles}
+              onRequestMarking={marking ? setMarkingRequest : undefined}
+            />
           </>
         ) : loading ? (
           <View style={styles.state} accessible accessibilityLabel={LOADING_MESSAGE}>
@@ -115,6 +155,24 @@ export default function PatientDetailScreen({
           </View>
         ) : null}
       </ScrollView>
+
+      {marking && markingRequest && (
+        <MarcarExameDialog
+          visible
+          pedido={markingRequest.request}
+          quando={formatDateTime(markingRequest.exam.startedAt)}
+          onConfirm={(type, password) =>
+            markingRequest.request.acao === 'marcar'
+              ? marking.mark(markingRequest.exam.id, professional, type, password)
+              : marking.unmark(markingRequest.exam.id, professional, password)
+          }
+          onCancel={() => setMarkingRequest(null)}
+          onDone={() => {
+            setMarkingRequest(null);
+            marking.onChanged();
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -154,12 +212,14 @@ function PatientCard({
 
 function ExamsCard({
   exams,
-  professionalName,
+  professional,
   styles,
+  onRequestMarking,
 }: {
   exams: PatientExam[];
-  professionalName: string;
+  professional: SessionProfessional;
   styles: PatientDetailStyles;
+  onRequestMarking?: (request: MarkingRequest) => void;
 }) {
   return (
     <View style={styles.card}>
@@ -171,7 +231,13 @@ function ExamsCard({
       </View>
       <View>
         {exams.map((exam) => (
-          <ExamRow key={exam.id} exam={exam} professionalName={professionalName} styles={styles} />
+          <ExamRow
+            key={exam.id}
+            exam={exam}
+            professional={professional}
+            styles={styles}
+            onRequestMarking={onRequestMarking}
+          />
         ))}
       </View>
     </View>
@@ -180,28 +246,62 @@ function ExamsCard({
 
 function ExamRow({
   exam,
-  professionalName,
+  professional,
   styles,
+  onRequestMarking,
 }: {
   exam: PatientExam;
-  professionalName: string;
+  professional: SessionProfessional;
   styles: PatientDetailStyles;
+  onRequestMarking?: (request: MarkingRequest) => void;
 }) {
   // Para o superusuário, o exame pode ser de outro médico (#49); para o médico
   // comum, todos os exames da tela foram aplicados por ele.
-  const appliedBy = exam.appliedBy ?? professionalName;
-  // A linha é um só item para o leitor de tela, com a frase completa.
+  const appliedBy = exam.appliedBy ?? professional.name;
+  // Só quem aplicou marca ou desmarca; o superusuário vê a marcação dos outros (#58).
+  const canMark = onRequestMarking !== undefined && canMarkExam(exam, professional.id);
+  const when = formatDateTime(exam.startedAt);
   return (
-    <View
-      testID="exame"
-      accessible
-      accessibilityLabel={describeExamForReader(exam, appliedBy)}
-      style={styles.exam}>
-      <View style={styles.examWhen}>
-        <Text style={styles.examDate}>{formatDateTime(exam.startedAt)}</Text>
-        <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
+    <View style={styles.examRow}>
+      {/* A parte do exame é um só item para o leitor de tela, com a frase completa. */}
+      <View
+        testID="exame"
+        accessible
+        accessibilityLabel={describeExamForReader(exam, appliedBy)}
+        style={styles.exam}>
+        <View style={styles.examWhen}>
+          <Text style={styles.examDate}>{when}</Text>
+          <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
+        </View>
+        <View style={styles.examChips}>
+          <ExamStatusChip tone={exam.tone} label={exam.label} />
+          {exam.marking && (
+            <View testID="marcacao" style={styles.markingChip}>
+              <Text style={styles.markingText}>{ROTULO_MARCACAO[exam.marking]}</Text>
+            </View>
+          )}
+        </View>
       </View>
-      <ExamStatusChip tone={exam.tone} label={exam.label} />
+      {canMark && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            exam.marking
+              ? `Desfazer a marcação do exame de ${when}`
+              : `Marcar o exame de ${when} como teste ou material de ensino`
+          }
+          onPress={() =>
+            onRequestMarking({
+              exam,
+              request: exam.marking
+                ? { acao: 'desmarcar', marcacao: exam.marking }
+                : { acao: 'marcar' },
+            })
+          }
+          style={({ pressed }) => [styles.markButton, pressed && styles.pressed]}>
+          <Text style={styles.markButtonText}>{exam.marking ? 'Desfazer marcação' : 'Marcar'}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

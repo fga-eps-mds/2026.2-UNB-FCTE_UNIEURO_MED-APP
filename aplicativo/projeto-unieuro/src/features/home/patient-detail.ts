@@ -4,6 +4,7 @@
  * Os dados vêm do registro do atendimento (#7). Este módulo converte e formata,
  * sem saber onde eles estão guardados.
  */
+import { ROTULO_MARCACAO, lerMarcacao, type TipoMarcacao } from '@/features/avaliacao/marcacao';
 import {
   describeExamState,
   formatDate,
@@ -25,8 +26,18 @@ export type PatientWithExams = {
   birthDate: string;
   schoolingYears: number;
   sex: 'feminino' | 'masculino' | null;
-  /** `appliedBy` só vem na consulta do superusuário (#49). */
-  exams: { id: number; startedAt: string; state: string; appliedBy?: string }[];
+  /**
+   * `appliedBy` só vem na consulta do superusuário (#49). `professionalId` é quem
+   * aplicou, e `marking`, a marcação de teste ou ensino (#58).
+   */
+  exams: {
+    id: number;
+    startedAt: string;
+    state: string;
+    appliedBy?: string;
+    professionalId: number;
+    marking: string | null;
+  }[];
 };
 
 export type PatientDetailRepository = {
@@ -65,6 +76,10 @@ export type PatientExam = {
   startedAt: string;
   /** Quem aplicou o exame, quando não foi o profissional da sessão (#49). */
   appliedBy?: string;
+  /** Profissional que aplicou: só ele marca ou desmarca o exame (#58). */
+  professionalId: number;
+  /** Teste ou material de ensino, ou `null` sem marcação (#58). */
+  marking: TipoMarcacao | null;
   /** Desfecho do exame, ou `null` enquanto ele não terminou. */
   status: ExamStatus | null;
   /** Texto da situação, que existe também para o exame que ainda não terminou. */
@@ -85,6 +100,8 @@ function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
   return {
     id: exam.id,
     startedAt: exam.startedAt,
+    professionalId: exam.professionalId,
+    marking: lerMarcacao(exam.marking),
     status,
     ...describeExamState(exam.state),
     ...(exam.appliedBy === undefined ? {} : { appliedBy: exam.appliedBy }),
@@ -138,5 +155,10 @@ function formatTime(isoDateTime: string): string {
  */
 export function describeExamForReader(exam: PatientExam, professionalName: string): string {
   const when = `${formatDate(exam.startedAt)} às ${formatTime(exam.startedAt)}`;
-  return `${when}, aplicado por ${professionalName}, ${exam.label}`;
+  const marking = exam.marking ? `, marcado como ${ROTULO_MARCACAO[exam.marking]}` : '';
+  return `${when}, aplicado por ${professionalName}, ${exam.label}${marking}`;
 }
+
+/** Só quem aplicou o exame pode marcá-lo ou desmarcá-lo; o superusuário só vê (#58). */
+export const canMarkExam = (exam: PatientExam, viewerId: number) =>
+  exam.professionalId === viewerId;
