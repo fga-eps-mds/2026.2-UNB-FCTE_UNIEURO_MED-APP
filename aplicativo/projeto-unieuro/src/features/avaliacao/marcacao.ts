@@ -1,0 +1,124 @@
+import { authenticate, type CredentialsRepository } from '@/features/auth/authentication';
+import type { SessionProfessional } from '@/features/auth/session';
+
+/**
+ * Marcação do exame como teste ou material de ensino (#58). Nada é apagado: o exame
+ * continua nas listas e no tablet, e a exportação mostra a marcação. Vale para
+ * qualquer exame do próprio médico, inclusive o finalizado, e pode ser desfeita com a
+ * senha (aceite do cliente em 21/11).
+ */
+export type TipoMarcacao = 'teste' | 'ensino';
+
+export const TIPOS_MARCACAO: readonly { id: TipoMarcacao; rotulo: string }[] = [
+  { id: 'teste', rotulo: 'Teste' },
+  { id: 'ensino', rotulo: 'Material de ensino' },
+];
+
+export const ROTULO_MARCACAO: Record<TipoMarcacao, string> = {
+  teste: 'Teste',
+  ensino: 'Material de ensino',
+};
+
+/** A coluna do banco aceita só os dois tipos; qualquer outro valor vale como sem marcação. */
+export const lerMarcacao = (valor: string | null | undefined): TipoMarcacao | null =>
+  valor === 'teste' || valor === 'ensino' ? valor : null;
+
+export const ESCOLHA_O_TIPO = 'Escolha "Teste" ou "Material de ensino".';
+export const SENHA_VAZIA = 'Digite a sua senha para confirmar.';
+export const SENHA_NAO_CONFERE_MARCAR = 'A senha não confere. O exame continua sem marcação.';
+export const SENHA_NAO_CONFERE_DESMARCAR = 'A senha não confere. A marcação continua.';
+export const EXAME_NAO_ENCONTRADO = 'Exame não encontrado entre os que você aplicou.';
+export const EXAME_JA_MARCADO = 'Este exame já está marcado. Volte à lista e abra de novo.';
+export const EXAME_SEM_MARCACAO = 'Este exame já está sem marcação. Volte à lista e abra de novo.';
+
+export type ExameParaMarcar = { marcacao: TipoMarcacao | null };
+
+export type MarcacaoRepository = {
+  /** Exame que o profissional aplicou, com a marcação de agora, ou `null`. */
+  buscarExame(atendimentoId: number, profissionalId: number): Promise<ExameParaMarcar | null>;
+  /**
+   * Marca o exame e grava o histórico na mesma transação. `false` se o exame não é
+   * do profissional ou já estava marcado.
+   */
+  marcarExame(
+    atendimentoId: number,
+    profissionalId: number,
+    tipo: TipoMarcacao,
+    dataHora: string,
+  ): Promise<boolean>;
+  /** Tira a marcação e grava o histórico na mesma transação. `false` se não havia marcação. */
+  desmarcarExame(atendimentoId: number, profissionalId: number, dataHora: string): Promise<boolean>;
+};
+
+export type ResultadoMarcacao = { feito: true } | { feito: false; mensagem: string };
+
+type Pedido = {
+  atendimentoId: number;
+  profissional: SessionProfessional;
+  senha: string;
+  agora?: Date;
+};
+
+const recusa = (mensagem: string): ResultadoMarcacao => ({ feito: false, mensagem });
+
+// A mesma conferência do login, para a senha da conta e não outro segredo.
+async function senhaConfere(
+  senha: string,
+  profissional: SessionProfessional,
+  credenciais: CredentialsRepository,
+) {
+  const resultado = await authenticate({ email: profissional.email, password: senha }, credenciais);
+  return resultado.success && resultado.professional.id === profissional.id;
+}
+
+/** Marca um exame que o próprio profissional aplicou, confirmado pela senha dele. */
+export async function marcarExame(
+  {
+    atendimentoId,
+    profissional,
+    senha,
+    agora = new Date(),
+    tipo,
+  }: Pedido & { tipo: TipoMarcacao | null },
+  repository: MarcacaoRepository,
+  credenciais: CredentialsRepository,
+): Promise<ResultadoMarcacao> {
+  if (tipo === null) return recusa(ESCOLHA_O_TIPO);
+  const exame = await repository.buscarExame(atendimentoId, profissional.id);
+  if (!exame) return recusa(EXAME_NAO_ENCONTRADO);
+  if (exame.marcacao !== null) return recusa(EXAME_JA_MARCADO);
+  if (senha.length === 0) return recusa(SENHA_VAZIA);
+  if (!(await senhaConfere(senha, profissional, credenciais))) {
+    return recusa(SENHA_NAO_CONFERE_MARCAR);
+  }
+
+  const feito = await repository.marcarExame(
+    atendimentoId,
+    profissional.id,
+    tipo,
+    agora.toISOString(),
+  );
+  return feito ? { feito: true } : recusa(EXAME_JA_MARCADO);
+}
+
+/** Desfaz a marcação de um exame do próprio profissional, confirmado pela senha dele. */
+export async function desmarcarExame(
+  { atendimentoId, profissional, senha, agora = new Date() }: Pedido,
+  repository: MarcacaoRepository,
+  credenciais: CredentialsRepository,
+): Promise<ResultadoMarcacao> {
+  const exame = await repository.buscarExame(atendimentoId, profissional.id);
+  if (!exame) return recusa(EXAME_NAO_ENCONTRADO);
+  if (exame.marcacao === null) return recusa(EXAME_SEM_MARCACAO);
+  if (senha.length === 0) return recusa(SENHA_VAZIA);
+  if (!(await senhaConfere(senha, profissional, credenciais))) {
+    return recusa(SENHA_NAO_CONFERE_DESMARCAR);
+  }
+
+  const feito = await repository.desmarcarExame(
+    atendimentoId,
+    profissional.id,
+    agora.toISOString(),
+  );
+  return feito ? { feito: true } : recusa(EXAME_SEM_MARCACAO);
+}
