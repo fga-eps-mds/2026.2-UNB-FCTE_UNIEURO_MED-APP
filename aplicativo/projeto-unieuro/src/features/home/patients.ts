@@ -122,7 +122,7 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
   };
 }
 
-const normalize = (text: string) =>
+export const normalize = (text: string) =>
   text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
