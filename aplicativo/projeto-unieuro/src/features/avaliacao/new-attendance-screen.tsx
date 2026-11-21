@@ -18,12 +18,14 @@ import { useRouter } from 'expo-router';
 
 import {
   registerAttendance,
+  type ExistingPatient,
   type NewAttendanceScreenProps,
   type PatientErrors,
   type PatientField,
   type PatientForm,
   type Sex,
 } from '@/features/avaliacao/attendance';
+import { CpfJaCadastrado } from '@/features/avaliacao/cpf-ja-cadastrado-dialog';
 import { formatDateInput } from '@/features/avaliacao/masks';
 import {
   createNewAttendanceStyles,
@@ -141,6 +143,7 @@ export default function NewAttendanceScreen({
   const [pickingSex, setPickingSex] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [existingPatient, setExistingPatient] = useState<ExistingPatient | null>(null);
   const submittingRef = useRef(false);
 
   // Sem médico autenticado não há a quem vincular o atendimento.
@@ -155,7 +158,9 @@ export default function NewAttendanceScreen({
     setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current));
   };
 
-  const submit = async () => {
+  // `confirmedPatientId` vem do aviso do CPF já cadastrado (#140), quando o médico
+  // escolhe continuar com a ficha existente.
+  const submit = async (confirmedPatientId?: number) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -164,9 +169,11 @@ export default function NewAttendanceScreen({
       const result = await registerAttendance(form, {
         repository,
         professionalId: professional.id,
+        confirmedPatientId,
       });
       if (!result.success) {
-        setErrors(result.errors);
+        if ('existingPatient' in result) setExistingPatient(result.existingPatient);
+        else setErrors(result.errors);
         return;
       }
       onRegistered(result.attendanceId);
@@ -313,7 +320,7 @@ export default function NewAttendanceScreen({
               accessibilityRole="button"
               accessibilityState={{ busy: submitting, disabled: submitting }}
               disabled={submitting}
-              onPress={submit}
+              onPress={() => submit()}
               style={({ pressed }) => [
                 styles.submitButton,
                 layout.isWide ? styles.submitButtonWide : styles.submitButtonNarrow,
@@ -328,6 +335,17 @@ export default function NewAttendanceScreen({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <CpfJaCadastrado
+        patient={existingPatient}
+        styles={styles}
+        onRevisar={() => setExistingPatient(null)}
+        onContinuar={() => {
+          const confirmed = existingPatient;
+          setExistingPatient(null);
+          if (confirmed) void submit(confirmed.id);
+        }}
+      />
 
       <SexPicker
         visible={pickingSex}

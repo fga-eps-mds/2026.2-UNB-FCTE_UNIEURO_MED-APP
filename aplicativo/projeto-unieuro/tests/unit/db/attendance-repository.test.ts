@@ -215,6 +215,8 @@ describe('paciente que volta', () => {
 
     await expect(repository.findPatientByCpf(PATIENT_CPF)).resolves.toEqual({
       id: expect.any(Number),
+      name: newPatient().name,
+      recordNumber: expect.stringMatching(/^\d{4}-\d{4}$/),
     });
     await expect(repository.findPatientByCpf(OTHER_CPF)).resolves.toBeNull();
   });

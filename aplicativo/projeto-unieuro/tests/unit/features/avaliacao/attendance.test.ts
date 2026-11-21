@@ -1,6 +1,7 @@
 import {
   registerAttendance,
   type AttendanceRepository,
+  type ExistingPatient,
   type PatientForm,
 } from '@/features/avaliacao/attendance';
 
@@ -23,7 +24,13 @@ const normalizedPatient = {
   sex: 'masculino',
 };
 
-function createRepository(existingPatient: { id: number } | null = null) {
+const JOSE_CADASTRADO: ExistingPatient = {
+  id: 4,
+  name: 'José Alves Martins',
+  recordNumber: '0004',
+};
+
+function createRepository(existingPatient: ExistingPatient | null = null) {
   return {
     findPatientByCpf: jest.fn(async () => existingPatient),
     createAttendance: jest.fn(async () => ({ attendanceId: 31 })),
@@ -34,8 +41,12 @@ const register = (
   repository: AttendanceRepository,
   change: Partial<PatientForm> = {},
   professionalId = PROFESSIONAL_ID,
+  confirmedPatientId?: number,
 ) =>
-  registerAttendance({ ...validForm, ...change }, { repository, professionalId, now: () => NOW });
+  registerAttendance(
+    { ...validForm, ...change },
+    { repository, professionalId, confirmedPatientId, now: () => NOW },
+  );
 
 describe('Cenário: atendimento registrado', () => {
   afterEach(() => {
@@ -85,10 +96,10 @@ describe('Cenário: atendimento registrado', () => {
     expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909');
   });
 
-  it('reaproveita o paciente que volta, sem cadastrar de novo', async () => {
-    const repository = createRepository({ id: 4 });
+  it('reaproveita o paciente que volta, sem cadastrar de novo, depois da confirmação', async () => {
+    const repository = createRepository(JOSE_CADASTRADO);
 
-    const result = await register(repository);
+    const result = await register(repository, {}, PROFESSIONAL_ID, JOSE_CADASTRADO.id);
 
     expect(result).toEqual({ success: true, attendanceId: 31 });
     expect(repository.createAttendance).toHaveBeenCalledWith({
@@ -103,6 +114,55 @@ describe('Cenário: atendimento registrado', () => {
     repository.createAttendance.mockRejectedValueOnce(new Error('banco indisponível'));
 
     await expect(register(repository)).rejects.toThrow('banco indisponível');
+  });
+});
+
+describe('CPF já cadastrado (#140)', () => {
+  it('CPF novo cria o paciente sem aviso', async () => {
+    const repository = createRepository(null);
+
+    const result = await register(repository);
+
+    expect(result).toEqual({ success: true, attendanceId: 31 });
+    expect(repository.createAttendance).toHaveBeenCalledWith(
+      expect.objectContaining({ patient: normalizedPatient }),
+    );
+  });
+
+  it('CPF já cadastrado: devolve o nome e a ficha do paciente e não grava o exame', async () => {
+    const repository = createRepository(JOSE_CADASTRADO);
+
+    const result = await register(repository, { name: 'Outro Nome Digitado' });
+
+    expect(result).toEqual({ success: false, existingPatient: JOSE_CADASTRADO });
+    expect(repository.createAttendance).not.toHaveBeenCalled();
+  });
+
+  it('confirmado o paciente, o exame entra na ficha dele e os dados digitados não mudam o cadastro', async () => {
+    const repository = createRepository(JOSE_CADASTRADO);
+
+    const result = await register(
+      repository,
+      { name: 'Outro Nome Digitado', schooling: '12' },
+      PROFESSIONAL_ID,
+      JOSE_CADASTRADO.id,
+    );
+
+    expect(result).toEqual({ success: true, attendanceId: 31 });
+    expect(repository.createAttendance).toHaveBeenCalledWith({
+      patient: { id: JOSE_CADASTRADO.id },
+      professionalId: PROFESSIONAL_ID,
+      startedAt: NOW.toISOString(),
+    });
+  });
+
+  it('a confirmação de outro paciente não vale: o aviso volta com o paciente deste CPF', async () => {
+    const repository = createRepository(JOSE_CADASTRADO);
+
+    const result = await register(repository, {}, PROFESSIONAL_ID, 99);
+
+    expect(result).toEqual({ success: false, existingPatient: JOSE_CADASTRADO });
+    expect(repository.createAttendance).not.toHaveBeenCalled();
   });
 });
 
