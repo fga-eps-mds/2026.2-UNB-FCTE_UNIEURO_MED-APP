@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Esquema da exportação em XML do MNEMA (#22), versão 1.
+
+  Proposta para validar com o parceiro. O paciente aparece só pelo número interno do tablet, sem nome,
+  CPF, ficha ou data de nascimento. Exame sem TCLE aceito leva só a data, o estado e
+  a decisão do termo. Mudança de campo obrigatório ou de significado gera a versão 2,
+  com outro namespace.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="urn:mnema:exportacao:v1"
+           targetNamespace="urn:mnema:exportacao:v1"
+           elementFormDefault="qualified">
+
+  <xs:simpleType name="SimNao">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="sim"/>
+      <xs:enumeration value="nao"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Número interno do tablet. Não é a ficha nem o CPF e só é único no mesmo tablet. -->
+  <xs:simpleType name="IdLocal">
+    <xs:restriction base="xs:positiveInteger"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="Ordem">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:element name="exportacao">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="profissional">
+          <xs:complexType>
+            <xs:attribute name="crm" type="xs:string" use="required"/>
+            <xs:attribute name="uf" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="paciente" type="Paciente" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="versaoEsquema" type="xs:string" use="required" fixed="1"/>
+      <xs:attribute name="geradaEm" type="xs:dateTime" use="required"/>
+      <xs:attribute name="versaoAplicativo" type="xs:string" use="required"/>
+      <xs:attribute name="escopo" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="todos"/>
+            <xs:enumeration value="paciente"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Paciente">
+    <xs:sequence>
+      <xs:element name="exame" type="Exame" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="IdLocal" use="required"/>
+    <!-- Só quando algum exame do paciente tem o TCLE aceito. -->
+    <xs:attribute name="escolaridadeAnos" type="xs:nonNegativeInteger"/>
+    <xs:attribute name="sexo">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="feminino"/>
+          <xs:enumeration value="masculino"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="Exame">
+    <xs:sequence>
+      <xs:element name="termo" type="Termo" minOccurs="0"/>
+      <xs:element name="tarefa" type="Tarefa" minOccurs="0" maxOccurs="3"/>
+      <xs:element name="resultado" type="Resultado" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="IdLocal" use="required"/>
+    <xs:attribute name="inicio" type="xs:dateTime" use="required"/>
+    <xs:attribute name="estado" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="aguardando_consentimento"/>
+          <xs:enumeration value="em_andamento"/>
+          <xs:enumeration value="processando_resultado"/>
+          <xs:enumeration value="erro_inferencia"/>
+          <xs:enumeration value="concluida"/>
+          <xs:enumeration value="cancelada"/>
+          <xs:enumeration value="interrompida"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <!-- Idade em anos completos no dia do exame, só com o TCLE aceito. -->
+    <xs:attribute name="idadeAnos" type="xs:nonNegativeInteger"/>
+  </xs:complexType>
+
+  <xs:complexType name="Termo">
+    <xs:attribute name="versao" type="xs:string" use="required"/>
+    <xs:attribute name="aceito" type="SimNao" use="required"/>
+    <xs:attribute name="assinadoPor" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="paciente"/>
+          <xs:enumeration value="responsavel_legal"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="dataHora" type="xs:dateTime" use="required"/>
+    <xs:attribute name="autorizaImagens" type="SimNao"/>
+    <xs:attribute name="autorizaPesquisaFutura" type="SimNao"/>
+  </xs:complexType>
+
+  <xs:complexType name="Tarefa">
+    <xs:sequence>
+      <!-- Todos os eventos, inclusive os traços desfeitos e apagados. -->
+      <xs:element name="tracado">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="evento" type="Evento" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="desenho" minOccurs="0">
+        <xs:complexType>
+          <xs:simpleContent>
+            <xs:extension base="xs:base64Binary">
+              <xs:attribute name="confirmadoEm" type="xs:dateTime" use="required"/>
+              <xs:attribute name="tipoMidia" type="xs:string" use="required" fixed="image/png"/>
+            </xs:extension>
+          </xs:simpleContent>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="ordem" type="Ordem" use="required"/>
+    <xs:attribute name="tipo" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="relogio"/>
+          <xs:enumeration value="cubo"/>
+          <xs:enumeration value="trilhas"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <!-- Tamanho do quadro na tela, na mesma unidade das coordenadas. -->
+    <xs:attribute name="largura" type="xs:double" use="required"/>
+    <xs:attribute name="altura" type="xs:double" use="required"/>
+    <xs:attribute name="inicio" type="xs:dateTime" use="required"/>
+    <xs:attribute name="termino" type="xs:dateTime"/>
+  </xs:complexType>
+
+  <xs:complexType name="Evento">
+    <xs:attribute name="ordem" type="xs:positiveInteger" use="required"/>
+    <xs:attribute name="tipo" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="inicio"/>
+          <xs:enumeration value="ponto"/>
+          <xs:enumeration value="desfazer"/>
+          <xs:enumeration value="limpar"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <!-- Milissegundos desde o início da tarefa. -->
+    <xs:attribute name="instante" type="xs:nonNegativeInteger" use="required"/>
+    <!-- Só nos eventos "inicio" e "ponto". -->
+    <xs:attribute name="ponteiro">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="caneta"/>
+          <xs:enumeration value="dedo"/>
+          <xs:enumeration value="mouse"/>
+          <xs:enumeration value="desconhecido"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="x" type="xs:double"/>
+    <xs:attribute name="y" type="xs:double"/>
+    <xs:attribute name="pressao" type="xs:double"/>
+    <xs:attribute name="inclinacaoX" type="xs:double"/>
+    <xs:attribute name="inclinacaoY" type="xs:double"/>
+  </xs:complexType>
+
+  <xs:complexType name="Resultado">
+    <!-- O modelo de IA ainda não roda no aplicativo: por enquanto, sempre "nao". -->
+    <xs:attribute name="disponivel" type="SimNao" use="required"/>
+    <xs:attribute name="versaoModelo" type="xs:string"/>
+  </xs:complexType>
+</xs:schema>
