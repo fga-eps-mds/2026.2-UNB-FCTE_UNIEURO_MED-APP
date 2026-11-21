@@ -27,6 +27,8 @@ export function createPatientDetailStyles(theme: ThemeColors) {
     examsHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 12 },
     examsTitle: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 24, lineHeight: 32 },
     examsSummary: { ...body, color: theme.textSecondary },
+    // Exame com resultado: a linha inteira é o botão (#14).
+    pressed: { opacity: 0.82 },
     exam: {
       flexDirection: 'row',
       flexWrap: 'wrap',
