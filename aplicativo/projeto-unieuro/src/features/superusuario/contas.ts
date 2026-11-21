@@ -1,5 +1,6 @@
 import { formatCrm } from '@/features/auth/session';
-import { normalize, type ExamTone } from '@/features/home/patients';
+import type { ExamTone } from '@/features/home/patients';
+import { normalize } from '@/features/shared/busca';
 
 /**
  * Conta de profissional como o repositório entrega para a área do superusuário.

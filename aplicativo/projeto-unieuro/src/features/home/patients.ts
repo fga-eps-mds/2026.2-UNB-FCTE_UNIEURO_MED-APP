@@ -1,3 +1,5 @@
+import { normalize } from '@/features/shared/busca';
+
 /**
  * Pacientes mostrados na tela inicial do profissional.
  *
@@ -121,13 +123,6 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
   };
 }
-
-export const normalize = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
 
 // Compara instantes, e não textos: "2026-10-05T23:30:00Z" e
 // "2026-10-05T20:30:00-03:00" são o mesmo momento escrito de formas diferentes.
