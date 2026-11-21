@@ -144,7 +144,7 @@ const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado FROM avaliaca
 // Só o superusuário com a conta ativa pode ver o que outro médico coletou (#49).
 // A condição vai dentro das consultas "de todos", e não só na tela: para qualquer
 // outro profissional elas não devolvem linha nenhuma, por qualquer caminho do código.
-const REQUESTER_IS_SUPERUSER = `EXISTS (SELECT 1 FROM profissional s
+export const REQUESTER_IS_SUPERUSER = `EXISTS (SELECT 1 FROM profissional s
     WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1)`;
 
 // Atendimento mais recente do paciente, entre os de todos os profissionais, com o

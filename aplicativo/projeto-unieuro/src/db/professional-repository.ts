@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { REQUESTER_IS_SUPERUSER } from '@/db/attendance-repository';
 import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
 import { getDatabase } from '@/db/database';
@@ -104,6 +105,7 @@ const LIST_ACCOUNTS = `SELECT p.id, p.nome, p.email, p.crm_numero, p.uf_crm, p.a
     COUNT(a.id) AS exames
   FROM profissional p
   LEFT JOIN avaliacao a ON a.id_profissional = p.id
+  WHERE ${REQUESTER_IS_SUPERUSER}
   GROUP BY p.id
   ORDER BY p.nome`;
 
@@ -314,9 +316,9 @@ export function createProfessionalRepository(
       return result.changes > 0;
     },
 
-    async listAccounts(): Promise<ProfessionalAccount[]> {
+    async listAccounts(requesterId: number): Promise<ProfessionalAccount[]> {
       const database = await open();
-      const rows = await database.getAllAsync<ProfessionalAccountRow>(LIST_ACCOUNTS);
+      const rows = await database.getAllAsync<ProfessionalAccountRow>(LIST_ACCOUNTS, [requesterId]);
       return rows.map((row) => ({
         id: row.id,
         name: row.nome,

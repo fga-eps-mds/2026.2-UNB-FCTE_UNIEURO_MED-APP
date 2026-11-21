@@ -294,8 +294,15 @@ describe('banco da versão 8, de antes do perfil', () => {
 });
 
 describe('contas listadas na área do superusuário (#119)', () => {
+  // Quem pede a lista em quase todos os casos
+  let tauil: Awaited<ReturnType<typeof criarAdministrador>>;
+
+  beforeEach(async () => {
+    tauil = await criarAdministrador();
+  });
+
   const contaDe = async (email: string) =>
-    (await professionals.listAccounts()).find((account) => account.email === email);
+    (await professionals.listAccounts(tauil.id)).find((account) => account.email === email);
 
   it('conta os exames que cada profissional aplicou', async () => {
     const ana = await cadastrar(ANA);
@@ -328,12 +335,11 @@ describe('contas listadas na área do superusuário (#119)', () => {
   });
 
   it('lista em ordem alfabética, com o superusuário e as contas desativadas', async () => {
-    await criarAdministrador();
     const paulo = await cadastrar(PAULO);
     await cadastrar(ANA);
     await professionals.deactivate(paulo.id, AGORA);
 
-    const contas = await professionals.listAccounts();
+    const contas = await professionals.listAccounts(tauil.id);
 
     expect(contas.map(({ name, active, superuser }) => [name, active, superuser])).toEqual([
       [ANA.name, true, false],
@@ -343,13 +349,31 @@ describe('contas listadas na área do superusuário (#119)', () => {
   });
 
   it('não traz a senha nem o CPF de ninguém', async () => {
-    await criarAdministrador();
     await cadastrar(ANA);
 
-    const contas = await professionals.listAccounts();
+    const contas = await professionals.listAccounts(tauil.id);
 
     expect(JSON.stringify(contas)).not.toContain('hash-da-senha');
     expect(JSON.stringify(contas)).not.toContain(ANA.cpf);
+  });
+
+  it('não responde a um médico comum, nem chamada direto', async () => {
+    const ana = await cadastrar(ANA);
+
+    await expect(professionals.listAccounts(ana.id)).resolves.toEqual([]);
+  });
+
+  it('não responde a um superusuário com a conta desativada', async () => {
+    await cadastrar(ANA);
+    await professionals.deactivate(tauil.id, AGORA);
+
+    await expect(professionals.listAccounts(tauil.id)).resolves.toEqual([]);
+  });
+
+  it('não responde a quem não existe', async () => {
+    await cadastrar(ANA);
+
+    await expect(professionals.listAccounts(9999)).resolves.toEqual([]);
   });
 });
 

@@ -244,6 +244,7 @@ describe('consultas', () => {
 describe('listAccounts', () => {
   // Consulta da área do superusuário devolve sem senha e sem CPF,
   // com a contagem de exames.
+  const SUPERUSUARIO = 1;
   const accountRow = {
     id: 7,
     nome: 'Ana Carolina Souza',
@@ -258,7 +259,7 @@ describe('listAccounts', () => {
   it('converte cada linha para a conta que a área do superusuário lista', async () => {
     const database = createDatabase(null, [accountRow]);
 
-    await expect(createRepository(database).listAccounts()).resolves.toEqual([
+    await expect(createRepository(database).listAccounts(SUPERUSUARIO)).resolves.toEqual([
       {
         id: 7,
         name: 'Ana Carolina Souza',
@@ -272,6 +273,20 @@ describe('listAccounts', () => {
     ]);
     expect(database.getAllAsync).toHaveBeenCalledWith(
       expect.stringMatching(/COUNT\(a\.id\) AS exames[\s\S]+LEFT JOIN avaliacao/),
+      [SUPERUSUARIO],
+    );
+  });
+
+  it('só responde a quem pede sendo superusuário com a conta ativa', async () => {
+    const database = createDatabase();
+
+    await createRepository(database).listAccounts(SUPERUSUARIO);
+
+    expect(database.getAllAsync).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /WHERE EXISTS \(SELECT 1 FROM profissional s\s+WHERE s\.id = \? AND s\.perfil = 'superusuario' AND s\.ativo = 1\)/,
+      ),
+      [SUPERUSUARIO],
     );
   });
 
@@ -281,7 +296,7 @@ describe('listAccounts', () => {
   ])('marca a conta %s', async (_case, ativo, expected) => {
     const database = createDatabase(null, [{ ...accountRow, ativo }]);
 
-    const [account] = await createRepository(database).listAccounts();
+    const [account] = await createRepository(database).listAccounts(SUPERUSUARIO);
 
     expect(account.active).toBe(expected);
   });
@@ -292,7 +307,7 @@ describe('listAccounts', () => {
   ])('identifica o perfil de %s', async (_case, perfil, expected) => {
     const database = createDatabase(null, [{ ...accountRow, perfil }]);
 
-    const [account] = await createRepository(database).listAccounts();
+    const [account] = await createRepository(database).listAccounts(SUPERUSUARIO);
 
     expect(account.superuser).toBe(expected);
   });
@@ -301,7 +316,7 @@ describe('listAccounts', () => {
     jest.mocked(protector.decrypt).mockClear();
     const database = createDatabase(null, [accountRow]);
 
-    const [account] = await createRepository(database).listAccounts();
+    const [account] = await createRepository(database).listAccounts(SUPERUSUARIO);
 
     expect(account).not.toHaveProperty('passwordHash');
     expect(account).not.toHaveProperty('cpf');
@@ -309,7 +324,9 @@ describe('listAccounts', () => {
   });
 
   it('devolve uma lista vazia quando não tem contas', async () => {
-    await expect(createRepository(createDatabase()).listAccounts()).resolves.toEqual([]);
+    await expect(createRepository(createDatabase()).listAccounts(SUPERUSUARIO)).resolves.toEqual(
+      [],
+    );
   });
 });
 
