@@ -159,15 +159,30 @@ describe('HomeScreen', () => {
       renderTela();
 
       const linha = screen.getByRole('button', { name: new RegExp(`^${nome}, ficha`) });
-      const { name } = within(linha).UNSAFE_getByType(MaterialCommunityIcons).props;
+      const situacao = within(linha).getByTestId('situacao');
+      const { name } = within(situacao).UNSAFE_getByType(MaterialCommunityIcons).props;
       expect(name).toBe(icone);
+    });
+
+    it('mostra a situação também do exame que ainda não terminou', () => {
+      renderTela([
+        {
+          ...pacientes[0],
+          lastExamStatus: null,
+          lastExamSituation: { label: 'Em andamento', tone: 'info' },
+        },
+      ]);
+
+      const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+      expect(within(linha).getByText('Em andamento')).toBeOnTheScreen();
+      expect(linha.props.accessibilityLabel).toMatch(/, Em andamento$/);
     });
 
     it('não mostra ícone para o paciente sem exame', () => {
       renderTela([{ ...pacientes[0], lastExamAt: null, lastExamStatus: null, examCount: 0 }]);
 
       const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
-      expect(within(linha).UNSAFE_queryAllByType(MaterialCommunityIcons)).toHaveLength(0);
+      expect(within(linha).queryByTestId('situacao')).toBeNull();
     });
 
     it('mantém a situação no texto lido pelo leitor de tela, sem repeti-la pelo ícone', () => {
@@ -177,8 +192,9 @@ describe('HomeScreen', () => {
       expect(linha.props.accessibilityLabel).toBe(
         'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído',
       );
-      const icone = within(linha).UNSAFE_getByType(MaterialCommunityIcons);
-      expect(icone.props.accessibilityElementsHidden).toBe(true);
+      for (const icone of within(linha).UNSAFE_getAllByType(MaterialCommunityIcons)) {
+        expect(icone.props.accessibilityElementsHidden).toBe(true);
+      }
     });
 
     it('mostra todas as colunas quando a tela é larga', () => {
@@ -210,6 +226,170 @@ describe('HomeScreen', () => {
 
       expect(screen.getByText('Ficha 2026-0184')).toBeOnTheScreen();
       expect(screen.queryByText('FICHA')).toBeNull();
+    });
+  });
+
+  describe('Cenário: responsável vê todos os atendimentos', () => {
+    const deTodos: PatientSummary[] = [
+      {
+        ...pacientes[0],
+        attendedBy: 'Ana Carolina Souza',
+        professionalNames: ['Ana Carolina Souza'],
+      },
+      {
+        ...pacientes[1],
+        attendedBy: 'Bruno Henrique Lima',
+        professionalNames: ['Ana Carolina Souza', 'Bruno Henrique Lima'],
+      },
+    ];
+    const responsavel: SessionProfessional = { ...profissional, superuser: true };
+
+    it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Ana Carolina Souza')).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+    });
+
+    it('conta os exames do tablet, e não os do responsável', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(
+        screen.getByText(
+          '2 pacientes e 3 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+        ),
+      ).toBeOnTheScreen();
+    });
+
+    it('apresenta o superusuário como responsável pela pesquisa no cabeçalho', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByText('Responsável pela pesquisa')).toBeOnTheScreen();
+      expect(screen.queryByText(/^CRM /)).toBeNull();
+    });
+
+    it('busca também pelo nome de quem atendeu', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'bruno');
+
+      expect(botoesDePaciente()).toHaveLength(1);
+      expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+    });
+
+    it('busca por qualquer profissional que atendeu, e não só por quem atendeu por último', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'ana carolina');
+
+      expect(botoesDePaciente()).toHaveLength(2);
+    });
+
+    it('diz no campo de busca que também dá para buscar pelo CPF', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByPlaceholderText('Nome, ficha, CPF ou profissional')).toBeOnTheScreen();
+    });
+
+    it('lê quem atendeu no texto do leitor de tela', () => {
+      renderTela(deTodos, responsavel);
+
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(linha.props.accessibilityLabel).toBe(
+        'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído, atendido por Bruno Henrique Lima',
+      );
+    });
+
+    it('no tablet deitado, mostra quem atendeu numa coluna própria', () => {
+      renderTela(deTodos, responsavel);
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('ATENDIDO POR')).toBeOnTheScreen();
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(within(linha).getByText('Bruno Henrique Lima')).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
+    });
+
+    it('segue o protótipo no cabeçalho e nos botões, com ícones', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.queryByText('RASTREIO COGNITIVO')).toBeNull();
+      expect(screen.getByText('Novo exame')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('icone-do-botao', { includeHiddenElements: true })).toHaveLength(
+        5,
+      );
+    });
+
+    it('mostra os atalhos do protótipo do responsável pela pesquisa', () => {
+      renderTela(deTodos, responsavel);
+
+      for (const nome of [
+        'Configurações',
+        'Sair',
+        'Novo exame',
+        'Exportar todos (XML)',
+        'Sincronizar tablets',
+      ]) {
+        expect(screen.getByRole('button', { name: nome })).toBeOnTheScreen();
+      }
+      expect(
+        screen.getByText('BUSCAR PACIENTE OU PROFISSIONAL', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+    });
+
+    it('mostra o título de todos mesmo antes de haver exame no tablet', () => {
+      renderTela([], responsavel);
+
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
+      expect(screen.getByText('Nenhum exame aplicado ainda.')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Cenário: médico comum não vê o que outro coletou', () => {
+    it('mantém o cabeçalho e os botões da tela aceita na #46, sem ícones', () => {
+      renderTela();
+
+      expect(screen.getByText('RASTREIO COGNITIVO')).toBeOnTheScreen();
+      expect(screen.getByText('+ Novo exame')).toBeOnTheScreen();
+      expect(screen.queryAllByTestId('icone-do-botao', { includeHiddenElements: true })).toEqual(
+        [],
+      );
+    });
+
+    it('não mostra quem atendeu, porque todos os pacientes da lista são dele', () => {
+      renderTela();
+
+      expect(screen.getByRole('header', { name: 'Seus pacientes' })).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
+      for (const linha of botoesDePaciente()) {
+        expect(linha.props.accessibilityLabel).not.toMatch(/atendido por/);
+      }
+    });
+
+    it('no tablet deitado, não tem a coluna de quem atendeu', () => {
+      renderTela();
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('FICHA')).toBeOnTheScreen();
+      expect(screen.queryByText('ATENDIDO POR')).toBeNull();
+    });
+
+    it('busca só pelo paciente', () => {
+      renderTela();
+
+      expect(
+        screen.getByText('BUSCAR PACIENTE', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeOnTheScreen();
     });
   });
 

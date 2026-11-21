@@ -10,8 +10,10 @@ import {
   type PatientDetailRepository,
 } from '@/features/home/patient-detail';
 import {
+  filterPatients,
   listPatientCpfsFor,
   listPatientsFor,
+  toPatientSummary,
   type PatientListRepository,
 } from '@/features/home/patients';
 
@@ -354,7 +356,25 @@ describe('atendimentos de todos os profissionais', () => {
       lastStartedAt: '2026-10-05T17:32:00.000Z',
       lastState: 'concluida',
       attendedBy: PAULO.name,
+      professionalIds: expect.any(Array),
+      professionalNames: expect.any(Array),
     });
+    expect([...jose!.professionalIds!].sort()).toEqual([ana.id, paulo.id].sort());
+    expect([...jose!.professionalNames!].sort()).toEqual([ANA.name, PAULO.name].sort());
+  });
+
+  it('não conta nem busca pelo profissional de um exame excluído', async () => {
+    await database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id_profissional = ?', [
+      AGORA,
+      ana.id,
+    ]);
+
+    const pacientes = await listPatientsFor(tauil, lista);
+    const jose = pacientes.find((p) => p.name === JOSE.name)!;
+
+    expect(jose.professionalIds).toEqual([paulo.id]);
+    expect(jose.professionalNames).toEqual([PAULO.name]);
+    expect(filterPatients(pacientes.map(toPatientSummary), 'Ana')).toEqual([]);
   });
 
   it('Cenário: médico comum não vê o que outro coletou', async () => {

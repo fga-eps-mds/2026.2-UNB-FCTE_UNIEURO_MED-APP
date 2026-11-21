@@ -1,5 +1,7 @@
 import {
   countExams,
+  describeExamState,
+  countProfessionals,
   cpfDigitsOf,
   describeTotals,
   filterPatients,
@@ -61,6 +63,34 @@ describe('busca de paciente', () => {
     const comLetra = [paciente({ id: 9, recordNumber: 'AB-0042' })];
 
     expect(filterPatients(comLetra, 'ab-0042').map((p) => p.id)).toEqual([9]);
+  });
+
+  it('na lista do superusuário, encontra pelo nome de quem atendeu, sem diferenciar acentos', () => {
+    const deTodos = [
+      paciente({ id: 1, attendedBy: 'Ana Carolina Souza' }),
+      paciente({ id: 2, attendedBy: 'Paulo Henrique Rocha' }),
+    ];
+
+    expect(filterPatients(deTodos, 'PAULO').map((p) => p.id)).toEqual([2]);
+    expect(filterPatients(deTodos, 'carolina').map((p) => p.id)).toEqual([1]);
+  });
+
+  it('na lista do superusuário, encontra por qualquer profissional que já atendeu o paciente', () => {
+    const deTodos = [
+      paciente({
+        id: 1,
+        attendedBy: 'Paulo Henrique Rocha',
+        professionalNames: ['Ana Carolina Souza', 'Paulo Henrique Rocha'],
+      }),
+      paciente({
+        id: 2,
+        attendedBy: 'Paulo Henrique Rocha',
+        professionalNames: ['Paulo Henrique Rocha'],
+      }),
+    ];
+
+    expect(filterPatients(deTodos, 'Ana').map((p) => p.id)).toEqual([1]);
+    expect(filterPatients(deTodos, 'paulo').map((p) => p.id)).toEqual([1, 2]);
   });
 
   it('devolve todos quando a busca está vazia', () => {
@@ -132,6 +162,51 @@ describe('resumo do cabeçalho', () => {
   it('avisa quando ainda não há exame', () => {
     expect(describeTotals([])).toBe('Nenhum exame aplicado ainda.');
   });
+
+  it('para o superusuário, conta os exames do tablet, e não os dele', () => {
+    const deTodos = [
+      paciente({ id: 1, examCount: 2, attendedBy: 'Ana Carolina Souza' }),
+      paciente({ id: 2, examCount: 1, attendedBy: 'Bruno Lima' }),
+    ];
+
+    expect(describeTotals(deTodos, true)).toBe(
+      '2 pacientes e 3 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+  });
+
+  it('para o superusuário, usa o singular com um paciente e um exame', () => {
+    expect(
+      describeTotals([paciente({ id: 1, examCount: 1, attendedBy: 'Bruno Lima' })], true),
+    ).toBe('1 paciente e 1 exame deste tablet. Só o responsável pela pesquisa vê esta lista.');
+  });
+
+  it('para o superusuário, diz de quantos profissionais são os exames', () => {
+    const deTodos = [
+      paciente({ id: 1, examCount: 2, professionalIds: [10, 11] }),
+      paciente({ id: 2, examCount: 1, professionalIds: [11] }),
+    ];
+
+    expect(describeTotals(deTodos, true)).toBe(
+      '2 pacientes e 3 exames de 2 profissionais deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+    expect(describeTotals([deTodos[1]], true)).toBe(
+      '1 paciente e 1 exame de 1 profissional deste tablet. Só o responsável pela pesquisa vê esta lista.',
+    );
+  });
+
+  it('conta cada profissional uma vez, mesmo com vários pacientes', () => {
+    expect(
+      countProfessionals([
+        paciente({ id: 1, professionalIds: [10, 11] }),
+        paciente({ id: 2, professionalIds: [11, 12] }),
+        paciente({ id: 3 }),
+      ]),
+    ).toBe(3);
+  });
+
+  it('para o superusuário sem exame no tablet, avisa do mesmo jeito', () => {
+    expect(describeTotals([], true)).toBe('Nenhum exame aplicado ainda.');
+  });
 });
 
 describe('datas', () => {
@@ -182,7 +257,39 @@ describe('atendimento convertido para a lista', () => {
       lastExamAt: '2026-10-13T09:10:00.000Z',
       lastExamStatus: null,
       examCount: 3,
+      lastExamSituation: { label: 'Aguardando o termo', tone: 'info' },
     });
+  });
+
+  it.each([
+    ['concluida', 'Concluído', 'success'],
+    ['interrompida', 'Interrompido', 'warning'],
+    ['cancelada', 'Recusou o termo', 'warning'],
+    ['aguardando_consentimento', 'Aguardando o termo', 'info'],
+    ['em_andamento', 'Em andamento', 'info'],
+    ['processando_resultado', 'Processando', 'info'],
+    ['erro_inferencia', 'Erro ao calcular', 'error'],
+    ['estado_novo', 'Situação desconhecida', 'info'],
+  ])('a situação do exame no estado %s é "%s"', (estado, label, tone) => {
+    expect(describeExamState(estado)).toEqual({ label, tone });
+  });
+
+  it('leva o nome de quem atendeu por último, quando a consulta traz', () => {
+    const resumo = toPatientSummary({
+      id: 4,
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+      attendanceCount: 2,
+      lastStartedAt: '2026-10-13T09:10:00.000Z',
+      lastState: 'concluida',
+      attendedBy: 'Bruno Lima',
+      professionalIds: [10, 11],
+      professionalNames: ['Ana Souza', 'Bruno Lima'],
+    });
+
+    expect(resumo.attendedBy).toBe('Bruno Lima');
+    expect(resumo.professionalIds).toEqual([10, 11]);
+    expect(resumo.professionalNames).toEqual(['Ana Souza', 'Bruno Lima']);
   });
 });
 

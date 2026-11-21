@@ -177,3 +177,62 @@ describe('tela inicial com os pacientes do banco', () => {
     expect(screen.getByText('3 pacientes e 4 exames aplicados por você.')).toBeOnTheScreen();
   });
 });
+
+// Tela inicial do superusuário (#49), com a consulta de todos de verdade: a
+// trava do perfil está no banco, e a tela só mostra o que ele devolve.
+describe('Cenário: responsável vê todos os atendimentos', () => {
+  const ADMIN = {
+    name: 'Carlos Bernardo Tauil',
+    email: 'tauil@unieuro.com.br',
+    crmNumber: '12771',
+    crmState: 'DF',
+    cpf: '86288366757',
+  };
+  let admin: SessionProfessional;
+
+  beforeEach(async () => {
+    await tablet.repository.insertSuperuser(
+      { ...ADMIN, passwordHash: 'hash-da-senha', createdAt: '2026-09-26T13:00:00.000Z' },
+      null,
+    );
+    admin = { ...(await sessao(ADMIN.email)), superuser: true };
+  });
+
+  it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', async () => {
+    renderInicio(admin);
+
+    expect(await screen.findByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
+    expect(await screen.findByText('Maria das Dores')).toBeOnTheScreen();
+    expect(screen.getByText('José Alves Martins')).toBeOnTheScreen();
+    expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        '3 pacientes e 4 exames de 2 profissionais deste tablet. Só o responsável pela pesquisa vê esta lista.',
+      ),
+    ).toBeOnTheScreen();
+
+    const maria = screen.getByRole('button', { name: /^Maria das Dores, ficha/ });
+    expect(within(maria).getByText('Atendido por Bruno Lima')).toBeOnTheScreen();
+    const jose = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+    expect(within(jose).getByText('Atendido por Ana Carolina Souza')).toBeOnTheScreen();
+  });
+
+  it('não mostra nada a quem só está marcado como superusuário na sessão', async () => {
+    renderInicio({ ...bruno, superuser: true });
+
+    expect(await screen.findByText('Nenhum paciente ainda')).toBeOnTheScreen();
+    expect(screen.queryByText('Maria das Dores')).toBeNull();
+    expect(screen.queryByText(/^Atendido por/)).toBeNull();
+  });
+});
+
+describe('Cenário: médico comum não vê o que outro coletou', () => {
+  it('mostra só os pacientes dele, sem o nome de quem atendeu', async () => {
+    renderInicio(bruno);
+
+    expect(await screen.findByText('Maria das Dores')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Seus pacientes' })).toBeOnTheScreen();
+    expect(screen.queryByText('José Alves Martins')).toBeNull();
+    expect(screen.queryByText(/^Atendido por/)).toBeNull();
+  });
+});

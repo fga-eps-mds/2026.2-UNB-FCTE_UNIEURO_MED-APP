@@ -5,8 +5,7 @@
  * sem saber onde eles estão guardados.
  */
 import {
-  EXAM_STATUS_LABEL,
-  EXAM_STATUS_TONE,
+  describeExamState,
   formatDate,
   toExamStatus,
   type ExamStatus,
@@ -75,29 +74,11 @@ export type PatientExam = {
 
 export type PatientDetail = Omit<PatientWithExams, 'exams'> & { exams: PatientExam[] };
 
-// Situação dos exames que ainda não terminaram. Os que terminaram usam o rótulo
-// da lista de pacientes, para a mesma situação ter sempre o mesmo texto.
-const UNFINISHED_LABEL: Record<string, string> = {
-  aguardando_consentimento: 'Aguardando o termo',
-  em_andamento: 'Em andamento',
-  processando_resultado: 'Processando',
-  erro_inferencia: 'Erro ao calcular',
-};
-
-const UNKNOWN_LABEL = 'Situação desconhecida';
-
 export const SEX_LABEL = {
   feminino: 'Feminino',
   masculino: 'Masculino',
   none: 'Não informado',
 } as const;
-
-// O erro ao calcular é o único exame não terminado que pede ação; os demais só
-// informam em que ponto o exame está.
-function toneOf(status: ExamStatus | null, state: string): ExamTone {
-  if (status) return EXAM_STATUS_TONE[status];
-  return state === 'erro_inferencia' ? 'error' : 'info';
-}
 
 function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
   const status = toExamStatus(exam.state);
@@ -105,8 +86,7 @@ function toPatientExam(exam: PatientWithExams['exams'][number]): PatientExam {
     id: exam.id,
     startedAt: exam.startedAt,
     status,
-    label: status ? EXAM_STATUS_LABEL[status] : (UNFINISHED_LABEL[exam.state] ?? UNKNOWN_LABEL),
-    tone: toneOf(status, exam.state),
+    ...describeExamState(exam.state),
     ...(exam.appliedBy === undefined ? {} : { appliedBy: exam.appliedBy }),
   };
 }
