@@ -27,16 +27,17 @@ import {
 } from '@/features/home/home.styles';
 import {
   EXAM_STATUS_LABEL,
+  EXAM_STATUS_TONE,
   countExams,
   cpfDigitsOf,
   describeTotals,
   filterPatients,
   formatDate,
   sortByLastExam,
-  type ExamStatus,
   type PatientCpf,
   type PatientSummary,
 } from '@/features/home/patients';
+import ExamStatusChip from '@/features/home/exam-status-chip';
 import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -66,7 +67,6 @@ export const CPF_SEARCH_FAILED_MESSAGE =
 // Ações cujo fluxo chega em histórias seguintes. O botão já fica no lugar
 // combinado com o PO e avisa o que ainda falta.
 const PENDING = {
-  patient: 'Os exames do paciente aparecem aqui em uma próxima entrega.',
   sync: 'A sincronização entre tablets está em estudo e ainda não está disponível.',
 };
 
@@ -248,7 +248,9 @@ export default function HomeScreen({
                   isWide={isWide}
                   showDivider={index > 0}
                   styles={styles}
-                  onOpen={() => showNotice(PENDING.patient)}
+                  onOpen={() =>
+                    router.push({ pathname: '/paciente/[id]', params: { id: String(item.id) } })
+                  }
                 />
               )}
             />
@@ -292,12 +294,6 @@ function ColumnHeader({ styles }: { styles: HomeStyles }) {
   );
 }
 
-const CHIP_STYLES = {
-  concluido: { box: 'chipConcluido', text: 'chipConcluidoText' },
-  interrompido: { box: 'chipInterrompido', text: 'chipInterrompidoText' },
-  recusado: { box: 'chipRecusado', text: 'chipRecusadoText' },
-} as const satisfies Record<ExamStatus, { box: keyof HomeStyles; text: keyof HomeStyles }>;
-
 type PatientRowProps = {
   patient: PatientSummary;
   isWide: boolean;
@@ -336,11 +332,7 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
           <View style={styles.colLastExam}>
             <Text style={styles.cell}>{lastExam}</Text>
             {status && (
-              <View style={[styles.chip, styles[CHIP_STYLES[status].box]]}>
-                <Text style={[styles.chipText, styles[CHIP_STYLES[status].text]]}>
-                  {statusLabel}
-                </Text>
-              </View>
+              <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
             )}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>

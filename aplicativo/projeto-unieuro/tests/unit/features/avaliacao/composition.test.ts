@@ -1,8 +1,13 @@
 import { attendanceRepository } from '@/db/attendance-repository';
 import { consentRepository } from '@/db/consent-repository';
+import { exclusionRepository } from '@/db/exclusion-repository';
+import { professionalRepository } from '@/db/professional-repository';
 import {
+  deleteExam,
+  deletePatient,
   getAttendancePatient,
   getTaskAccess,
+  professionalCpfRepository,
   registerAttendanceRepository,
   registerConsentDecision,
 } from '@/features/avaliacao/composition';
@@ -10,7 +15,13 @@ import {
   registrarDecisaoConsentimento,
   verificarAcessoTarefas,
 } from '@/features/avaliacao/consentimento';
+import { excluirExame, excluirPaciente } from '@/features/avaliacao/exclusao';
 
+jest.mock('@/features/avaliacao/exclusao', () => ({
+  ...jest.requireActual('@/features/avaliacao/exclusao'),
+  excluirExame: jest.fn(),
+  excluirPaciente: jest.fn(),
+}));
 jest.mock('@/features/avaliacao/consentimento', () => ({
   registrarDecisaoConsentimento: jest.fn(),
   verificarAcessoTarefas: jest.fn(),
@@ -19,6 +30,10 @@ jest.mock('@/features/avaliacao/consentimento', () => ({
 describe('composição da feature de avaliação', () => {
   it('liga o registro do atendimento ao repositório do banco', () => {
     expect(registerAttendanceRepository).toBe(attendanceRepository);
+  });
+
+  it('liga a confirmação final à leitura protegida do CPF', () => {
+    expect(professionalCpfRepository).toBe(professionalRepository);
   });
 
   it('liga a decisão do consentimento ao repositório do banco', () => {
@@ -49,5 +64,29 @@ describe('composição da feature de avaliação', () => {
     void getAttendancePatient(12);
 
     expect(buscar).toHaveBeenCalledWith(12);
+  });
+
+  it('liga a exclusão do exame e do paciente ao banco e à senha da conta', () => {
+    const ana = {
+      id: 7,
+      name: 'Ana Carolina Souza',
+      email: 'ana@unieuro.com.br',
+      crmNumber: '12345',
+      crmState: 'DF',
+    };
+
+    void deleteExam(12, ana, 'senha');
+    void deletePatient(3, ana, 'senha');
+
+    expect(excluirExame).toHaveBeenCalledWith(
+      { atendimentoId: 12, profissional: ana, senha: 'senha' },
+      exclusionRepository,
+      professionalRepository,
+    );
+    expect(excluirPaciente).toHaveBeenCalledWith(
+      { pacienteId: 3, profissional: ana, senha: 'senha' },
+      exclusionRepository,
+      professionalRepository,
+    );
   });
 });

@@ -22,6 +22,8 @@ const row = {
   last_update: '2026-09-26T13:00:00.000Z',
   ativo: 1,
   desativacao: null,
+  perfil: 'medico',
+  superusuario_por: null,
 };
 
 const CPF = '11144477735';
@@ -109,6 +111,32 @@ describe('cpfExists', () => {
   });
 });
 
+describe('findByCpfAndCrm', () => {
+  it.each([
+    ['ativa', 1, { id: 7, active: true }],
+    ['desativada', 0, { id: 7, active: false }],
+  ])('devolve a conta %s cujo CPF e CRM conferem', async (_case, ativo, expected) => {
+    const database = createDatabase({ id: 7, ativo });
+
+    await expect(createRepository(database).findByCpfAndCrm(CPF, '12345', 'DF')).resolves.toEqual(
+      expected,
+    );
+    expect(database.getFirstAsync).toHaveBeenCalledWith(
+      'SELECT id, ativo FROM profissional WHERE cpf_indice = ? AND crm_numero = ? AND uf_crm = ? LIMIT 1',
+      ['indice-do-cpf', '12345', 'DF'],
+    );
+  });
+
+  it('devolve null quando nenhuma conta confere, sem enviar o CPF ao banco', async () => {
+    const database = createDatabase();
+
+    await expect(
+      createRepository(database).findByCpfAndCrm(CPF, '12345', 'DF'),
+    ).resolves.toBeNull();
+    expect(JSON.stringify(database.getFirstAsync.mock.calls)).not.toContain(CPF);
+  });
+});
+
 describe('getCpf', () => {
   it('decifra o CPF do profissional', async () => {
     const database = createDatabase({ cpf_cifrado: 'cpf-cifrado' });
@@ -143,7 +171,7 @@ describe('insert', () => {
 
     expect(database.runAsync).toHaveBeenCalledWith(
       expect.stringContaining(
-        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update)',
+        'INSERT INTO profissional (nome, email, crm_numero, uf_crm, cpf_cifrado, cpf_indice, senha_hash, criacao, last_update, perfil)',
       ),
       [
         'Ana Carolina Souza',
@@ -190,6 +218,8 @@ describe('consultas', () => {
     updatedAt: '2026-09-26T13:00:00.000Z',
     active: true,
     deactivatedAt: null,
+    superuser: false,
+    superuserGrantedBy: null,
   };
 
   it('não traz o CPF nas leituras comuns', async () => {

@@ -17,6 +17,8 @@ export function createDecisaoStyles(colors: ThemeColors) {
   return StyleSheet.create({
     raiz: { gap: 16 },
     areaAssinatura: { gap: 8 },
+    // O "Apagar assinatura" fica acima do quadro, longe do caminho da caneta (#139).
+    cabecalhoAssinatura: { flexDirection: 'row', justifyContent: 'flex-end' },
     quadroAssinatura: { height: ALTURA_AREA_ASSINATURA },
     botaoLimpar: {
       minHeight: 48,

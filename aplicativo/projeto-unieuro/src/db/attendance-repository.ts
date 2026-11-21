@@ -39,6 +39,45 @@ export type AttendedPatientRecord = {
   lastState: string;
 };
 
+/**
+ * Paciente atendido por qualquer profissional do tablet, como só o superusuário
+ * vê (#49): o resumo conta os atendimentos de todos, e `attendedBy` é o nome de
+ * quem fez o mais recente.
+ */
+export type AnyAttendedPatientRecord = AttendedPatientRecord & {
+  attendedBy: string;
+};
+
+/** Exame (atendimento) aplicado pelo profissional, como a tela do paciente o mostra. */
+export type PatientExamRecord = {
+  id: number;
+  /** Início do atendimento, em ISO 8601. */
+  startedAt: string;
+  /** Estado do atendimento, como está na coluna `avaliacao.estado`. */
+  state: string;
+  /**
+   * Nome de quem aplicou o exame. Só vem na consulta do superusuário (#49); na do
+   * médico comum, todos os exames foram aplicados por ele.
+   */
+  appliedBy?: string;
+};
+
+/**
+ * Paciente com os exames que um profissional aplicou nele. Não traz o CPF: ele
+ * só é decifrado por `listAttendedPatientCpfs`, quando a busca da tela inicial pede.
+ */
+export type PatientWithExamsRecord = {
+  id: number;
+  name: string;
+  recordNumber: string;
+  /** AAAA-MM-DD. */
+  birthDate: string;
+  schoolingYears: number;
+  sex: 'feminino' | 'masculino' | null;
+  /** Do mais recente para o mais antigo. */
+  exams: PatientExamRecord[];
+};
+
 type AttendedPatientRow = {
   id: number;
   nome: string;
@@ -48,8 +87,29 @@ type AttendedPatientRow = {
   ultimo_estado: string;
 };
 
+type PatientRow = {
+  id: number;
+  nome: string;
+  numero_ficha: string;
+  data_nascimento: string;
+  escolaridade_anos: number;
+  sexo: 'feminino' | 'masculino' | null;
+};
+
+type ExamRow = { id: number; data_hora_inicio: string; estado: string };
+
+const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'> => ({
+  id: row.id,
+  name: row.nome,
+  recordNumber: row.numero_ficha,
+  birthDate: row.data_nascimento,
+  schoolingYears: row.escolaridade_anos,
+  sex: row.sexo,
+});
+
 // Só os atendimentos do profissional informado entram na contagem e no mais
-// recente: um médico não vê o que outro coletou no mesmo tablet. O desempate
+// recente: um médico não vê o que outro coletou no mesmo tablet. Os excluídos
+// (#47 e #58) também ficam de fora. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
 //
 // O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
@@ -60,17 +120,83 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado FROM avaliacao r
-      WHERE r.id_paciente = p.id AND r.id_profissional = ?
+      WHERE r.id_paciente = p.id AND r.id_profissional = ? AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL
   GROUP BY p.id`;
+
+// O paciente só existe para o profissional que o atendeu: um médico não vê o que
+// outro coletou no mesmo tablet. Quem pede um paciente que não atendeu recebe o
+// mesmo resultado de quem pede um que não existe.
+const FIND_PATIENT_OF_PROFESSIONAL = `SELECT p.id, p.nome, p.numero_ficha, p.data_nascimento,
+    p.escolaridade_anos, p.sexo
+  FROM paciente p
+  WHERE p.id = ?
+    AND EXISTS (SELECT 1 FROM avaliacao a
+      WHERE a.id_paciente = p.id AND a.id_profissional = ? AND a.excluido_em IS NULL)`;
+
+// Mesmo critério da lista: `data_hora_inicio` é comparada como texto, o que só
+// ordena certo com datas no formato de `toISOString()`, em UTC.
+const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado FROM avaliacao
+  WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
+  ORDER BY data_hora_inicio DESC, id DESC`;
+
+// Só o superusuário com a conta ativa pode ver o que outro médico coletou (#49).
+// A condição vai dentro das consultas "de todos", e não só na tela: para qualquer
+// outro profissional elas não devolvem linha nenhuma, por qualquer caminho do código.
+const REQUESTER_IS_SUPERUSER = `EXISTS (SELECT 1 FROM profissional s
+    WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1)`;
+
+// Atendimento mais recente do paciente, entre os de todos os profissionais, com o
+// mesmo desempate pelo id da consulta do médico.
+//
+// As consultas "de todos" também ignoram os exames excluídos (#47 e #58): eles
+// continuam no tablet, mas saem das listas do superusuário como saem das do médico.
+const LATEST_ATTENDANCE = `FROM avaliacao r
+      WHERE r.id_paciente = p.id AND r.excluido_em IS NULL
+      ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1`;
+
+const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
+    COUNT(a.id) AS total,
+    MAX(a.data_hora_inicio) AS ultimo_inicio,
+    (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
+    (SELECT m.nome FROM profissional m
+      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
+  GROUP BY p.id`;
+
+const LIST_ALL_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
+  FROM paciente p
+  JOIN avaliacao a ON a.id_paciente = p.id
+  WHERE a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}`;
+
+// Paciente atendido por qualquer profissional, para a tela do paciente do
+// superusuário. Para outro profissional, não há paciente: o mesmo resultado de
+// um id que não existe.
+const FIND_ANY_ATTENDED_PATIENT = `SELECT p.id, p.nome, p.numero_ficha, p.data_nascimento,
+    p.escolaridade_anos, p.sexo
+  FROM paciente p
+  WHERE p.id = ?
+    AND EXISTS (SELECT 1 FROM avaliacao a WHERE a.id_paciente = p.id AND a.excluido_em IS NULL)
+    AND ${REQUESTER_IS_SUPERUSER}`;
+
+// Exames do paciente aplicados por todos os profissionais, com o nome de quem
+// aplicou, na mesma ordem da consulta do médico. A trava do superusuário se repete
+// aqui para a consulta não depender de ser chamada só depois da anterior.
+const LIST_ALL_EXAMS_OF_PATIENT = `SELECT a.id, a.data_hora_inicio, a.estado, m.nome AS aplicado_por
+  FROM avaliacao a
+  JOIN profissional m ON m.id = a.id_profissional
+  WHERE a.id_paciente = ? AND a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
+  ORDER BY a.data_hora_inicio DESC, a.id DESC`;
 
 const LIST_ATTENDED_PATIENT_CPFS = `SELECT DISTINCT p.id, p.cpf_cifrado
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
-  WHERE a.id_profissional = ?`;
+  WHERE a.id_profissional = ? AND a.excluido_em IS NULL`;
 
 const INSERT_PATIENT = `INSERT INTO paciente
   (nome, cpf_cifrado, cpf_indice, data_nascimento, escolaridade_anos, sexo, criacao, last_update, numero_ficha)
@@ -107,6 +233,10 @@ const isNewPatient = (patient: AttendanceRecord['patient']): patient is PatientR
  * Também lista os pacientes que um profissional atendeu, para a tela inicial
  * (#77). Essa consulta não lê o CPF: ele só é decifrado por
  * `listAttendedPatientCpfs`, quando a busca da tela inicial pede (#99).
+ *
+ * As consultas `listAll...` e `findAnyPatientWithExams` trazem os pacientes e os
+ * exames de todos os profissionais, para o superusuário (#49). Elas recebem quem
+ * está pedindo e só respondem a um superusuário com a conta ativa.
  */
 export function createAttendanceRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
@@ -180,6 +310,30 @@ export function createAttendanceRepository(
       }));
     },
 
+    async findPatientWithExams(
+      professionalId: number,
+      patientId: number,
+    ): Promise<PatientWithExamsRecord | null> {
+      const database = await open();
+      const patient = await database.getFirstAsync<PatientRow>(FIND_PATIENT_OF_PROFESSIONAL, [
+        patientId,
+        professionalId,
+      ]);
+      if (!patient) return null;
+      const exams = await database.getAllAsync<ExamRow>(LIST_EXAMS_OF_PATIENT, [
+        patientId,
+        professionalId,
+      ]);
+      return {
+        ...toPatientRecord(patient),
+        exams: exams.map((exam) => ({
+          id: exam.id,
+          startedAt: exam.data_hora_inicio,
+          state: exam.estado,
+        })),
+      };
+    },
+
     async listAttendedPatientCpfs(
       professionalId: number,
     ): Promise<{ patientId: number; cpf: string }[]> {
@@ -194,6 +348,70 @@ export function createAttendanceRepository(
           cpf: await protector.decrypt(row.cpf_cifrado),
         })),
       );
+    },
+
+    /** Pacientes de todos os profissionais, com quem atendeu por último. Só para o superusuário. */
+    async listAllAttendedPatients(requesterId: number): Promise<AnyAttendedPatientRecord[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<AttendedPatientRow & { atendido_por: string }>(
+        LIST_ALL_ATTENDED_PATIENTS,
+        [requesterId],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.nome,
+        recordNumber: row.numero_ficha,
+        attendanceCount: row.total,
+        lastStartedAt: row.ultimo_inicio,
+        lastState: row.ultimo_estado,
+        attendedBy: row.atendido_por,
+      }));
+    },
+
+    /** CPF dos pacientes de todos os profissionais, para a busca do superusuário. */
+    async listAllAttendedPatientCpfs(
+      requesterId: number,
+    ): Promise<{ patientId: number; cpf: string }[]> {
+      const database = await open();
+      const rows = await database.getAllAsync<{ id: number; cpf_cifrado: string }>(
+        LIST_ALL_ATTENDED_PATIENT_CPFS,
+        [requesterId],
+      );
+      return Promise.all(
+        rows.map(async (row) => ({
+          patientId: row.id,
+          cpf: await protector.decrypt(row.cpf_cifrado),
+        })),
+      );
+    },
+
+    /**
+     * Paciente com os exames de todos os profissionais, cada um com quem o
+     * aplicou. Só para o superusuário: para os demais, devolve `null`.
+     */
+    async findAnyPatientWithExams(
+      requesterId: number,
+      patientId: number,
+    ): Promise<PatientWithExamsRecord | null> {
+      const database = await open();
+      const patient = await database.getFirstAsync<PatientRow>(FIND_ANY_ATTENDED_PATIENT, [
+        patientId,
+        requesterId,
+      ]);
+      if (!patient) return null;
+      const exams = await database.getAllAsync<ExamRow & { aplicado_por: string }>(
+        LIST_ALL_EXAMS_OF_PATIENT,
+        [patientId, requesterId],
+      );
+      return {
+        ...toPatientRecord(patient),
+        exams: exams.map((exam) => ({
+          id: exam.id,
+          startedAt: exam.data_hora_inicio,
+          state: exam.estado,
+          appliedBy: exam.aplicado_por,
+        })),
+      };
     },
 
     async createAttendance({

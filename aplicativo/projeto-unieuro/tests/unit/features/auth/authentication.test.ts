@@ -35,7 +35,10 @@ describe('authenticate', () => {
       repository,
     );
 
-    expect(result).toEqual({ success: true, professional: profissional });
+    expect(result).toEqual({
+      success: true,
+      professional: { ...profissional, superuser: false },
+    });
   });
 
   it('normaliza o e-mail antes de consultar o repositório', async () => {
