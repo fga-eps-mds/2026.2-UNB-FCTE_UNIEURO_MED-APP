@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -42,7 +43,10 @@ import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
 import { useTheme } from '@/hooks/use-theme';
 
 type HomeScreenProps = {
-  /** Pacientes atendidos pelo profissional autenticado, e só por ele. */
+  /**
+   * Pacientes atendidos pelo profissional autenticado, e só por ele. Para o
+   * superusuário, os de todos os profissionais, cada um com quem atendeu (#49).
+   */
   patients: readonly PatientSummary[];
   /** A leitura dos pacientes no banco falhou. */
   loadFailed?: boolean;
@@ -123,6 +127,8 @@ export default function HomeScreen({
   const hasExams = examCount > 0;
   const canExport = hasExams && exportAll !== undefined;
   const hasPatients = patients.length > 0;
+  // O superusuário vê os pacientes de todos os profissionais, com quem atendeu (#49).
+  const allProfessionals = professional?.superuser === true;
 
   if (!professional) return null;
 
@@ -140,7 +146,8 @@ export default function HomeScreen({
           </View>
           <View>
             <Text style={styles.brandName}>MNEMA</Text>
-            <Text style={styles.brandCaption}>RASTREIO COGNITIVO</Text>
+            {/* O cabeçalho do médico comum fica como na tela aceita na #46. */}
+            {!allProfessionals && <Text style={styles.brandCaption}>RASTREIO COGNITIVO</Text>}
           </View>
         </View>
         <View style={styles.account}>
@@ -148,20 +155,26 @@ export default function HomeScreen({
             <Text style={styles.professionalName} numberOfLines={1}>
               {professional.name}
             </Text>
-            <Text style={styles.professionalCrm}>CRM {formatCrm(professional)}</Text>
+            <Text style={styles.professionalCrm}>
+              {allProfessionals ? 'Responsável pela pesquisa' : `CRM ${formatCrm(professional)}`}
+            </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
+          <HeaderLink
+            icon="cog-outline"
+            label="Configurações"
             onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-            <Text style={styles.outlineButtonText}>Configurações</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
+            styles={styles}
+            color={theme.primary}
+            showIcon={allProfessionals}
+          />
+          <HeaderLink
+            icon="logout"
+            label="Sair"
             onPress={signOut}
-            style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
-            <Text style={styles.textButtonText}>Sair</Text>
-          </Pressable>
+            styles={styles}
+            color={theme.primary}
+            showIcon={allProfessionals}
+          />
         </View>
       </View>
 
@@ -169,55 +182,89 @@ export default function HomeScreen({
         <View style={styles.titleRow}>
           <View style={styles.titleBlock}>
             <Text accessibilityRole="header" style={styles.title}>
-              Seus pacientes
+              {allProfessionals ? 'Todos os pacientes' : 'Seus pacientes'}
             </Text>
             {/* Enquanto carrega, o aviso fica só no cartão da lista, para não ser lido duas vezes. */}
-            {!loading && <Text style={styles.subtitle}>{describeTotals(patients)}</Text>}
+            {!loading && (
+              <Text style={styles.subtitle}>{describeTotals(patients, allProfessionals)}</Text>
+            )}
           </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Novo exame"
             onPress={() => router.push('/novo-exame')}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-            <Text style={styles.primaryButtonText}>+ Novo exame</Text>
+            {allProfessionals && <ButtonIcon name="plus" color={theme.onPrimary} />}
+            <Text style={styles.primaryButtonText}>
+              {allProfessionals ? 'Novo exame' : '+ Novo exame'}
+            </Text>
           </Pressable>
         </View>
 
-        <View style={styles.toolbar}>
-          {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+        <View style={styles.toolbarBlock}>
           {hasPatients && (
-            <TextInput
-              accessibilityLabel="Buscar paciente"
-              placeholder="Buscar por nome, ficha ou CPF"
-              placeholderTextColor={theme.placeholder}
-              value={query}
-              onChangeText={setQuery}
-              autoCorrect={false}
-              returnKeyType="search"
-              style={styles.search}
-            />
+            <Text style={styles.searchLabel} accessibilityElementsHidden>
+              {allProfessionals ? 'BUSCAR PACIENTE OU PROFISSIONAL' : 'BUSCAR PACIENTE'}
+            </Text>
           )}
-          <View style={styles.toolbarActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canExport }}
-              disabled={!canExport}
-              onPress={() => setExporting(true)}
-              style={({ pressed }) => [
-                styles.outlineButton,
-                !canExport && styles.disabledButton,
-                pressed && styles.pressed,
-              ]}>
-              <Text style={[styles.outlineButtonText, !canExport && styles.disabledButtonText]}>
-                Exportar todos (XML)
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => showNotice(PENDING.sync)}
-              style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-              <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
-            </Pressable>
+          <View style={styles.toolbar}>
+            {/* Sem pacientes não há o que buscar: a busca só aparece com a lista. */}
+            {hasPatients && (
+              <View style={styles.search}>
+                <MaterialCommunityIcons
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  name="magnify"
+                  size={24}
+                  color={theme.placeholder}
+                />
+                <TextInput
+                  accessibilityLabel={
+                    allProfessionals ? 'Buscar paciente ou profissional' : 'Buscar paciente'
+                  }
+                  placeholder={
+                    allProfessionals
+                      ? 'Nome, ficha, CPF ou profissional'
+                      : 'Buscar por nome, ficha ou CPF'
+                  }
+                  placeholderTextColor={theme.placeholder}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  style={styles.searchInput}
+                />
+              </View>
+            )}
+            <View style={styles.toolbarActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canExport }}
+                disabled={!canExport}
+                onPress={() => setExporting(true)}
+                style={({ pressed }) => [
+                  styles.outlineButton,
+                  !canExport && styles.disabledButton,
+                  pressed && styles.pressed,
+                ]}>
+                {allProfessionals && (
+                  <ButtonIcon
+                    name="tray-arrow-down"
+                    color={canExport ? theme.primary : theme.textSecondary}
+                  />
+                )}
+                <Text style={[styles.outlineButtonText, !canExport && styles.disabledButtonText]}>
+                  Exportar todos (XML)
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => showNotice(PENDING.sync)}
+                style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
+                {allProfessionals && <ButtonIcon name="sync" color={theme.primary} />}
+                <Text style={styles.outlineButtonText}>Sincronizar tablets</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -235,7 +282,9 @@ export default function HomeScreen({
             <FlatList
               data={visible}
               keyExtractor={(patient) => String(patient.id)}
-              ListHeaderComponent={isWide ? <ColumnHeader styles={styles} /> : null}
+              ListHeaderComponent={
+                isWide ? <ColumnHeader styles={styles} showAttendedBy={allProfessionals} /> : null
+              }
               ListEmptyComponent={
                 <Text style={styles.noResults}>
                   Nenhum paciente encontrado para “{query.trim()}”.
@@ -246,6 +295,7 @@ export default function HomeScreen({
                 <PatientRow
                   patient={item}
                   isWide={isWide}
+                  chevronColor={theme.primary}
                   showDivider={index > 0}
                   styles={styles}
                   onOpen={() =>
@@ -283,13 +333,25 @@ export default function HomeScreen({
   );
 }
 
-function ColumnHeader({ styles }: { styles: HomeStyles }) {
+type ColumnHeaderProps = {
+  styles: HomeStyles;
+  /** Coluna de quem atendeu, só na lista do superusuário (#49). */
+  showAttendedBy: boolean;
+};
+
+function ColumnHeader({ styles, showAttendedBy }: ColumnHeaderProps) {
   return (
     <View style={styles.columnHeader}>
       <Text style={[styles.columnLabel, styles.colName]}>PACIENTE</Text>
       <Text style={[styles.columnLabel, styles.colRecord]}>FICHA</Text>
-      <Text style={[styles.columnLabel, styles.colLastExam]}>ÚLTIMO EXAME</Text>
+      {showAttendedBy && (
+        <Text style={[styles.columnLabel, styles.colAttendedBy]}>ATENDIDO POR</Text>
+      )}
+      <Text style={[styles.columnLabel, styles.colLastExam, styles.colLastExamWide]}>
+        ÚLTIMO EXAME
+      </Text>
       <Text style={[styles.columnLabel, styles.colCount]}>EXAMES</Text>
+      <View style={styles.chevron} />
     </View>
   );
 }
@@ -297,20 +359,32 @@ function ColumnHeader({ styles }: { styles: HomeStyles }) {
 type PatientRowProps = {
   patient: PatientSummary;
   isWide: boolean;
+  chevronColor: string;
   showDivider: boolean;
   styles: HomeStyles;
   onOpen: () => void;
 };
 
-function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRowProps) {
+function PatientRow({
+  patient,
+  isWide,
+  chevronColor,
+  showDivider,
+  styles,
+  onOpen,
+}: PatientRowProps) {
   const lastExam = patient.lastExamAt ? formatDate(patient.lastExamAt) : 'Sem exame';
   const status = patient.lastExamStatus;
-  const statusLabel = status ? EXAM_STATUS_LABEL[status] : null;
+  // A situação vem do estado do exame, também quando ele ainda não terminou.
+  const situation =
+    patient.lastExamSituation ??
+    (status ? { label: EXAM_STATUS_LABEL[status], tone: EXAM_STATUS_TONE[status] } : null);
   const description = [
     patient.name,
     `ficha ${patient.recordNumber}`,
     `último exame ${lastExam}`,
-    statusLabel,
+    situation?.label,
+    patient.attendedBy && `atendido por ${patient.attendedBy}`,
   ]
     .filter(Boolean)
     .join(', ');
@@ -329,16 +403,69 @@ function PatientRow({ patient, isWide, showDivider, styles, onOpen }: PatientRow
             {!isWide && <Text style={styles.cellSecondary}>Ficha {patient.recordNumber}</Text>}
           </View>
           {isWide && <Text style={[styles.record, styles.colRecord]}>{patient.recordNumber}</Text>}
-          <View style={styles.colLastExam}>
+          {/* No tablet deitado, quem atendeu tem coluna própria, como no protótipo (#49). */}
+          {isWide && patient.attendedBy !== undefined && (
+            <Text style={[styles.record, styles.colAttendedBy]}>{patient.attendedBy}</Text>
+          )}
+          <View style={[styles.colLastExam, isWide && styles.colLastExamWide]}>
             <Text style={styles.cell}>{lastExam}</Text>
-            {status && (
-              <ExamStatusChip tone={EXAM_STATUS_TONE[status]} label={EXAM_STATUS_LABEL[status]} />
-            )}
+            {situation && <ExamStatusChip tone={situation.tone} label={situation.label} />}
+            {!isWide && patient.attendedBy ? (
+              <Text style={styles.cellSecondary}>Atendido por {patient.attendedBy}</Text>
+            ) : null}
           </View>
           <Text style={[styles.count, styles.colCount]}>{patient.examCount}</Text>
+          <MaterialCommunityIcons
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            name="chevron-right"
+            size={24}
+            color={chevronColor}
+            style={styles.chevron}
+          />
         </Pressable>
       </View>
     </View>
+  );
+}
+
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Ícone de um botão. Fica oculto para o leitor de tela, que lê só o texto. */
+function ButtonIcon({ name, color }: { name: IconName; color: string }) {
+  return (
+    <MaterialCommunityIcons
+      testID="icone-do-botao"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      name={name}
+      size={24}
+      color={color}
+    />
+  );
+}
+
+type HeaderLinkProps = {
+  label: string;
+  onPress: () => void;
+  styles: HomeStyles;
+  icon: IconName;
+  color: string;
+  /** Só o cabeçalho do superusuário segue o protótipo com ícones (#49). */
+  showIcon: boolean;
+};
+
+/** Ação do cabeçalho em forma de link, como no protótipo. */
+function HeaderLink({ label, onPress, styles, icon, color, showIcon }: HeaderLinkProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+      {showIcon && <ButtonIcon name={icon} color={color} />}
+      <Text style={styles.textButtonText}>{label}</Text>
+    </Pressable>
   );
 }
 

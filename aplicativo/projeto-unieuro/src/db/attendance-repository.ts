@@ -41,11 +41,14 @@ export type AttendedPatientRecord = {
 
 /**
  * Paciente atendido por qualquer profissional do tablet, como só o superusuário
- * vê (#49): o resumo conta os atendimentos de todos, e `attendedBy` é o nome de
- * quem fez o mais recente.
+ * vê (#49): o resumo conta os atendimentos de todos, `attendedBy` é o nome de
+ * quem fez o mais recente e `professionalIds` e `professionalNames`, todos os
+ * que já o atenderam.
  */
 export type AnyAttendedPatientRecord = AttendedPatientRecord & {
   attendedBy: string;
+  professionalIds: number[];
+  professionalNames: string[];
 };
 
 /** Exame (atendimento) aplicado pelo profissional, como a tela do paciente o mostra. */
@@ -158,12 +161,19 @@ const LATEST_ATTENDANCE = `FROM avaliacao r
       WHERE r.id_paciente = p.id AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1`;
 
+const PROFESSIONAL_NAME_SEPARATOR = String.fromCharCode(31);
+
 const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
     (SELECT m.nome FROM profissional m
-      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por
+      WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por,
+    GROUP_CONCAT(DISTINCT a.id_profissional) AS profissionais,
+    (SELECT GROUP_CONCAT(m.nome, char(31)) FROM profissional m
+      WHERE m.id IN (SELECT x.id_profissional FROM avaliacao x
+        WHERE x.id_paciente = p.id AND x.excluido_em IS NULL))
+      AS nomes_profissionais
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
@@ -353,10 +363,13 @@ export function createAttendanceRepository(
     /** Pacientes de todos os profissionais, com quem atendeu por último. Só para o superusuário. */
     async listAllAttendedPatients(requesterId: number): Promise<AnyAttendedPatientRecord[]> {
       const database = await open();
-      const rows = await database.getAllAsync<AttendedPatientRow & { atendido_por: string }>(
-        LIST_ALL_ATTENDED_PATIENTS,
-        [requesterId],
-      );
+      const rows = await database.getAllAsync<
+        AttendedPatientRow & {
+          atendido_por: string;
+          profissionais: string;
+          nomes_profissionais: string;
+        }
+      >(LIST_ALL_ATTENDED_PATIENTS, [requesterId]);
       return rows.map((row) => ({
         id: row.id,
         name: row.nome,
@@ -365,6 +378,9 @@ export function createAttendanceRepository(
         lastStartedAt: row.ultimo_inicio,
         lastState: row.ultimo_estado,
         attendedBy: row.atendido_por,
+        professionalIds: row.profissionais.split(',').map(Number),
+        // Separados pelo caractere de controle 31, que não aparece em um nome.
+        professionalNames: row.nomes_profissionais.split(PROFESSIONAL_NAME_SEPARATOR),
       }));
     },
 
