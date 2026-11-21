@@ -187,3 +187,13 @@ describe('SettingsScreen', () => {
     expect(screen.getAllByText(nome).some((texto) => texto.props.numberOfLines === 1)).toBe(true);
   });
 });
+
+describe('ajustes do teste nas configurações (#24)', () => {
+  it('mostra o cartão "Ajustes do teste" com os dois interruptores', () => {
+    renderTela();
+
+    expect(screen.getByRole('header', { name: 'Ajustes do teste' })).toBeOnTheScreen();
+    expect(screen.getByRole('switch', { name: 'Alto contraste' })).toBeOnTheScreen();
+    expect(screen.getByRole('switch', { name: 'Letras maiores' })).toBeOnTheScreen();
+  });
+});
