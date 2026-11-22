@@ -109,4 +109,34 @@ describe('Buscar médico', () => {
   it('não encontra ninguém quando nada bate', () => {
     expect(nomes('Marcos')).toEqual([]);
   });
+
+  it('não busca pelo número de exames', () => {
+    const comSeteExames = [
+      toLinhaConta(
+        conta({
+          name: 'Bruna Lima',
+          email: 'bruna@unieuro.com.br',
+          crmNumber: '12345',
+          examCount: 7,
+        }),
+      ),
+    ];
+
+    expect(filtrarContas(comSeteExames, '7')).toEqual([]);
+  });
+
+  it('não busca pela situação da conta', () => {
+    const desativada = [
+      toLinhaConta(conta({ name: 'Bruna Lima', email: 'bruna@unieuro.com.br', active: false })),
+    ];
+
+    expect(filtrarContas(desativada, 'desativada')).toEqual([]);
+  });
+
+  it.each(['%', "'", '*', '\\', '"; DROP TABLE profissional; --'])(
+    'caractere especial (%s) não quebra a busca nem encontra ninguém',
+    (busca) => {
+      expect(nomes(busca)).toEqual([]);
+    },
+  );
 });
