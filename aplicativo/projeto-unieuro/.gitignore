@@ -46,3 +46,6 @@ example
 /android
 .claude/
 .vscode/
+
+# Modelo de IA: derivado do conjunto de dados, entra no APK só pelo build (with-modelo-ia)
+*.onnx
