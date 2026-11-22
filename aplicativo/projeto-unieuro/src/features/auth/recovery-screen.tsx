@@ -22,7 +22,8 @@ import {
   type RecoveryAttemptsStore,
   type RecoveryErrors,
 } from '@/features/auth/password-recovery';
-import { createRegisterStyles, getRegisterLayout } from '@/features/auth/register.styles';
+import { getRegisterLayout } from '@/features/auth/register.styles';
+import { createRecoveryStyles } from '@/features/auth/recovery.styles';
 import { formatCpfInput } from '@/features/shared/cpf';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -39,15 +40,15 @@ const rows = [
     { name: 'crm', label: 'CRM COM UF', placeholder: '12345/DF' },
   ],
   [
-    { name: 'newPassword', label: 'NOVA SENHA', placeholder: 'Pelo menos 8 caracteres' },
-    { name: 'confirmation', label: 'CONFIRMAR NOVA SENHA', placeholder: 'Repita a nova senha' },
+    { name: 'newPassword', label: 'NOVA SENHA', placeholder: '••••••••' },
+    { name: 'confirmation', label: 'CONFIRMAR NOVA SENHA', placeholder: '••••••••' },
   ],
 ] as const;
 
 export default function RecoveryScreen({ repository, attemptsStore }: Props) {
   const router = useRouter();
   const theme = useTheme();
-  const styles = useMemo(() => createRegisterStyles(theme), [theme]);
+  const styles = useMemo(() => createRecoveryStyles(theme), [theme]);
   const { width, height } = useWindowDimensions();
   const layout = getRegisterLayout(width, height);
   const [values, setValues] = useState(initialValues);
@@ -101,31 +102,28 @@ export default function RecoveryScreen({ repository, attemptsStore }: Props) {
                 borderRadius: 24,
               },
             ]}>
-            <View
-              style={[
-                styles.logoPlaceholder,
-                { width: layout.logoSize, height: layout.logoSize, borderRadius: 22 },
-              ]}
-              accessible
-              accessibilityLabel="Espaço reservado para o logo">
-              <Text style={styles.logoMark} accessibilityElementsHidden>
-                M
-              </Text>
-            </View>
             <Text
               accessibilityRole="header"
               style={[styles.title, { fontSize: layout.titleFontSize }]}>
-              RECUPERAR SENHA
+              Criar uma nova senha
             </Text>
             <Text style={styles.subtitle}>
-              Informe os dados do seu cadastro e crie uma nova senha. A recuperação funciona sem
-              internet.
+              Sem internet, a sua identidade é confirmada pelos dados do seu cadastro. A senha
+              antiga não é mostrada em nenhum momento.
             </Text>
             {completed ? (
               <FeedbackMessage kind="success" message="Senha alterada. Entre com sua nova senha." />
             ) : (
               <View style={styles.form}>
-                {message && <FeedbackMessage kind="error" message={message} />}
+                {message && (
+                  <View
+                    accessible
+                    accessibilityRole="alert"
+                    accessibilityLabel={`Erro. ${message}`}
+                    style={styles.banner}>
+                    <Text style={styles.bannerText}>{message}</Text>
+                  </View>
+                )}
                 {rows.map((row, index) => (
                   <View
                     key={index}
@@ -168,16 +166,23 @@ export default function RecoveryScreen({ repository, attemptsStore }: Props) {
                             value={values[field.name]}
                           />
                           {errors[field.name] && (
-                            <FeedbackMessage kind="error" inline message={errors[field.name]!} />
+                            <Text accessibilityLiveRegion="assertive" style={styles.fieldError}>
+                              {errors[field.name]}
+                            </Text>
                           )}
                         </View>
                       );
                     })}
                   </View>
                 ))}
+                <Text style={styles.help}>
+                  {errors.newPassword
+                    ? 'A senha ainda não mudou.'
+                    : 'A nova senha precisa ter pelo menos 8 caracteres, como no cadastro.'}
+                </Text>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="SALVAR NOVA SENHA"
+                  accessibilityLabel="Criar nova senha"
                   accessibilityState={{ busy: submitting, disabled: submitting }}
                   disabled={submitting}
                   onPress={submit}
@@ -188,7 +193,7 @@ export default function RecoveryScreen({ repository, attemptsStore }: Props) {
                   {submitting ? (
                     <ActivityIndicator color={theme.onPrimary} />
                   ) : (
-                    <Text style={styles.submitText}>SALVAR NOVA SENHA</Text>
+                    <Text style={styles.submitText}>Criar nova senha</Text>
                   )}
                 </Pressable>
               </View>
@@ -198,8 +203,9 @@ export default function RecoveryScreen({ repository, attemptsStore }: Props) {
               disabled={submitting}
               onPress={() => router.replace('/')}
               style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-              <Text style={styles.backText}>VOLTAR PARA O LOGIN</Text>
+              <Text style={styles.backText}>Voltar para o login</Text>
             </Pressable>
+            <Text style={styles.help}>Tudo acontece no tablet, sem internet.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

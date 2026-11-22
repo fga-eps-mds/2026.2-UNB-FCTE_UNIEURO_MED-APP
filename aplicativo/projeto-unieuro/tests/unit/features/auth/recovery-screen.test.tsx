@@ -39,7 +39,7 @@ describe('recuperação de senha', () => {
   it('valida os campos e permite corrigir a senha', async () => {
     const { repository } = setup();
     preencher('12345/DF', 'curta');
-    fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
     expect(
       await screen.findByText('A nova senha precisa ter pelo menos 8 caracteres.'),
     ).toBeOnTheScreen();
@@ -55,7 +55,7 @@ describe('recuperação de senha', () => {
     preencher();
     expect(screen.getByLabelText('CPF')).toHaveProp('value', '111.444.777-35');
     expect(screen.getByLabelText('NOVA SENHA')).toHaveProp('secureTextEntry', true);
-    fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
     expect(await screen.findByText('Senha alterada. Entre com sua nova senha.')).toBeOnTheScreen();
     expect(repository.updatePasswordHash).toHaveBeenCalledWith(
       1,
@@ -63,7 +63,7 @@ describe('recuperação de senha', () => {
       expect.any(String),
     );
     expect(screen.queryByLabelText('NOVA SENHA')).not.toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: 'VOLTAR PARA O LOGIN' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Voltar para o login' }));
     expect(useRouter().replace).toHaveBeenCalledWith('/');
   });
 
@@ -71,14 +71,14 @@ describe('recuperação de senha', () => {
     const { repository } = setup();
     preencher('12346/DF');
     for (let i = 0; i < 5; i++) {
-      fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
       if (i < 4)
         await screen.findByText(
           'Não foi possível confirmar a sua identidade. Confira os dados e tente de novo. A senha não mudou.',
         );
       else await screen.findByText(/Muitas tentativas seguidas/);
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' })).toBeEnabled(),
+        expect(screen.getByRole('button', { name: 'Criar nova senha' })).toBeEnabled(),
       );
     }
     expect(repository.updatePasswordHash).not.toHaveBeenCalled();
@@ -88,11 +88,11 @@ describe('recuperação de senha', () => {
     const { repository } = setup();
     repository.findByCpfAndCrm.mockRejectedValueOnce(new Error('erro'));
     preencher();
-    fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
     expect(
       await screen.findByText('Não foi possível recuperar a senha. Tente novamente.'),
     ).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
     expect(await screen.findByText('Senha alterada. Entre com sua nova senha.')).toBeOnTheScreen();
   });
 });

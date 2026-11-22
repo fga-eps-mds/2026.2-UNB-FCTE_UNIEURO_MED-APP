@@ -17,7 +17,7 @@ it('recupera pela tela e permite entrar com a nova senha no banco local', async 
     fireEvent.changeText(screen.getByLabelText('CRM COM UF'), '12345/DF');
     fireEvent.changeText(screen.getByLabelText('NOVA SENHA'), 'nova-senha-segura');
     fireEvent.changeText(screen.getByLabelText('CONFIRMAR NOVA SENHA'), 'nova-senha-segura');
-    fireEvent.press(screen.getByRole('button', { name: 'SALVAR NOVA SENHA' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Criar nova senha' }));
     expect(
       await screen.findByText('Senha alterada. Entre com sua nova senha.', {}, { timeout: 30000 }),
     ).toBeOnTheScreen();
