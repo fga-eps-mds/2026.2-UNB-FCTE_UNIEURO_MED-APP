@@ -7,6 +7,7 @@ import { createMarkingRepository } from '@/db/marking-repository';
 import { createProfessionalRepository } from '@/db/professional-repository';
 import type { SessionProfessional } from '@/features/auth/session';
 import { SessionProvider } from '@/features/auth/session';
+import { formatDateTime } from '@/features/home/patient-detail';
 import {
   EXAME_NAO_ENCONTRADO,
   SENHA_NAO_CONFERE_MARCAR,
@@ -75,6 +76,13 @@ const TAUIL = {
   cpf: '39053344705',
 };
 
+// O exame concluído do José. A tela mostra a hora no fuso do tablet, então o texto
+// dos botões é montado com a mesma função, para o teste passar em qualquer fuso.
+const INICIO_DO_CONCLUIDO = '2026-10-05T17:32:00.000Z';
+const QUANDO = formatDateTime(INICIO_DO_CONCLUIDO);
+const MARCAR = `Marcar o exame de ${QUANDO} como teste ou material de ensino`;
+const DESFAZER = `Desfazer a marcação do exame de ${QUANDO}`;
+
 let tablet: TabletComAnaEBruno;
 let ana: SessionProfessional;
 let bruno: SessionProfessional;
@@ -136,7 +144,7 @@ beforeEach(async () => {
         sex: 'masculino',
       },
       professionalId: ana.id,
-      startedAt: '2026-10-05T17:32:00.000Z',
+      startedAt: INICIO_DO_CONCLUIDO,
     })
   ).attendanceId;
   await tablet.database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [
@@ -158,7 +166,7 @@ async function marcarPelaTela(senha: string, tipo = 'Teste') {
   const user = userEvent.setup();
   renderPaciente(ana);
   await linhaDoConcluido();
-  await user.press(screen.getByRole('button', { name: /^Marcar o exame de 05\/10\/2026/ }));
+  await user.press(screen.getByRole('button', { name: MARCAR }));
   await user.press(screen.getByRole('radio', { name: tipo }));
   await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA'), senha);
   await user.press(screen.getByRole('button', { name: 'Marcar exame' }));
@@ -201,7 +209,7 @@ describe('marcar um exame como teste ou material de ensino (#58)', () => {
     renderPaciente(ana);
     await linhaDoConcluido();
 
-    await user.press(screen.getByRole('button', { name: /^Marcar o exame de 05\/10\/2026/ }));
+    await user.press(screen.getByRole('button', { name: MARCAR }));
     await user.press(screen.getByRole('radio', { name: 'Teste' }));
     await user.press(screen.getByRole('button', { name: 'Cancelar' }));
 
@@ -213,13 +221,11 @@ describe('marcar um exame como teste ou material de ensino (#58)', () => {
     const user = await marcarPelaTela(SENHA_DE_TESTE);
     await within(await linhaDoConcluido()).findByText('Teste');
 
-    await user.press(
-      screen.getByRole('button', { name: 'Desfazer a marcação do exame de 05/10/2026 · 14:32' }),
-    );
+    await user.press(screen.getByRole('button', { name: DESFAZER }));
     await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA'), SENHA_DE_TESTE);
     await user.press(screen.getAllByRole('button', { name: 'Desfazer marcação' }).at(-1)!);
 
-    await screen.findByRole('button', { name: /^Marcar o exame de 05\/10\/2026/ });
+    await screen.findByRole('button', { name: MARCAR });
     expect(screen.queryByTestId('marcacao')).toBeNull();
     await expect(historico()).resolves.toEqual([
       { acao: 'marcar', tipo: 'teste', id_profissional: ana.id },
