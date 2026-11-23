@@ -211,10 +211,19 @@ describe('esquema', () => {
   it('chega à versão 11 com a exclusão de exame (#58) e de paciente (#47)', () => {
     const schemaV11 = MIGRATIONS[10];
 
-    expect(SCHEMA_VERSION).toBe(11);
     expect(schemaV11).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
     expect(schemaV11).toContain('CREATE TABLE IF NOT EXISTS exclusao');
     expect(schemaV11).toContain('avaliacao_finalizada_sem_exclusao');
+  });
+
+  it('chega à versão 12 com o resultado do modelo calculado no tablet (#12)', () => {
+    const schemaV12 = MIGRATIONS[11];
+
+    expect(SCHEMA_VERSION).toBe(12);
+    expect(schemaV12).toContain('CREATE TABLE IF NOT EXISTS resultado_modelo');
+    expect(schemaV12).toContain('resultado_modelo_exame_aguardando');
+    expect(schemaV12).toContain('resultado_modelo_sem_alteracao');
+    expect(schemaV12).toContain('resultado_modelo_sem_remocao');
   });
 });
 

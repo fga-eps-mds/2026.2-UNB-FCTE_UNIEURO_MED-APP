@@ -347,6 +347,51 @@ END;
 `;
 
 /**
+ * Versão 12: resultado do modelo de IA calculado no tablet (#12). Cada exame tem no
+ * máximo um resultado, gravado na mesma transação que leva o exame a "concluida".
+ *
+ * O resultado é dado da pesquisa e não muda depois de gravado: os gatilhos impedem
+ * alterar e apagar a linha. Só um exame que espera o modelo (processando ou com erro
+ * na tentativa anterior) recebe resultado. Os mapas guardam as 64 células de 8 × 8 em
+ * float32 (256 bytes), e a versão do modelo identifica o arquivo que calculou o escore.
+ */
+const SCHEMA_V12 = `
+CREATE TABLE IF NOT EXISTS resultado_modelo (
+    id_avaliacao INTEGER PRIMARY KEY REFERENCES avaliacao (id),
+    probabilidade REAL NOT NULL CHECK (probabilidade BETWEEN 0 AND 1),
+    contribuicao_relogio REAL NOT NULL,
+    contribuicao_cubo REAL NOT NULL,
+    contribuicao_trilhas REAL NOT NULL,
+    mapa_relogio BLOB NOT NULL CHECK (length(mapa_relogio) = 256),
+    mapa_cubo BLOB NOT NULL CHECK (length(mapa_cubo) = 256),
+    mapa_trilhas BLOB NOT NULL CHECK (length(mapa_trilhas) = 256),
+    versao_modelo TEXT NOT NULL CHECK (length(trim(versao_modelo)) > 0),
+    duracao_ms INTEGER NOT NULL CHECK (duracao_ms >= 0),
+    data_hora TEXT NOT NULL CHECK (length(trim(data_hora)) > 0)
+);
+
+CREATE TRIGGER IF NOT EXISTS resultado_modelo_exame_aguardando
+BEFORE INSERT ON resultado_modelo
+WHEN (SELECT estado FROM avaliacao WHERE id = NEW.id_avaliacao)
+    NOT IN ('processando_resultado', 'erro_inferencia')
+BEGIN
+    SELECT RAISE(ABORT, 'resultado so para exame que espera o modelo');
+END;
+
+CREATE TRIGGER IF NOT EXISTS resultado_modelo_sem_alteracao
+BEFORE UPDATE ON resultado_modelo
+BEGIN
+    SELECT RAISE(ABORT, 'resultado do modelo nao pode ser alterado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS resultado_modelo_sem_remocao
+BEFORE DELETE ON resultado_modelo
+BEGIN
+    SELECT RAISE(ABORT, 'resultado do modelo nao pode ser apagado');
+END;
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -362,7 +407,8 @@ export type MigrationStep =
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
  * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
  * (perfil do profissional), a posição 9 à versão 10 (desistência do exame), a
- * posição 10 à versão 11 (exclusão de exame e de paciente), e assim por diante.
+ * posição 10 à versão 11 (exclusão de exame e de paciente), a posição 11 à versão 12
+ * (resultado do modelo), e assim por diante.
  * Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
@@ -379,6 +425,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V9,
   SCHEMA_V10,
   SCHEMA_V11,
+  SCHEMA_V12,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
