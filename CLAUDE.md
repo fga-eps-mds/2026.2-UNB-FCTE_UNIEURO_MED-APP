@@ -64,6 +64,11 @@ Estas regras vêm da avaliação da R1 (Ata 08, 02/10/2026) e valem para todo PR
   lista `MIGRATIONS`. Nunca edite uma migration já publicada; crie uma nova.
 - Os repositórios recebem por injeção a função que abre o banco
   (`createProfessionalRepository(open)`), o que permite testá-los com banco real.
+- **Telas do paciente** (instrução, tarefas e o que vier no fluxo do teste) pegam cores e
+  tamanho de letra de `useTemaDoPaciente()` (`src/features/avaliacao/tema-do-paciente.ts`),
+  que segue os ajustes do teste da #24 (alto contraste e letras maiores), e passam a escala
+  aos estilos com `ampliarTexto`. Não fixe `Colors.light` nem `CORES_DA_TAREFA` em tela nova
+  do paciente. Os ajustes nunca mudam o quadro, os estímulos nem a imagem gravada.
 
 ## 4. Dados sensíveis (LGPD e protocolo médico)
 

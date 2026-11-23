@@ -189,3 +189,18 @@ describe('getInstructionLayout', () => {
     expect(estilos.topBar).toEqual(createInstructionStyles(Colors.light, CELULAR).topBar);
   });
 });
+
+describe('createInstructionStyles com os ajustes do teste (#24)', () => {
+  it('com as letras maiores, aumenta o texto 25% e mantém o tamanho do botão', () => {
+    const ampliados = createInstructionStyles(Colors.light, undefined, 1.25);
+
+    expect(ampliados.title.fontSize).toBe(60);
+    expect(ampliados.instruction.fontSize).toBe(30);
+    expect(ampliados.buttonText.fontSize).toBe(33);
+    expect(ampliados.button.minHeight).toBe(styles.button.minHeight);
+  });
+
+  it('o círculo do progresso tem borda, para o vazio aparecer no alto contraste', () => {
+    expect(styles.dot).toMatchObject({ borderWidth: 2, borderColor: Colors.light.border });
+  });
+});

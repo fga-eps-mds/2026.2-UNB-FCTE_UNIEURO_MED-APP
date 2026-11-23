@@ -8,6 +8,11 @@ import {
   DecisaoTermo,
   DecisaoTermoProvider,
 } from '@/features/avaliacao/consent-decision';
+import {
+  BOTAO_APAGAR_ASSINATURA,
+  BOTAO_MANTER_ASSINATURA,
+  TITULO_APAGAR_ASSINATURA,
+} from '@/features/avaliacao/apagar-assinatura-dialog';
 import TermoConsentimentoScreen from '@/features/avaliacao/termo-consentimento-screen';
 import { TERMO_TCLE } from '@/features/avaliacao/termo-tcle';
 
@@ -32,6 +37,9 @@ const autorizarUsoPesquisa = () => {
 };
 const botaoRecusar = () => screen.getByRole('button', { name: 'Recusar' });
 const botaoLimpar = () => screen.getByRole('button', { name: 'Apagar assinatura' });
+// A tela tem dois diálogos (recusa e apagar a assinatura): vale o que está aberto.
+const dialogoAberto = () =>
+  screen.UNSAFE_getAllByType(Modal).find((modal) => modal.props.visible === true)!;
 
 async function assinar() {
   medirQuadro(LARGURA, ALTURA, ROTULO_QUADRO);
@@ -111,6 +119,7 @@ describe('Cenário: assinar e iniciar', () => {
     expect(botaoLimpar()).toBeEnabled();
 
     await user.press(botaoLimpar());
+    await user.press(screen.getByRole('button', { name: BOTAO_APAGAR_ASSINATURA }));
 
     expect(screen.getByText('Assine aqui com a caneta')).toBeOnTheScreen();
     expect(botaoAssinar()).toBeDisabled();
@@ -209,6 +218,42 @@ describe('Cenário: assinar e iniciar', () => {
   });
 });
 
+describe('apagar a assinatura sem querer (#139)', () => {
+  it('pede confirmação antes de apagar, e manter deixa a assinatura como estava', async () => {
+    const { user } = renderizar();
+    await assinar();
+
+    await user.press(botaoLimpar());
+
+    expect(screen.getByRole('header', { name: TITULO_APAGAR_ASSINATURA })).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: BOTAO_MANTER_ASSINATURA }));
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR_ASSINATURA })).toBeNull();
+    expect(screen.queryByText('Assine aqui com a caneta')).toBeNull();
+    expect(botaoAssinar()).toBeEnabled();
+  });
+
+  it('o voltar do Android fecha a confirmação e mantém a assinatura', async () => {
+    const { user } = renderizar();
+    await assinar();
+    await user.press(botaoLimpar());
+
+    act(() => dialogoAberto().props.onRequestClose());
+
+    expect(screen.queryByRole('header', { name: TITULO_APAGAR_ASSINATURA })).toBeNull();
+    expect(botaoAssinar()).toBeEnabled();
+  });
+
+  it('o botão fica acima da área de assinatura, longe do caminho da caneta', () => {
+    renderizar();
+
+    const arvore = JSON.stringify(screen.toJSON());
+
+    expect(arvore.indexOf('Apagar assinatura')).toBeGreaterThan(-1);
+    expect(arvore.indexOf('Apagar assinatura')).toBeLessThan(arvore.indexOf('Área de assinatura'));
+  });
+});
+
 describe('Cenário: recusar o termo', () => {
   it('pede confirmação, avisa que o exame será cancelado e que a recusa fica registrada', async () => {
     const { user, onRecusar } = renderizar();
@@ -292,7 +337,7 @@ describe('Cenário: recusar o termo', () => {
     const { user, onRecusar } = renderizar();
     await user.press(botaoRecusar());
 
-    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+    act(() => dialogoAberto().props.onRequestClose());
 
     expect(screen.queryByRole('button', { name: 'Confirmar recusa' })).toBeNull();
     expect(onRecusar).not.toHaveBeenCalled();
@@ -305,7 +350,7 @@ describe('Cenário: recusar o termo', () => {
     await user.press(botaoRecusar());
     await user.press(screen.getByRole('button', { name: 'Confirmar recusa' }));
 
-    act(() => screen.UNSAFE_getByType(Modal).props.onRequestClose());
+    act(() => dialogoAberto().props.onRequestClose());
 
     expect(screen.getByRole('button', { name: 'Confirmar recusa' })).toBeOnTheScreen();
     concluir();

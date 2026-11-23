@@ -18,6 +18,8 @@ import HomeScreen, {
   NOTICE_DURATION_MS,
 } from '@/features/home/home-screen';
 import type { PatientCpf, PatientSummary } from '@/features/home/patients';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
+import { FALHA_AO_EXPORTAR, NADA_A_EXPORTAR } from '@/features/exportacao/exportar-todos-dialog';
 
 const profissional: SessionProfessional = {
   id: 1,
@@ -25,6 +27,7 @@ const profissional: SessionProfessional = {
   email: 'ana.souza@unieuro.com.br',
   crmNumber: '12345',
   crmState: 'DF',
+  superuser: false,
 };
 
 const pacientes: PatientSummary[] = [
@@ -54,13 +57,21 @@ const pacientes: PatientSummary[] = [
   },
 ];
 
+const SALVO: ResultadoExportacao = {
+  estado: 'salvo',
+  arquivo: 'exames_2026-11-12_1430.xml',
+  pacientes: 3,
+  exames: 4,
+};
+
 function renderTela(
   patients: readonly PatientSummary[] = pacientes,
   sessao: SessionProfessional | null = profissional,
+  exportAll: jest.Mock = jest.fn(async () => SALVO),
 ) {
   return render(
     <SessionProvider initialProfessional={sessao}>
-      <HomeScreen patients={patients} />
+      <HomeScreen patients={patients} exportAll={exportAll} />
     </SessionProvider>,
   );
 }
@@ -159,15 +170,30 @@ describe('HomeScreen', () => {
       renderTela();
 
       const linha = screen.getByRole('button', { name: new RegExp(`^${nome}, ficha`) });
-      const { name } = within(linha).UNSAFE_getByType(MaterialCommunityIcons).props;
+      const situacao = within(linha).getByTestId('situacao');
+      const { name } = within(situacao).UNSAFE_getByType(MaterialCommunityIcons).props;
       expect(name).toBe(icone);
+    });
+
+    it('mostra a situação também do exame que ainda não terminou', () => {
+      renderTela([
+        {
+          ...pacientes[0],
+          lastExamStatus: null,
+          lastExamSituation: { label: 'Em andamento', tone: 'info' },
+        },
+      ]);
+
+      const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+      expect(within(linha).getByText('Em andamento')).toBeOnTheScreen();
+      expect(linha.props.accessibilityLabel).toMatch(/, Em andamento$/);
     });
 
     it('não mostra ícone para o paciente sem exame', () => {
       renderTela([{ ...pacientes[0], lastExamAt: null, lastExamStatus: null, examCount: 0 }]);
 
       const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
-      expect(within(linha).UNSAFE_queryAllByType(MaterialCommunityIcons)).toHaveLength(0);
+      expect(within(linha).queryByTestId('situacao')).toBeNull();
     });
 
     it('mantém a situação no texto lido pelo leitor de tela, sem repeti-la pelo ícone', () => {
@@ -177,8 +203,9 @@ describe('HomeScreen', () => {
       expect(linha.props.accessibilityLabel).toBe(
         'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído',
       );
-      const icone = within(linha).UNSAFE_getByType(MaterialCommunityIcons);
-      expect(icone.props.accessibilityElementsHidden).toBe(true);
+      for (const icone of within(linha).UNSAFE_getAllByType(MaterialCommunityIcons)) {
+        expect(icone.props.accessibilityElementsHidden).toBe(true);
+      }
     });
 
     it('mostra todas as colunas quando a tela é larga', () => {
@@ -210,6 +237,170 @@ describe('HomeScreen', () => {
 
       expect(screen.getByText('Ficha 2026-0184')).toBeOnTheScreen();
       expect(screen.queryByText('FICHA')).toBeNull();
+    });
+  });
+
+  describe('Cenário: responsável vê todos os atendimentos', () => {
+    const deTodos: PatientSummary[] = [
+      {
+        ...pacientes[0],
+        attendedBy: 'Ana Carolina Souza',
+        professionalNames: ['Ana Carolina Souza'],
+      },
+      {
+        ...pacientes[1],
+        attendedBy: 'Bruno Henrique Lima',
+        professionalNames: ['Ana Carolina Souza', 'Bruno Henrique Lima'],
+      },
+    ];
+    const responsavel: SessionProfessional = { ...profissional, superuser: true };
+
+    it('mostra os pacientes de todos os profissionais, com quem atendeu cada um', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Ana Carolina Souza')).toBeOnTheScreen();
+      expect(screen.getByText('Atendido por Bruno Henrique Lima')).toBeOnTheScreen();
+    });
+
+    it('conta os exames do tablet, e não os do responsável', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(
+        screen.getByText(
+          '2 pacientes e 3 exames deste tablet. Só o responsável pela pesquisa vê esta lista.',
+        ),
+      ).toBeOnTheScreen();
+    });
+
+    it('apresenta o superusuário como responsável pela pesquisa no cabeçalho', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByText('Responsável pela pesquisa')).toBeOnTheScreen();
+      expect(screen.queryByText(/^CRM /)).toBeNull();
+    });
+
+    it('busca também pelo nome de quem atendeu', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'bruno');
+
+      expect(botoesDePaciente()).toHaveLength(1);
+      expect(screen.getByText('Antônio Carlos Ferreira')).toBeOnTheScreen();
+    });
+
+    it('busca por qualquer profissional que atendeu, e não só por quem atendeu por último', async () => {
+      const user = userEvent.setup();
+      renderTela(deTodos, responsavel);
+
+      await user.type(screen.getByLabelText('Buscar paciente ou profissional'), 'ana carolina');
+
+      expect(botoesDePaciente()).toHaveLength(2);
+    });
+
+    it('diz no campo de busca que também dá para buscar pelo CPF', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.getByPlaceholderText('Nome, ficha, CPF ou profissional')).toBeOnTheScreen();
+    });
+
+    it('lê quem atendeu no texto do leitor de tela', () => {
+      renderTela(deTodos, responsavel);
+
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(linha.props.accessibilityLabel).toBe(
+        'Antônio Carlos Ferreira, ficha 2026-0179, último exame 05/10/2026, Concluído, atendido por Bruno Henrique Lima',
+      );
+    });
+
+    it('no tablet deitado, mostra quem atendeu numa coluna própria', () => {
+      renderTela(deTodos, responsavel);
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('ATENDIDO POR')).toBeOnTheScreen();
+      const linha = screen.getByRole('button', { name: /^Antônio Carlos Ferreira, ficha/ });
+      expect(within(linha).getByText('Bruno Henrique Lima')).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
+    });
+
+    it('segue o protótipo no cabeçalho e nos botões, com ícones', () => {
+      renderTela(deTodos, responsavel);
+
+      expect(screen.queryByText('RASTREIO COGNITIVO')).toBeNull();
+      expect(screen.getByText('Novo exame')).toBeOnTheScreen();
+      expect(screen.getAllByTestId('icone-do-botao', { includeHiddenElements: true })).toHaveLength(
+        5,
+      );
+    });
+
+    it('mostra os atalhos do protótipo do responsável pela pesquisa', () => {
+      renderTela(deTodos, responsavel);
+
+      for (const nome of [
+        'Configurações',
+        'Sair',
+        'Novo exame',
+        'Exportar todos (XML)',
+        'Sincronizar tablets',
+      ]) {
+        expect(screen.getByRole('button', { name: nome })).toBeOnTheScreen();
+      }
+      expect(
+        screen.getByText('BUSCAR PACIENTE OU PROFISSIONAL', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+    });
+
+    it('mostra o título de todos mesmo antes de haver exame no tablet', () => {
+      renderTela([], responsavel);
+
+      expect(screen.getByRole('header', { name: 'Todos os pacientes' })).toBeOnTheScreen();
+      expect(screen.getByText('Nenhum exame aplicado ainda.')).toBeOnTheScreen();
+    });
+  });
+
+  describe('Cenário: médico comum não vê o que outro coletou', () => {
+    it('mantém o cabeçalho e os botões da tela aceita na #46, sem ícones', () => {
+      renderTela();
+
+      expect(screen.getByText('RASTREIO COGNITIVO')).toBeOnTheScreen();
+      expect(screen.getByText('+ Novo exame')).toBeOnTheScreen();
+      expect(screen.queryAllByTestId('icone-do-botao', { includeHiddenElements: true })).toEqual(
+        [],
+      );
+    });
+
+    it('não mostra quem atendeu, porque todos os pacientes da lista são dele', () => {
+      renderTela();
+
+      expect(screen.getByRole('header', { name: 'Seus pacientes' })).toBeOnTheScreen();
+      expect(screen.queryByText(/^Atendido por/)).toBeNull();
+      for (const linha of botoesDePaciente()) {
+        expect(linha.props.accessibilityLabel).not.toMatch(/atendido por/);
+      }
+    });
+
+    it('no tablet deitado, não tem a coluna de quem atendeu', () => {
+      renderTela();
+
+      fireEvent(screen.getByTestId('tela-inicial'), 'layout', {
+        nativeEvent: { layout: { width: 1280, height: 800 } },
+      });
+
+      expect(screen.getByText('FICHA')).toBeOnTheScreen();
+      expect(screen.queryByText('ATENDIDO POR')).toBeNull();
+    });
+
+    it('busca só pelo paciente', () => {
+      renderTela();
+
+      expect(
+        screen.getByText('BUSCAR PACIENTE', { includeHiddenElements: true }),
+      ).toBeOnTheScreen();
+      expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeOnTheScreen();
     });
   });
 
@@ -384,17 +575,24 @@ describe('HomeScreen', () => {
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
-    it.each([
-      ['Sincronizar tablets', /em estudo/],
-      ['Exportar todos (XML)', /exportação em XML/],
-    ])('o botão "%s" avisa o que ainda falta', async (botao, mensagem) => {
+    it('sem a exportação ligada, o botão "Exportar todos (XML)" fica desabilitado', () => {
+      render(
+        <SessionProvider initialProfessional={profissional}>
+          <HomeScreen patients={pacientes} />
+        </SessionProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Exportar todos (XML)' })).toBeDisabled();
+    });
+
+    it('o botão "Sincronizar tablets" avisa o que ainda falta', async () => {
       const user = userEvent.setup();
       renderTela();
 
-      await user.press(screen.getByRole('button', { name: botao }));
+      await user.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
       expect(screen.getByTestId('aviso-rapido')).toBeOnTheScreen();
-      expect(screen.getByText(mensagem)).toBeOnTheScreen();
+      expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
     });
 
     it('abre a tela dos exames do paciente', async () => {
@@ -408,6 +606,101 @@ describe('HomeScreen', () => {
         params: { id: '2' },
       });
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+  });
+
+  describe('exportar todos os exames (#22)', () => {
+    it('confirma antes, com o total de exames e de pacientes', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+
+      expect(screen.getByRole('header', { name: 'Exportar todos os exames' })).toBeOnTheScreen();
+      expect(screen.getByText(/reúne os 4 exames dos 3 pacientes que você/)).toBeOnTheScreen();
+      expect(screen.getByText(/sem nome, CPF ou ficha/)).toBeOnTheScreen();
+      expect(exportAll).not.toHaveBeenCalled();
+    });
+
+    it('salva com o profissional da sessão e avisa o nome do arquivo', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(exportAll).toHaveBeenCalledWith(profissional);
+      expect(screen.queryByRole('header', { name: 'Exportar todos os exames' })).toBeNull();
+      expect(screen.getByText('Arquivo salvo: exames_2026-11-12_1430.xml')).toBeOnTheScreen();
+    });
+
+    it('fala no singular com um exame de um paciente', async () => {
+      const user = userEvent.setup();
+      renderTela([pacientes[1]]);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+
+      expect(screen.getByText(/reúne o 1 exame do 1 paciente que você/)).toBeOnTheScreen();
+    });
+
+    it('cancelar fecha sem exportar', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(screen.queryByRole('header', { name: 'Exportar todos os exames' })).toBeNull();
+      expect(exportAll).not.toHaveBeenCalled();
+    });
+
+    it('se o profissional desiste da pasta, o diálogo continua aberto e sem erro', async () => {
+      const user = userEvent.setup();
+      renderTela(
+        pacientes,
+        profissional,
+        jest.fn(async () => ({ estado: 'cancelado' })),
+      );
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(screen.getByRole('header', { name: 'Exportar todos os exames' })).toBeOnTheScreen();
+      expect(screen.queryByLabelText(/^Erro\./)).toBeNull();
+      expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+
+    it('avisa quando não há exame no banco para exportar', async () => {
+      const user = userEvent.setup();
+      renderTela(
+        pacientes,
+        profissional,
+        jest.fn(async () => ({ estado: 'vazio' })),
+      );
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(screen.getByLabelText(`Erro. ${NADA_A_EXPORTAR}`)).toBeOnTheScreen();
+    });
+
+    it('avisa quando a gravação falha e deixa tentar de novo', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('disco cheio'))
+        .mockResolvedValueOnce(SALVO);
+      renderTela(pacientes, profissional, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      expect(screen.getByLabelText(`Erro. ${FALHA_AO_EXPORTAR}`)).toBeOnTheScreen();
+
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      expect(screen.getByText('Arquivo salvo: exames_2026-11-12_1430.xml')).toBeOnTheScreen();
     });
   });
 
@@ -436,14 +729,16 @@ describe('HomeScreen', () => {
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
     });
 
-    it('troca a mensagem e reinicia a contagem a cada toque', () => {
+    it('troca a mensagem e reinicia a contagem a cada toque', async () => {
       renderTela();
 
       fireEvent.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      fireEvent.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+      await act(async () => {});
       act(() => jest.advanceTimersByTime(3000));
       fireEvent.press(screen.getByRole('button', { name: 'Sincronizar tablets' }));
 
-      expect(screen.queryByText(/exportação em XML/)).toBeNull();
+      expect(screen.queryByText(/Arquivo salvo/)).toBeNull();
       expect(screen.getByText(/em estudo/)).toBeOnTheScreen();
 
       act(() => jest.advanceTimersByTime(3000));

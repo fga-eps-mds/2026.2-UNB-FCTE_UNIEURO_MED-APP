@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { ampliarTexto } from '@/features/avaliacao/tema-do-paciente';
 
 import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
 
@@ -72,13 +73,14 @@ export function getInstructionLayout(largura: number, altura: number): Instructi
 /**
  * Estilos da tela de instrução (#8), uma tela do paciente: texto de 20 pontos ou mais.
  * Sem `layout`, usa as medidas originais; é o caso da barra das tarefas, que também
- * aparece nas telas de desenho.
+ * aparece nas telas de desenho. A `escala` vem das letras maiores (#24).
  */
 export function createInstructionStyles(
   colors: ThemeColors,
   layout: InstructionLayout = LAYOUT_PADRAO,
+  escala = 1,
 ) {
-  return StyleSheet.create({
+  const estilos = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.background },
     topBar: {
       flexDirection: 'row',
@@ -95,7 +97,15 @@ export function createInstructionStyles(
     },
     progress: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     dots: { flexDirection: 'row', gap: 8 },
-    dot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.borderDecorative },
+    // A borda separa o ponto vazio do preenchido também no alto contraste (#24).
+    dot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: colors.border,
+      backgroundColor: colors.borderDecorative,
+    },
     dotFilled: { backgroundColor: colors.primary },
     progressText: {
       color: colors.text,
@@ -176,4 +186,5 @@ export function createInstructionStyles(
     },
     pressed: { opacity: 0.85 },
   });
+  return ampliarTexto(estilos, escala);
 }
