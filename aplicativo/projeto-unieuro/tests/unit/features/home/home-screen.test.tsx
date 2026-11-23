@@ -31,6 +31,7 @@ const profissional: SessionProfessional = {
   email: 'ana.souza@unieuro.com.br',
   crmNumber: '12345',
   crmState: 'DF',
+  superuser: false,
 };
 
 const pacientes: PatientSummary[] = [
