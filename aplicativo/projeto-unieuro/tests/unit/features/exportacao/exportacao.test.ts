@@ -31,7 +31,10 @@ const paciente = (id: number, exames: number): PacienteExportado => ({
 });
 
 const repositorio = (pacientes: PacienteExportado[]) =>
-  ({ lerExames: jest.fn(async () => pacientes) }) satisfies ExportacaoRepository;
+  ({
+    lerExames: jest.fn(async () => pacientes),
+    lerExamesDeTodos: jest.fn(async () => pacientes),
+  }) satisfies ExportacaoRepository;
 
 describe('exportarExames (#22)', () => {
   it('exportar todos os exames: lê os do profissional e salva um XML com todos', async () => {

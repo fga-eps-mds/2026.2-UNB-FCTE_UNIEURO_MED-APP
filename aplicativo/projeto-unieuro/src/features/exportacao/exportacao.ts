@@ -4,6 +4,11 @@ import { gerarXmlDeExportacao, type PacienteExportado } from '@/features/exporta
 export type ExportacaoRepository = {
   /** Pacientes e exames que o profissional aplicou; com `pacienteId`, só os desse paciente. */
   lerExames(profissionalId: number, pacienteId?: number): Promise<PacienteExportado[]>;
+  /**
+   * Pacientes e exames de todos os profissionais do tablet, com quem aplicou cada
+   * exame (#138). Só responde ao superusuário ativo; para outro, vem vazio.
+   */
+  lerExamesDeTodos(solicitanteId: number): Promise<PacienteExportado[]>;
 };
 
 /** Grava o arquivo onde o profissional escolher. `false` quando ele desiste. */
