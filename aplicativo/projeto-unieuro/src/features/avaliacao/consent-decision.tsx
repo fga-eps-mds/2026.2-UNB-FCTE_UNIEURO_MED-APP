@@ -15,11 +15,11 @@ import {
   createDecisaoStyles,
   type DecisaoStyles,
 } from '@/features/avaliacao/consent-decision.styles';
+import { ampliarTexto, useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import type { ContextoDecisao } from '@/features/avaliacao/termo-consentimento-screen';
 import type { Traco } from '@/features/captura/eventos-tracado';
 import { QuadroDesenho, type Dimensoes } from '@/features/captura/quadro-desenho';
 import { useRegistroTracado } from '@/features/captura/use-registro-tracado';
-import { useTheme } from '@/hooks/use-theme';
 
 export type AssinaturaTermo = {
   tracos: readonly Traco[];
@@ -75,8 +75,8 @@ export function DecisaoTermoProvider({
   onRecusar,
   children,
 }: Readonly<DecisaoTermoProviderProps>) {
-  const theme = useTheme();
-  const styles = useMemo(() => createDecisaoStyles(theme), [theme]);
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => ampliarTexto(createDecisaoStyles(cores), escala), [cores, escala]);
   const registro = useRegistroTracado();
   // `null` é a confirmação fechada; aberta, guarda o contexto de quem pediu a recusa.
   const [recusa, setRecusa] = useState<{ contexto?: ContextoDecisao } | null>(null);

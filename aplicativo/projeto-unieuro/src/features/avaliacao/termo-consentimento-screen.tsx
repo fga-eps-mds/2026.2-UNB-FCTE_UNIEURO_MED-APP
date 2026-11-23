@@ -12,9 +12,9 @@ import {
 } from '@/features/avaliacao/uso-dados-pesquisa-escolha';
 import { TermoConsentimento } from '@/features/avaliacao/termo-consentimento';
 import { createTermoStyles, getTermoLayout } from '@/features/avaliacao/termo-consentimento.styles';
+import { ampliarTexto, useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import { TERMO_TCLE, type QuemAssina, type TermoTcle } from '@/features/avaliacao/termo-tcle';
 import { parseCpf } from '@/features/shared/cpf';
-import { useTheme } from '@/hooks/use-theme';
 
 export const ETAPA_CONSENTIMENTO = 'Etapa 2 de 5 · Consentimento';
 
@@ -60,8 +60,9 @@ export default function TermoConsentimentoScreen({
 }: Readonly<TermoConsentimentoScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
-  const theme = useTheme();
-  const styles = useMemo(() => createTermoStyles(theme), [theme]);
+  // O termo é lido e assinado pelo paciente: segue os ajustes do teste (#24).
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => ampliarTexto(createTermoStyles(cores), escala), [cores, escala]);
   const { width } = useWindowDimensions();
   const layout = getTermoLayout(width);
   const [quemAssina, setQuemAssina] = useState<QuemAssina>('paciente');

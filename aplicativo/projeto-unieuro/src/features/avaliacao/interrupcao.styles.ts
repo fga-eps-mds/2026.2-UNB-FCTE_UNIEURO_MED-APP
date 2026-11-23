@@ -1,16 +1,21 @@
 import { StyleSheet } from 'react-native';
 
 import { BrandPalette, FontFamilies, type ThemeColors } from '@/constants/theme';
-import { CORES_DA_TAREFA, FUNDO_ACOLHEDOR } from '@/features/avaliacao/drawing-task.styles';
-import { ampliarTexto } from '@/features/avaliacao/tema-do-paciente';
+import {
+  ampliarTexto,
+  CORES_DO_PACIENTE,
+  type CoresDoPaciente,
+} from '@/features/avaliacao/tema-do-paciente';
 
 /**
  * Diálogo de desistência e tela do exame interrompido (#25). São telas que o
- * paciente vê, com textos de no mínimo 18. O botão "Desistir" e o diálogo ficam nas
- * telas das tarefas e recebem as cores e a escala do tema do paciente (#24); sem elas,
- * valem as cores fixas das tarefas.
+ * paciente vê, com textos de no mínimo 18. As três recebem as cores e a escala do tema
+ * do paciente (#24); sem elas, valem as cores padrão do paciente.
  */
-export function createInterrupcaoStyles(cores: ThemeColors = CORES_DA_TAREFA, escala = 1) {
+export function createInterrupcaoStyles(
+  cores: ThemeColors & Partial<Pick<CoresDoPaciente, 'fundoAcolhedor'>> = CORES_DO_PACIENTE,
+  escala = 1,
+) {
   const botao = {
     minHeight: 64,
     flexGrow: 1,
@@ -97,7 +102,7 @@ export function createInterrupcaoStyles(cores: ThemeColors = CORES_DA_TAREFA, es
     pressionado: { opacity: 0.82 },
     desabilitado: { opacity: 0.5 },
 
-    tela: { flex: 1, backgroundColor: FUNDO_ACOLHEDOR },
+    tela: { flex: 1, backgroundColor: cores.fundoAcolhedor ?? CORES_DO_PACIENTE.fundoAcolhedor },
     barra: {
       minHeight: 72,
       flexDirection: 'row',

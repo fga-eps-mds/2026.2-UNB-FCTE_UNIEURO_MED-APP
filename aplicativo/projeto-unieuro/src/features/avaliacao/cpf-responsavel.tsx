@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 
 import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import type { TermoStyles } from '@/features/avaliacao/termo-consentimento.styles';
 import { formatCpfInput, parseCpf } from '@/features/shared/cpf';
-import { useTheme } from '@/hooks/use-theme';
 
 export const ROTULO_CPF_RESPONSAVEL = 'CPF do responsável legal';
 export const ERRO_CPF_VAZIO = 'Preencha o CPF do responsável legal.';
@@ -36,7 +36,7 @@ export function erroDoCpf(valor: string, tocado: boolean): string | undefined {
  * toque e é validado antes de o aceite poder ser concluído.
  */
 export function CpfResponsavelCampo({ valor, onChange, styles }: Readonly<CpfResponsavelProps>) {
-  const theme = useTheme();
+  const { cores } = useTemaDoPaciente();
   const [tocado, setTocado] = useState(false);
   const [emFoco, setEmFoco] = useState(false);
   const erro = erroDoCpf(valor, tocado);
@@ -60,7 +60,7 @@ export function CpfResponsavelCampo({ valor, onChange, styles }: Readonly<CpfRes
         onChangeText={(texto) => onChange(formatCpfInput(texto))}
         onFocus={() => setEmFoco(true)}
         placeholder="000.000.000-00"
-        placeholderTextColor={theme.placeholder}
+        placeholderTextColor={cores.placeholder}
         style={[
           styles.campoCpfEntrada,
           emFoco && styles.campoCpfEntradaFoco,

@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { FontFamilies, type ThemeColors } from '@/constants/theme';
+import { FontFamilies } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import { returnToLogin, useSession } from '@/features/auth/session';
 import {
   confirmarProfissional,
   type ProfessionalCpfRepository,
 } from '@/features/avaliacao/confirmacao-profissional';
-import { CORES_DA_TAREFA, FUNDO_ACOLHEDOR } from '@/features/avaliacao/drawing-task.styles';
+import {
+  ampliarTexto,
+  useTemaDoPaciente,
+  type CoresDoPaciente,
+} from '@/features/avaliacao/tema-do-paciente';
 import { useSemVoltar } from '@/features/avaliacao/use-sem-voltar';
 
 export const AGRADECIMENTO = 'Muito obrigado pela sua participação!';
@@ -27,7 +31,7 @@ type TelaFinalScreenProps = {
  * resultado. Para sair dela, o profissional confirma os quatro primeiros
  * dígitos do CPF: o paciente não chega à área profissional nem ao resultado.
  * O voltar do Android não sai da tela, como nas tarefas, e a tela é sempre clara,
- * como as outras do paciente.
+ * como as outras do paciente, com o alto contraste e as letras maiores da #24.
  */
 export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreenProps>) {
   const router = useRouter();
@@ -36,6 +40,8 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
   const [digitos, setDigitos] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [conferindo, setConferindo] = useState(false);
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => ampliarTexto(createStyles(cores), escala), [cores, escala]);
   useSemVoltar();
 
   useEffect(() => {
@@ -134,9 +140,7 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
   );
 }
 
-const styles = createStyles(CORES_DA_TAREFA);
-
-function createStyles(colors: ThemeColors) {
+function createStyles(colors: CoresDoPaciente) {
   const button = {
     minHeight: 64,
     alignItems: 'center' as const,
@@ -147,7 +151,7 @@ function createStyles(colors: ThemeColors) {
   const buttonText = { fontFamily: FontFamilies.semibold, fontSize: 20, lineHeight: 26 };
 
   return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: FUNDO_ACOLHEDOR },
+    safeArea: { flex: 1, backgroundColor: colors.fundoAcolhedor },
     content: {
       flex: 1,
       alignSelf: 'center',
