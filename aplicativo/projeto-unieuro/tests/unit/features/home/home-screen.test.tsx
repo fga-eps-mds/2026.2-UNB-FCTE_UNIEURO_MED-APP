@@ -19,7 +19,11 @@ import HomeScreen, {
 } from '@/features/home/home-screen';
 import type { PatientCpf, PatientSummary } from '@/features/home/patients';
 import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
-import { FALHA_AO_EXPORTAR, NADA_A_EXPORTAR } from '@/features/exportacao/exportar-todos-dialog';
+import {
+  FALHA_AO_EXPORTAR,
+  NADA_A_EXPORTAR,
+  NADA_NA_COLETA,
+} from '@/features/exportacao/exportar-todos-dialog';
 
 const profissional: SessionProfessional = {
   id: 1,
@@ -605,6 +609,49 @@ describe('HomeScreen', () => {
         params: { id: '2' },
       });
       expect(screen.queryByTestId('aviso-rapido')).toBeNull();
+    });
+  });
+
+  describe('Cenário: responsável exporta a coleta inteira (#138)', () => {
+    const responsavel: SessionProfessional = { ...profissional, superuser: true };
+
+    it('confirma dizendo que o arquivo traz os exames de todos, com quem aplicou', async () => {
+      const user = userEvent.setup();
+      renderTela(pacientes, responsavel);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+
+      expect(
+        screen.getByText(
+          /reúne os 4 exames dos 3 pacientes de todos os profissionais deste tablet, com quem aplicou cada exame/,
+        ),
+      ).toBeOnTheScreen();
+    });
+
+    it('exporta com o responsável da sessão', async () => {
+      const user = userEvent.setup();
+      const exportAll = jest.fn(async () => ({ ...SALVO, arquivo: 'coleta_2026-11-12_1430.xml' }));
+      renderTela(pacientes, responsavel, exportAll);
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(exportAll).toHaveBeenCalledWith(responsavel);
+      expect(screen.getByText('Arquivo salvo: coleta_2026-11-12_1430.xml')).toBeOnTheScreen();
+    });
+
+    it('avisa que o tablet não tem exames quando a coleta vem vazia', async () => {
+      const user = userEvent.setup();
+      renderTela(
+        pacientes,
+        responsavel,
+        jest.fn(async () => ({ estado: 'vazio' })),
+      );
+
+      await user.press(screen.getByRole('button', { name: 'Exportar todos (XML)' }));
+      await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+      expect(screen.getByLabelText(`Erro. ${NADA_NA_COLETA}`)).toBeOnTheScreen();
     });
   });
 
