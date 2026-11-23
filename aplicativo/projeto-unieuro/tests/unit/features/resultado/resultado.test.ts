@@ -1,5 +1,7 @@
 import {
   carregarResultado,
+  CORTE_DA_CLASSE,
+  esperaOModelo,
   montarResultado,
   pngParaDataUri,
   temResultado,
@@ -82,6 +84,74 @@ describe('montarResultado', () => {
     const resultado = montarResultado(exame([{ tipo: 'relogio', ordem: 1, imagemPng: PNG }]));
 
     expect(resultado.desenhos.map(({ imagem }) => imagem !== null)).toEqual([true, false, false]);
+  });
+
+  it('antes do cálculo, o exame vem sem resultado do modelo e sem peso nos desenhos', () => {
+    const resultado = montarResultado(exame([{ tipo: 'relogio', ordem: 1, imagemPng: PNG }]));
+
+    expect(resultado.modelo).toBeNull();
+    expect(resultado.desenhos.every(({ influencia }) => influencia === null)).toBe(true);
+    expect(resultado).not.toHaveProperty('model');
+  });
+});
+
+describe('montarResultado com o resultado do modelo (#12)', () => {
+  const mapa = new Float32Array(64);
+  const comModelo = (
+    probability: number,
+    contributions = { relogio: 1, cubo: -0.5, trilhas: 2.5 },
+  ) =>
+    montarResultado({
+      ...exame([]),
+      model: {
+        probability,
+        contributions,
+        maps: { relogio: mapa, cubo: mapa, trilhas: mapa },
+        modelVersion: 'vgg16-semente1-v1.6',
+        durationMs: 2140,
+        calculatedAt: '2026-11-03T14:05:00.000Z',
+      },
+    });
+
+  it('traz a probabilidade, a versão e o tempo do cálculo no tablet', () => {
+    expect(comModelo(0.91).modelo).toEqual({
+      probabilidade: 0.91,
+      classe: 'ccl',
+      calculadoEm: '2026-11-03T14:05:00.000Z',
+    });
+  });
+
+  it.each([
+    [CORTE_DA_CLASSE, 'ccl'],
+    [0.4999, 'sem-ccl'],
+    [0.05, 'sem-ccl'],
+  ])('com probabilidade %d, a classe prevista é %s', (probabilidade, classe) => {
+    expect(comModelo(probabilidade).modelo?.classe).toBe(classe);
+  });
+
+  it('divide o peso do escore entre os desenhos e diz para que lado cada um puxou', () => {
+    const [relogio, cubo, trilhas] = comModelo(0.7).desenhos.map(({ influencia }) => influencia);
+
+    expect(relogio).toEqual({ parteDoPeso: 0.25, puxaPara: 'ccl' });
+    expect(cubo).toEqual({ parteDoPeso: 0.125, puxaPara: 'sem-ccl' });
+    expect(trilhas).toEqual({ parteDoPeso: 0.625, puxaPara: 'ccl' });
+  });
+
+  it('sem nenhum peso, nenhum desenho fica com parte do escore', () => {
+    const resultado = comModelo(0.5, { relogio: 0, cubo: 0, trilhas: 0 });
+
+    expect(resultado.desenhos.map(({ influencia }) => influencia?.parteDoPeso)).toEqual([0, 0, 0]);
+  });
+});
+
+describe('esperaOModelo', () => {
+  it.each([
+    ['processando_resultado', true],
+    ['erro_inferencia', true],
+    ['concluida', false],
+    ['em_andamento', false],
+  ])('o exame %s espera o modelo: %s', (estado, espera) => {
+    expect(esperaOModelo(estado)).toBe(espera);
   });
 });
 

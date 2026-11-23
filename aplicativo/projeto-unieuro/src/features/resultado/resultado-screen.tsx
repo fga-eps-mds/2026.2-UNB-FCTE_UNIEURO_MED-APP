@@ -14,7 +14,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { returnToLogin, useSession } from '@/features/auth/session';
 import { formatDateTime } from '@/features/home/patient-detail';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
-import type { DesenhoDoResultado, ResultadoDoExame } from '@/features/resultado/resultado';
+import {
+  esperaOModelo,
+  type DesenhoDoResultado,
+  type ResultadoDoExame,
+} from '@/features/resultado/resultado';
+import { MapaSobreODesenho } from '@/features/resultado/mapa-sobre-o-desenho';
+import {
+  InfluenciaCard,
+  ModeloPendente,
+  ResultadoDoModeloCard,
+} from '@/features/resultado/resultado-do-modelo';
 import { createResultadoStyles, type ResultadoStyles } from '@/features/resultado/resultado.styles';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -100,7 +110,13 @@ export default function ResultadoScreen({
             <Text accessibilityRole="header" style={styles.cardTitulo}>
               {TITULO_MODELO}
             </Text>
-            {modelo ?? <Text style={styles.aviso}>{MODELO_INDISPONIVEL}</Text>}
+            {modelo ?? (
+              <ConteudoDoModelo
+                resultado={resultado}
+                styles={styles}
+                onCalcular={() => router.replace(`/analise/${resultado.id}`)}
+              />
+            )}
           </View>
 
           <View style={styles.desenhos}>
@@ -108,7 +124,16 @@ export default function ResultadoScreen({
               <CartaoDoDesenho
                 key={desenho.tipo}
                 desenho={desenho}
-                influencia={influencia?.(desenho)}
+                influencia={
+                  influencia?.(desenho) ??
+                  (desenho.influencia && (
+                    <InfluenciaCard
+                      titulo={desenho.titulo}
+                      influencia={desenho.influencia}
+                      styles={styles}
+                    />
+                  ))
+                }
                 styles={styles}
               />
             ))}
@@ -126,6 +151,24 @@ export default function ResultadoScreen({
   );
 }
 
+function ConteudoDoModelo({
+  resultado,
+  styles,
+  onCalcular,
+}: Readonly<{ resultado: ResultadoDoExame; styles: ResultadoStyles; onCalcular: () => void }>) {
+  if (resultado.modelo) return <ResultadoDoModeloCard modelo={resultado.modelo} styles={styles} />;
+  if (esperaOModelo(resultado.state)) {
+    return (
+      <ModeloPendente
+        comErro={resultado.state === 'erro_inferencia'}
+        onCalcular={onCalcular}
+        styles={styles}
+      />
+    );
+  }
+  return <Text style={styles.aviso}>{MODELO_INDISPONIVEL}</Text>;
+}
+
 function CartaoDoDesenho({
   desenho,
   influencia,
@@ -136,7 +179,14 @@ function CartaoDoDesenho({
       <Text accessibilityRole="header" style={styles.desenhoTitulo}>
         {desenho.titulo.toUpperCase()}
       </Text>
-      {desenho.imagem ? (
+      {desenho.imagem && desenho.mapa ? (
+        <MapaSobreODesenho
+          titulo={desenho.titulo}
+          imagem={desenho.imagem}
+          mapa={desenho.mapa}
+          styles={styles}
+        />
+      ) : desenho.imagem ? (
         <Image
           accessible
           accessibilityRole="image"
