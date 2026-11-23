@@ -38,6 +38,7 @@ const FIND_EXAM = `SELECT a.id, a.data_hora_inicio, a.estado, p.nome AS nome_pac
   JOIN paciente p ON p.id = a.id_paciente
   JOIN profissional m ON m.id = a.id_profissional
   WHERE a.id = ?
+    AND a.excluido_em IS NULL
     AND (a.id_profissional = ?
       OR EXISTS (SELECT 1 FROM profissional s
         WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1))`;
