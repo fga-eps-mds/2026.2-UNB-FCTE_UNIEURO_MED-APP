@@ -297,6 +297,9 @@ describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
     );
     expect(exame!.estado).toBe('processando_resultado');
     expect(await contar('desenho')).toBe(3);
-    expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/fim-do-teste',
+      params: { atendimento: String(atendimentoId) },
+    });
   });
 });

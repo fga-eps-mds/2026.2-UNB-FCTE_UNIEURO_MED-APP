@@ -123,7 +123,10 @@ describe('Cenário: ordem das tarefas', () => {
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
     // Depois da última tarefa, a tela final do paciente, sem escore.
-    expect(useRouter().replace).toHaveBeenLastCalledWith('/fim-do-teste');
+    expect(useRouter().replace).toHaveBeenLastCalledWith({
+      pathname: '/fim-do-teste',
+      params: { atendimento: '12' },
+    });
   });
 });
 
@@ -153,7 +156,10 @@ describe('Cenário: passar para a próxima tarefa', () => {
     await user.press(screen.getByRole('button', { name: 'Confirmar' }));
 
     expect(useRouter().replace).toHaveBeenCalledTimes(1);
-    expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
+    expect(useRouter().replace).toHaveBeenCalledWith({
+      pathname: '/fim-do-teste',
+      params: { atendimento: '12' },
+    });
     expect(useRouter().push).not.toHaveBeenCalled();
   });
 });
