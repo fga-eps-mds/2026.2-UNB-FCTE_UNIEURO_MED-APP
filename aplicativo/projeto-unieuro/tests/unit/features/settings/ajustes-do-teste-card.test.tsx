@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -8,6 +8,7 @@ import {
 } from '@/features/acessibilidade/ajustes-do-teste';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import InstructionScreen from '@/features/avaliacao/instruction-screen';
+import { createAjustesStore, type Armazenamento } from '@/features/acessibilidade/ajustes-store';
 import { CORES_ALTO_CONTRASTE, useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import {
   AjustesDoTesteCard,
@@ -61,10 +62,30 @@ describe('cartão "Ajustes do teste" das configurações (#24)', () => {
     );
   });
 
+  it('o leitor de tela encontra um interruptor por ajuste, sem repetir a explicação', () => {
+    renderizar();
+
+    // O Switch de dentro da linha fica escondido: só a linha é anunciada.
+    expect(screen.getAllByRole('switch')).toHaveLength(2);
+    expect(screen.getAllByHintText('Cores mais fortes nas instruções e botões.')).toHaveLength(1);
+  });
+
+  it('arrastar o próprio interruptor também liga o ajuste', () => {
+    renderizar();
+
+    fireEvent(
+      screen.getByTestId('interruptor-altoContraste', { includeHiddenElements: true }),
+      'valueChange',
+      true,
+    );
+
+    expect(interruptor('Alto contraste')).toBeChecked();
+  });
+
   it('Cenário: alto contraste: ligar nas configurações muda as cores das telas do paciente', () => {
     renderizar();
 
-    fireEvent(interruptor('Alto contraste'), 'valueChange', true);
+    fireEvent.press(interruptor('Alto contraste'));
 
     expect(interruptor('Alto contraste')).toBeChecked();
     expect(screen.getByText(`texto:${CORES_ALTO_CONTRASTE.text} escala:1`)).toBeOnTheScreen();
@@ -73,17 +94,17 @@ describe('cartão "Ajustes do teste" das configurações (#24)', () => {
   it('Cenário: fonte ampliada: ligar as letras maiores aumenta o texto, sem mexer nas cores', () => {
     renderizar();
 
-    fireEvent(interruptor('Letras maiores'), 'valueChange', true);
+    fireEvent.press(interruptor('Letras maiores'));
 
     expect(screen.getByText(`texto:${Colors.light.text} escala:1.25`)).toBeOnTheScreen();
   });
 
   it('desligar um ajuste não muda o outro', () => {
     renderizar();
-    fireEvent(interruptor('Alto contraste'), 'valueChange', true);
-    fireEvent(interruptor('Letras maiores'), 'valueChange', true);
+    fireEvent.press(interruptor('Alto contraste'));
+    fireEvent.press(interruptor('Letras maiores'));
 
-    fireEvent(interruptor('Alto contraste'), 'valueChange', false);
+    fireEvent.press(interruptor('Alto contraste'));
 
     expect(screen.getByText(`texto:${Colors.light.text} escala:1.25`)).toBeOnTheScreen();
   });
@@ -95,9 +116,30 @@ describe('cartão "Ajustes do teste" das configurações (#24)', () => {
     };
     renderizar(store);
 
-    fireEvent(interruptor('Letras maiores'), 'valueChange', true);
+    fireEvent.press(interruptor('Letras maiores'));
 
     expect(store.salvar).toHaveBeenCalledWith({ altoContraste: false, letrasMaiores: true });
+  });
+
+  it('a escolha volta depois de fechar e abrir o aplicativo', async () => {
+    const guardado = new Map<string, string>();
+    const tablet: Armazenamento = {
+      get: async (chave) => guardado.get(chave) ?? null,
+      set: async (chave, valor) => {
+        guardado.set(chave, valor);
+      },
+    };
+    renderizar(createAjustesStore(tablet));
+    await act(async () => {});
+    fireEvent.press(interruptor('Letras maiores'));
+    await act(async () => {});
+    screen.unmount();
+
+    // Um provider novo, como na próxima abertura do aplicativo, lendo o mesmo tablet.
+    renderizar(createAjustesStore(tablet));
+
+    await waitFor(() => expect(interruptor('Letras maiores')).toBeChecked());
+    expect(interruptor('Alto contraste')).not.toBeChecked();
   });
 });
 
@@ -112,8 +154,8 @@ describe('Cenário: configuração durante o teste', () => {
       </SessionProvider>,
     );
 
-    fireEvent(interruptor('Alto contraste'), 'valueChange', true);
-    fireEvent(interruptor('Letras maiores'), 'valueChange', true);
+    fireEvent.press(interruptor('Alto contraste'));
+    fireEvent.press(interruptor('Letras maiores'));
 
     const titulo = StyleSheet.flatten(
       screen.getByRole('header', { name: 'Desenhe um relógio' }).props.style,

@@ -63,6 +63,29 @@ export function createSettingsStyles(theme: ThemeColors) {
     },
     dangerButtonText: { ...buttonText, color: BrandPalette.deepWine },
     pressed: { opacity: 0.82 },
+    // Cartão "Ajustes do teste" (#24): cada linha é um interruptor, tocável inteira.
+    ajusteLinha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 16,
+      minHeight: 64,
+      paddingVertical: 12,
+    },
+    ajusteSeparador: { height: 1, backgroundColor: theme.border },
+    ajusteTextos: { flexShrink: 1, gap: 4 },
+    ajusteTitulo: {
+      color: theme.text,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 18,
+      lineHeight: 24,
+    },
+    ajusteDescricao: {
+      color: theme.textSecondary,
+      fontFamily: FontFamilies.regular,
+      fontSize: 16,
+      lineHeight: 22,
+    },
   });
 }
 
