@@ -219,12 +219,21 @@ describe('esquema', () => {
   it('chega à versão 12 com a marcação do exame como teste ou ensino (#58)', () => {
     const schemaV12 = MIGRATIONS[11];
 
-    expect(SCHEMA_VERSION).toBe(12);
     expect(schemaV12).toContain("ADD COLUMN marcacao TEXT CHECK (marcacao IN ('teste', 'ensino'))");
     expect(schemaV12).toContain('CREATE TABLE IF NOT EXISTS marcacao');
     expect(schemaV12).toContain('marcacao_so_de_quem_aplicou');
     expect(schemaV12).toContain('avaliacao_marcacao_com_historico');
     expect(schemaV12).toContain('idx_marcacao_avaliacao');
+  });
+
+  it('chega à versão 13 com o resultado do modelo calculado no tablet (#12)', () => {
+    const schemaV13 = MIGRATIONS[12];
+
+    expect(SCHEMA_VERSION).toBe(13);
+    expect(schemaV13).toContain('CREATE TABLE IF NOT EXISTS resultado_modelo');
+    expect(schemaV13).toContain('resultado_modelo_exame_aguardando');
+    expect(schemaV13).toContain('resultado_modelo_sem_alteracao');
+    expect(schemaV13).toContain('resultado_modelo_sem_remocao');
   });
 });
 
