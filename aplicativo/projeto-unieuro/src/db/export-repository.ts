@@ -51,13 +51,20 @@ type EventoRow = {
   inclinacao_y: number | null;
 };
 
+// Os exames excluídos (#47 e #58) continuam no tablet, mas não entram no arquivo,
+// como já não entram nas listas.
+const NAO_EXCLUIDO = 'a.excluido_em IS NULL';
+
 // Os três SELECTs usam o mesmo filtro: só os exames do profissional e, se houver,
 // só os do paciente pedido.
 const filtro = (pacienteId?: number) =>
   pacienteId === undefined
-    ? { sql: 'a.id_profissional = ?', params: (id: number): SQLiteBindValue[] => [id] }
+    ? {
+        sql: `${NAO_EXCLUIDO} AND a.id_profissional = ?`,
+        params: (id: number): SQLiteBindValue[] => [id],
+      }
     : {
-        sql: 'a.id_profissional = ? AND a.id_paciente = ?',
+        sql: `${NAO_EXCLUIDO} AND a.id_profissional = ? AND a.id_paciente = ?`,
         params: (id: number): SQLiteBindValue[] => [id, pacienteId],
       };
 

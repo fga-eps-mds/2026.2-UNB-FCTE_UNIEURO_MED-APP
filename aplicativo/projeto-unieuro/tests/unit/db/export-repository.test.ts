@@ -106,4 +106,15 @@ describe('createExportRepository', () => {
     );
     await expect(repository().lerExames(tablet.anaId, maria!.id)).resolves.toEqual([]);
   });
+
+  it('não lê os exames excluídos', async () => {
+    await tablet.database.runAsync(
+      'UPDATE avaliacao SET excluido_em = ?, excluido_por = ? WHERE id_paciente = ?',
+      ['2026-10-20T12:00:00.000Z', tablet.anaId, ids.antonio.id],
+    );
+
+    const pacientes = await repository().lerExames(tablet.anaId);
+
+    expect(pacientes.map((p) => p.dataNascimento)).toEqual(['1948-10-07']);
+  });
 });
