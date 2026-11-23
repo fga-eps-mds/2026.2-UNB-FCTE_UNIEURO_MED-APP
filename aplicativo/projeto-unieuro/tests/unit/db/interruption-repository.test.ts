@@ -49,6 +49,7 @@ async function gravarDesenho(ordem: number) {
     confirmadoEm: INICIO,
     eventos: [{ tipo: 'inicio', ordem: 1, instante: 0, x: 1, y: 1, ponteiro: 'dedo' }],
     imagemPng: new Uint8Array([1, 2, 3]),
+    encerraExame: false,
   });
 }
 
