@@ -1,16 +1,21 @@
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { useRouter } from 'expo-router';
-import { BackHandler } from 'react-native';
+import { BackHandler, StyleSheet } from 'react-native';
 
+import {
+  AjustesDoTesteProvider,
+  type AjustesDoTeste,
+} from '@/features/acessibilidade/ajustes-do-teste';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { REGISTRO_APAGAR, TITULO_APAGAR } from '@/features/avaliacao/apagar-desenho-dialog';
-import { DICA_CONFIRMAR } from '@/features/avaliacao/drawing-task';
+import { DICA_CONFIRMAR, LEMBRETES } from '@/features/avaliacao/drawing-task';
 import DrawingTaskScreen, {
   FALHA_AO_SALVAR,
   type DrawingTaskScreenProps,
 } from '@/features/avaliacao/drawing-task-screen';
 import { HELP_MESSAGE } from '@/features/avaliacao/task-top-bar';
 import type { ParametroDeRota } from '@/features/avaliacao/tarefas';
+import { CORES_ALTO_CONTRASTE } from '@/features/avaliacao/tema-do-paciente';
 
 import {
   DADOS_DA_CANETA,
@@ -391,7 +396,7 @@ describe('o que a tela mostra ao paciente', () => {
 
     expect(screen.getByText('Tarefa 3 de 3')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'Ligue números e letras' })).toBeOnTheScreen();
-    expect(screen.getByText('Alterne em ordem: 1, A, 2, B… até o E.')).toBeOnTheScreen();
+    expect(screen.getByText(LEMBRETES[3].frase)).toBeOnTheScreen();
     expect(screen.queryByRole('image', { name: 'Cubo para copiar' })).toBeNull();
   });
 
@@ -568,5 +573,41 @@ describe('Cenário: confirmar e avançar', () => {
 
     expect(botaoDesfazer()).toBeDisabled();
     expect(botaoApagarTudo()).toBeDisabled();
+  });
+});
+
+// Ajustes do teste (#24) nas três tarefas de desenho.
+function renderizarComAjustes(ajustes: AjustesDoTeste, tarefa = '1') {
+  render(
+    <SessionProvider initialProfessional={profissional}>
+      <AjustesDoTesteProvider inicial={ajustes}>
+        <DrawingTaskScreen tarefa={tarefa} atendimento="12" onConfirmar={jest.fn(async () => {})} />
+      </AjustesDoTesteProvider>
+    </SessionProvider>,
+  );
+}
+
+const estiloDoTexto = (texto: string) =>
+  StyleSheet.flatten(screen.getByText(texto).props.style) ?? {};
+
+describe('Cenário: alto contraste nas tarefas de desenho', () => {
+  it.each(['1', '2', '3'])('a tarefa %s usa as cores de alto contraste', (tarefa) => {
+    renderizarComAjustes({ altoContraste: true, letrasMaiores: false }, tarefa);
+
+    expect(estiloDoTexto(HELP_MESSAGE).color).toBe(CORES_ALTO_CONTRASTE.textSecondary);
+    expect(estiloDoTexto(DICA_CONFIRMAR).color).toBe(CORES_ALTO_CONTRASTE.textSecondary);
+    expect(StyleSheet.flatten(botaoConfirmar().props.style).backgroundColor).toBe(
+      CORES_ALTO_CONTRASTE.desabilitadoFundo,
+    );
+  });
+});
+
+describe('Cenário: fonte ampliada nas tarefas de desenho', () => {
+  it.each(['1', '2', '3'])('a tarefa %s aumenta o texto em 25%%', (tarefa) => {
+    renderizarComAjustes({ altoContraste: false, letrasMaiores: true }, tarefa);
+
+    expect(estiloDoTexto('Confirmar').fontSize).toBe(33);
+    expect(estiloDoTexto(DICA_CONFIRMAR).fontSize).toBe(25);
+    expect(estiloDoTexto(HELP_MESSAGE).fontSize).toBe(25);
   });
 });

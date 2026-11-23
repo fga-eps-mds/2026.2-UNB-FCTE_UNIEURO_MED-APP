@@ -167,6 +167,20 @@ export function createProfessionalRepository(
       return row !== null;
     },
 
+    /** Recuperação da senha (#48): a conta cujo CPF e CRM com UF conferem com os informados. */
+    async findByCpfAndCrm(
+      cpf: string,
+      crmNumber: string,
+      crmState: string,
+    ): Promise<{ id: number; active: boolean } | null> {
+      const database = await open();
+      const row = await database.getFirstAsync<{ id: number; ativo: number }>(
+        'SELECT id, ativo FROM profissional WHERE cpf_indice = ? AND crm_numero = ? AND uf_crm = ? LIMIT 1',
+        [await protector.blindIndex(cpf), crmNumber, crmState],
+      );
+      return row ? { id: row.id, active: row.ativo === 1 } : null;
+    },
+
     async getCpf(id: number): Promise<string | null> {
       const database = await open();
       const row = await database.getFirstAsync<{ cpf_cifrado: string }>(

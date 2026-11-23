@@ -20,6 +20,15 @@ export type PatientSummary = {
    * do médico comum, todos os pacientes foram atendidos por ele.
    */
   attendedBy?: string;
+  /** Profissionais que já atenderam o paciente. Também só na lista do superusuário. */
+  professionalIds?: readonly number[];
+  /** Nome de todos os que já atenderam o paciente, para a busca do superusuário. */
+  professionalNames?: readonly string[];
+  /**
+   * Situação do último exame, também quando ele ainda não terminou ("Em
+   * andamento"). Sem ela, a lista usa `lastExamStatus`.
+   */
+  lastExamSituation?: ExamSituation;
 };
 
 /** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
@@ -50,6 +59,8 @@ export type AttendedPatient = {
   lastStartedAt: string;
   lastState: string;
   attendedBy?: string;
+  professionalIds?: number[];
+  professionalNames?: string[];
 };
 
 /** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
@@ -95,6 +106,20 @@ export function listPatientCpfsFor(
     : repository.listAttendedPatientCpfs(viewer.id);
 }
 
+/** Texto e tom da situação de um exame, terminado ou não. */
+export type ExamSituation = { label: string; tone: ExamTone };
+
+// Situação dos exames que ainda não terminaram. Os que terminaram usam o rótulo
+// de `EXAM_STATUS_LABEL`, para a mesma situação ter sempre o mesmo texto.
+export const UNFINISHED_EXAM_LABEL: Record<string, string> = {
+  aguardando_consentimento: 'Aguardando o termo',
+  em_andamento: 'Em andamento',
+  processando_resultado: 'Processando',
+  erro_inferencia: 'Erro ao calcular',
+};
+
+export const UNKNOWN_EXAM_LABEL = 'Situação desconhecida';
+
 // Estados da avaliação que encerram o exame, conforme o diagrama de estados do
 // documento de arquitetura. Os demais (aguardando consentimento, em andamento,
 // processando resultado e erro na inferência) ainda não terminaram e ficam sem
@@ -109,6 +134,19 @@ export function toExamStatus(state: string): ExamStatus | null {
   return FINISHED_STATES[state] ?? null;
 }
 
+/**
+ * Situação de um exame pelo estado gravado. O erro ao calcular é o único exame
+ * não terminado que pede ação; os demais só informam em que ponto o exame está.
+ */
+export function describeExamState(state: string): ExamSituation {
+  const status = toExamStatus(state);
+  if (status) return { label: EXAM_STATUS_LABEL[status], tone: EXAM_STATUS_TONE[status] };
+  return {
+    label: UNFINISHED_EXAM_LABEL[state] ?? UNKNOWN_EXAM_LABEL,
+    tone: state === 'erro_inferencia' ? 'error' : 'info',
+  };
+}
+
 /** Cada atendimento registrado conta como um exame do paciente com esse profissional. */
 export function toPatientSummary(patient: AttendedPatient): PatientSummary {
   return {
@@ -118,7 +156,12 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     lastExamAt: patient.lastStartedAt,
     lastExamStatus: toExamStatus(patient.lastState),
     examCount: patient.attendanceCount,
+    lastExamSituation: describeExamState(patient.lastState),
     ...(patient.attendedBy === undefined ? {} : { attendedBy: patient.attendedBy }),
+    ...(patient.professionalIds === undefined ? {} : { professionalIds: patient.professionalIds }),
+    ...(patient.professionalNames === undefined
+      ? {}
+      : { professionalNames: patient.professionalNames }),
   };
 }
 
@@ -158,7 +201,9 @@ export function cpfDigitsOf(query: string): string | null {
 /**
  * Filtra por parte do nome, sem diferenciar acentos nem maiúsculas, pelo número
  * da ficha ou pelos primeiros dígitos do CPF. O CPF é comparado pelo começo, e
- * não por qualquer trecho, como a equipe combinou na #99.
+ * não por qualquer trecho, como a equipe combinou na #99. Na lista do
+ * superusuário, também pelo nome de qualquer profissional que já atendeu o
+ * paciente, e não só de quem atendeu por último (#49).
  */
 export function filterPatients(
   patients: readonly PatientSummary[],
@@ -170,10 +215,15 @@ export function filterPatients(
   const cpfDigits = cpfDigitsOf(query);
   const matchesCpf = (patient: PatientSummary) =>
     cpfDigits !== null && (cpfs.get(patient.id)?.startsWith(cpfDigits) ?? false);
+  const matchesProfessional = (patient: PatientSummary) =>
+    [...(patient.professionalNames ?? []), patient.attendedBy ?? ''].some(
+      (name) => name !== '' && normalize(name).includes(term),
+    );
   return patients.filter(
     (patient) =>
       normalize(patient.name).includes(term) ||
       normalize(patient.recordNumber).includes(term) ||
+      matchesProfessional(patient) ||
       matchesCpf(patient),
   );
 }
@@ -182,11 +232,32 @@ export function countExams(patients: readonly PatientSummary[]): number {
   return patients.reduce((total, patient) => total + patient.examCount, 0);
 }
 
-/** Resumo do cabeçalho, por exemplo "8 pacientes e 12 exames aplicados por você." */
-export function describeTotals(patients: readonly PatientSummary[]): string {
+/** Quantos profissionais diferentes atenderam os pacientes da lista. */
+export function countProfessionals(patients: readonly PatientSummary[]): number {
+  return new Set(patients.flatMap((patient) => patient.professionalIds ?? [])).size;
+}
+
+const ONLY_SUPERUSER_SEES = 'Só o responsável pela pesquisa vê esta lista.';
+
+/**
+ * Resumo do cabeçalho, por exemplo "8 pacientes e 12 exames aplicados por você."
+ * Para o superusuário, que vê a lista de todos os profissionais (#49), os exames
+ * são do tablet, e o resumo lembra que só ele vê a lista, como no protótipo.
+ */
+export function describeTotals(
+  patients: readonly PatientSummary[],
+  allProfessionals = false,
+): string {
   if (patients.length === 0) return 'Nenhum exame aplicado ainda.';
   const exams = countExams(patients);
   const pacientes = patients.length === 1 ? '1 paciente' : `${patients.length} pacientes`;
+  if (allProfessionals) {
+    const doTablet = exams === 1 ? '1 exame' : `${exams} exames`;
+    const count = countProfessionals(patients);
+    const deQuem =
+      count === 0 ? '' : count === 1 ? ' de 1 profissional' : ` de ${count} profissionais`;
+    return `${pacientes} e ${doTablet}${deQuem} deste tablet. ${ONLY_SUPERUSER_SEES}`;
+  }
   const exames = exams === 1 ? '1 exame aplicado' : `${exams} exames aplicados`;
   return `${pacientes} e ${exames} por você.`;
 }
