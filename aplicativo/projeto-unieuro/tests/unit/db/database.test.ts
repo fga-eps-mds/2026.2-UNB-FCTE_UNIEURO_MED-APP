@@ -223,6 +223,8 @@ describe('esquema', () => {
     expect(schemaV12).toContain("ADD COLUMN marcacao TEXT CHECK (marcacao IN ('teste', 'ensino'))");
     expect(schemaV12).toContain('CREATE TABLE IF NOT EXISTS marcacao');
     expect(schemaV12).toContain('marcacao_so_de_quem_aplicou');
+    expect(schemaV12).toContain('avaliacao_marcacao_com_historico');
+    expect(schemaV12).toContain('idx_marcacao_avaliacao');
   });
 });
 

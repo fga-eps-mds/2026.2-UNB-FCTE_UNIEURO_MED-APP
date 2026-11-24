@@ -179,7 +179,8 @@ describe('regras da marcação nos gatilhos da versão 12 (#58)', () => {
         "UPDATE avaliacao SET marcacao = 'teste', marcado_em = ?, marcado_por = ? WHERE id = ?",
         [AGORA, brunoId, exameDaAna],
       ),
-    ).rejects.toThrow(/so quem aplicou/);
+      // Sem o registro do histórico, o gatilho do histórico recusa antes do de quem aplicou.
+    ).rejects.toThrow(/so quem aplicou|sem registro no historico/);
     await expect(
       tablet.database.runAsync(
         `INSERT INTO marcacao (id_avaliacao, acao, tipo, id_profissional, data_hora)
@@ -192,10 +193,17 @@ describe('regras da marcação nos gatilhos da versão 12 (#58)', () => {
   it('o banco só aceita os dois tipos de marcação', async () => {
     await expect(
       tablet.database.runAsync(
+        `INSERT INTO marcacao (id_avaliacao, acao, tipo, id_profissional, data_hora)
+         VALUES (?, 'marcar', 'duplicado', ?, ?)`,
+        [exameDaAna, tablet.anaId, AGORA],
+      ),
+    ).rejects.toThrow(/CHECK/);
+    await expect(
+      tablet.database.runAsync(
         "UPDATE avaliacao SET marcacao = 'duplicado', marcado_por = ? WHERE id = ?",
         [tablet.anaId, exameDaAna],
       ),
-    ).rejects.toThrow(/CHECK/);
+    ).rejects.toThrow(/CHECK|sem registro no historico/);
   });
 
   it('o registro de marcar exige o tipo, e o de desmarcar não o aceita', async () => {
@@ -213,5 +221,49 @@ describe('regras da marcação nos gatilhos da versão 12 (#58)', () => {
         [exameDaAna, tablet.anaId, AGORA],
       ),
     ).rejects.toThrow(/CHECK/);
+  });
+
+  it('a marcação não muda por fora sem um registro no histórico', async () => {
+    const porFora = (marcacao: string | null, em: string | null, por: number | null) =>
+      tablet.database.runAsync(
+        'UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ? WHERE id = ?',
+        [marcacao, em, por, exameDaAna],
+      );
+
+    // Marcar sem registro.
+    await expect(porFora('teste', AGORA, tablet.anaId)).rejects.toThrow(
+      /sem registro no historico/,
+    );
+
+    // Trocar o tipo ou desmarcar sem registro, depois de uma marcação feita pelo repositório.
+    await repository.marcarExame(exameDaAna, tablet.anaId, 'teste', AGORA);
+    await expect(porFora('ensino', AGORA, tablet.anaId)).rejects.toThrow(
+      /sem registro no historico/,
+    );
+    await expect(porFora(null, null, null)).rejects.toThrow(/sem registro no historico/);
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'teste' });
+  });
+
+  it('aceita a mudança por fora quando o registro do histórico vem antes', async () => {
+    await tablet.database.runAsync(
+      `INSERT INTO marcacao (id_avaliacao, acao, tipo, id_profissional, data_hora)
+       VALUES (?, 'marcar', 'ensino', ?, ?)`,
+      [exameDaAna, tablet.anaId, DEPOIS],
+    );
+
+    await tablet.database.runAsync(
+      'UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ? WHERE id = ?',
+      ['ensino', DEPOIS, tablet.anaId, exameDaAna],
+    );
+
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'ensino' });
+  });
+
+  it('o histórico tem índice pelo exame, para a exportação consultar', async () => {
+    await expect(
+      tablet.database.getFirstAsync(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_marcacao_avaliacao'",
+      ),
+    ).resolves.toEqual({ name: 'idx_marcacao_avaliacao' });
   });
 });

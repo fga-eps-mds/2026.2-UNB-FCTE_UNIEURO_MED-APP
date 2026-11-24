@@ -40,11 +40,8 @@ export function createMarkingRepository(
           [atendimentoId, profissionalId],
         );
         if (!exame) return;
-        await database.runAsync(
-          `UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ?, last_update = ?
-           WHERE id = ?`,
-          [tipo, dataHora, profissionalId, dataHora, atendimentoId],
-        );
+        // O registro vem primeiro: o gatilho da versão 12 só aceita a marcação que
+        // corresponde ao último registro do histórico.
         await database.runAsync(REGISTRO, [
           atendimentoId,
           'marcar',
@@ -52,6 +49,11 @@ export function createMarkingRepository(
           profissionalId,
           dataHora,
         ]);
+        await database.runAsync(
+          `UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ?, last_update = ?
+           WHERE id = ?`,
+          [tipo, dataHora, profissionalId, dataHora, atendimentoId],
+        );
         feito = true;
       });
       return feito;
@@ -66,12 +68,6 @@ export function createMarkingRepository(
           [atendimentoId, profissionalId],
         );
         if (!exame) return;
-        await database.runAsync(
-          `UPDATE avaliacao SET marcacao = NULL, marcado_em = NULL, marcado_por = NULL,
-             last_update = ?
-           WHERE id = ?`,
-          [dataHora, atendimentoId],
-        );
         await database.runAsync(REGISTRO, [
           atendimentoId,
           'desmarcar',
@@ -79,6 +75,12 @@ export function createMarkingRepository(
           profissionalId,
           dataHora,
         ]);
+        await database.runAsync(
+          `UPDATE avaliacao SET marcacao = NULL, marcado_em = NULL, marcado_por = NULL,
+             last_update = ?
+           WHERE id = ?`,
+          [dataHora, atendimentoId],
+        );
         feito = true;
       });
       return feito;

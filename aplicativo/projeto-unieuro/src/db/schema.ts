@@ -355,7 +355,9 @@ END;
  * As colunas guardam a marcação de agora, e a tabela `marcacao` guarda cada vez que
  * o exame foi marcado ou desmarcado, com o profissional e a data e hora. O histórico
  * não aceita alteração nem remoção. Os gatilhos repetem no banco que só o médico que
- * aplicou o exame marca ou desmarca, por qualquer caminho do código.
+ * aplicou o exame marca ou desmarca, por qualquer caminho do código, e que a marcação de
+ * agora sempre corresponde ao último registro do histórico: quem muda as colunas sem
+ * gravar antes o registro (uma sincronização futura, por exemplo) é recusado.
  */
 const SCHEMA_V12 = `
 ALTER TABLE avaliacao ADD COLUMN marcacao TEXT CHECK (marcacao IN ('teste', 'ensino'));
@@ -372,6 +374,8 @@ CREATE TABLE IF NOT EXISTS marcacao (
     CHECK ((acao = 'marcar') = (tipo IS NOT NULL)),
     CHECK (length(trim(data_hora)) > 0)
 );
+
+CREATE INDEX IF NOT EXISTS idx_marcacao_avaliacao ON marcacao (id_avaliacao);
 
 CREATE TRIGGER IF NOT EXISTS marcacao_sem_alteracao
 BEFORE UPDATE ON marcacao
@@ -397,6 +401,21 @@ BEFORE UPDATE OF marcacao, marcado_em, marcado_por ON avaliacao
 WHEN NEW.marcacao IS NOT NULL AND NEW.marcado_por IS NOT OLD.id_profissional
 BEGIN
     SELECT RAISE(ABORT, 'so quem aplicou o exame pode marcar ou desmarcar');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_marcacao_com_historico
+BEFORE UPDATE OF marcacao, marcado_em, marcado_por ON avaliacao
+WHEN NOT (
+    (NEW.marcacao IS NULL AND NEW.marcado_em IS NULL AND NEW.marcado_por IS NULL
+        AND (SELECT acao FROM marcacao WHERE id_avaliacao = NEW.id ORDER BY id DESC LIMIT 1)
+            IS NOT 'marcar')
+    OR EXISTS (SELECT 1 FROM marcacao m
+        WHERE m.id = (SELECT max(id) FROM marcacao WHERE id_avaliacao = NEW.id)
+          AND m.acao = 'marcar' AND m.tipo = NEW.marcacao
+          AND m.id_profissional = NEW.marcado_por AND m.data_hora = NEW.marcado_em)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'marcacao sem registro no historico');
 END;
 `;
 
