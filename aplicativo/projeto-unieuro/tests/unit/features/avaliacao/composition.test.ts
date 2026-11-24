@@ -1,26 +1,35 @@
 import { attendanceRepository } from '@/db/attendance-repository';
 import { consentRepository } from '@/db/consent-repository';
 import { exclusionRepository } from '@/db/exclusion-repository';
+import { markingRepository } from '@/db/marking-repository';
 import { professionalRepository } from '@/db/professional-repository';
 import {
   deleteExam,
   deletePatient,
   getAttendancePatient,
   getTaskAccess,
+  markExam,
   professionalCpfRepository,
   registerAttendanceRepository,
   registerConsentDecision,
+  unmarkExam,
 } from '@/features/avaliacao/composition';
 import {
   registrarDecisaoConsentimento,
   verificarAcessoTarefas,
 } from '@/features/avaliacao/consentimento';
 import { excluirExame, excluirPaciente } from '@/features/avaliacao/exclusao';
+import { desmarcarExame, marcarExame } from '@/features/avaliacao/marcacao';
 
 jest.mock('@/features/avaliacao/exclusao', () => ({
   ...jest.requireActual('@/features/avaliacao/exclusao'),
   excluirExame: jest.fn(),
   excluirPaciente: jest.fn(),
+}));
+jest.mock('@/features/avaliacao/marcacao', () => ({
+  ...jest.requireActual('@/features/avaliacao/marcacao'),
+  marcarExame: jest.fn(),
+  desmarcarExame: jest.fn(),
 }));
 jest.mock('@/features/avaliacao/consentimento', () => ({
   registrarDecisaoConsentimento: jest.fn(),
@@ -86,6 +95,30 @@ describe('composição da feature de avaliação', () => {
     expect(excluirPaciente).toHaveBeenCalledWith(
       { pacienteId: 3, profissional: ana, senha: 'senha' },
       exclusionRepository,
+      professionalRepository,
+    );
+  });
+
+  it('liga a marcação do exame ao banco e à senha da conta (#58)', () => {
+    const ana = {
+      id: 7,
+      name: 'Ana Carolina Souza',
+      email: 'ana@unieuro.com.br',
+      crmNumber: '12345',
+      crmState: 'DF',
+    };
+
+    void markExam(12, ana, 'ensino', 'senha');
+    void unmarkExam(12, ana, 'senha');
+
+    expect(marcarExame).toHaveBeenCalledWith(
+      { atendimentoId: 12, profissional: ana, tipo: 'ensino', senha: 'senha' },
+      markingRepository,
+      professionalRepository,
+    );
+    expect(desmarcarExame).toHaveBeenCalledWith(
+      { atendimentoId: 12, profissional: ana, senha: 'senha' },
+      markingRepository,
       professionalRepository,
     );
   });

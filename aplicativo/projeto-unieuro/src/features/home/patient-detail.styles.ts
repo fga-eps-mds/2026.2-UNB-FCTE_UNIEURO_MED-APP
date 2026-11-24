@@ -27,13 +27,10 @@ export function createPatientDetailStyles(theme: ThemeColors) {
     examsHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 12 },
     examsTitle: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 24, lineHeight: 32 },
     examsSummary: { ...body, color: theme.textSecondary },
-    // Exame com resultado: a linha inteira é o botão (#14).
-    pressed: { opacity: 0.82 },
-    exam: {
+    examRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       alignItems: 'center',
-      justifyContent: 'space-between',
       columnGap: 16,
       rowGap: 8,
       minHeight: 72,
@@ -41,6 +38,45 @@ export function createPatientDetailStyles(theme: ThemeColors) {
       borderTopWidth: 1,
       borderTopColor: theme.border,
     },
+    // A parte lida de uma vez pelo leitor de tela; o botão de marcar fica fora dela.
+    exam: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 320,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      columnGap: 16,
+      rowGap: 8,
+    },
+    examChips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    // Marcação de teste ou ensino (#58): cinza, para não se confundir com a situação.
+    markingChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.textSecondary,
+      backgroundColor: theme.field,
+    },
+    markingText: {
+      color: theme.textSecondary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 16,
+      lineHeight: 22,
+    },
+    markButton: {
+      minHeight: 48,
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: theme.primary,
+    },
+    markButtonText: { color: theme.primary, fontFamily: FontFamilies.semibold, fontSize: 16 },
+    // Exame com resultado: a parte do exame é o botão que abre o resultado (#14).
+    pressed: { opacity: 0.82 },
     examWhen: { flexShrink: 1, gap: 2 },
     examDate: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
     examBy: {

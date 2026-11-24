@@ -448,12 +448,16 @@ describe('atendimentos de todos os profissionais', () => {
           startedAt: '2026-10-05T17:32:00.000Z',
           state: 'concluida',
           appliedBy: PAULO.name,
+          professionalId: expect.any(Number),
+          marking: null,
         },
         {
           id: expect.any(Number),
           startedAt: '2026-10-02T12:00:00.000Z',
           state: 'aguardando_consentimento',
           appliedBy: ANA.name,
+          professionalId: expect.any(Number),
+          marking: null,
         },
       ]);
     });

@@ -2,6 +2,7 @@ import { attendanceRepository } from '@/db/attendance-repository';
 import { consentRepository } from '@/db/consent-repository';
 import { exclusionRepository } from '@/db/exclusion-repository';
 import { interruptionRepository } from '@/db/interruption-repository';
+import { markingRepository } from '@/db/marking-repository';
 import { professionalRepository } from '@/db/professional-repository';
 import type { SessionProfessional } from '@/features/auth/session';
 import type { AttendanceRepository } from '@/features/avaliacao/attendance';
@@ -18,6 +19,7 @@ import {
   type DesistenciaInput,
   type InterrupcaoRepository,
 } from '@/features/avaliacao/interrupcao';
+import { desmarcarExame, marcarExame, type TipoMarcacao } from '@/features/avaliacao/marcacao';
 
 /**
  * Liga a regra do atendimento ao banco. As rotas e a tela importam daqui, e não
@@ -74,5 +76,30 @@ export const deletePatient = (
   excluirPaciente(
     { pacienteId: patientId, profissional: professional, senha: password },
     exclusionRepository,
+    professionalRepository,
+  );
+
+/** Marca o exame como teste ou material de ensino (#58), confirmado pela senha do profissional. */
+export const markExam = (
+  attendanceId: number,
+  professional: SessionProfessional,
+  type: TipoMarcacao | null,
+  password: string,
+) =>
+  marcarExame(
+    { atendimentoId: attendanceId, profissional: professional, tipo: type, senha: password },
+    markingRepository,
+    professionalRepository,
+  );
+
+/** Desfaz a marcação do exame (#58), confirmado pela senha do profissional. */
+export const unmarkExam = (
+  attendanceId: number,
+  professional: SessionProfessional,
+  password: string,
+) =>
+  desmarcarExame(
+    { atendimentoId: attendanceId, profissional: professional, senha: password },
+    markingRepository,
     professionalRepository,
   );

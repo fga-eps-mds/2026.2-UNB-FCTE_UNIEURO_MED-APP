@@ -1,6 +1,8 @@
 import {
   ageInYears,
+  canMarkExam,
   describeAge,
+  describeExamForReader,
   describeExams,
   findPatientWithExamsFor,
   formatDateTime,
@@ -19,8 +21,20 @@ const registro: PatientWithExams = {
   schoolingYears: 5,
   sex: 'masculino',
   exams: [
-    { id: 12, startedAt: '2026-10-05T14:32:00', state: 'concluida' },
-    { id: 9, startedAt: '2026-09-28T10:05:00', state: 'interrompida' },
+    {
+      id: 12,
+      startedAt: '2026-10-05T14:32:00',
+      state: 'concluida',
+      professionalId: 4,
+      marking: null,
+    },
+    {
+      id: 9,
+      startedAt: '2026-09-28T10:05:00',
+      state: 'interrompida',
+      professionalId: 4,
+      marking: null,
+    },
   ],
 };
 
@@ -59,8 +73,21 @@ describe('toPatientDetail', () => {
     const { exams } = toPatientDetail({
       ...registro,
       exams: [
-        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida', appliedBy: 'Paulo' },
-        { id: 2, startedAt: '2026-10-04T14:32:00', state: 'concluida' },
+        {
+          id: 1,
+          startedAt: '2026-10-05T14:32:00',
+          state: 'concluida',
+          appliedBy: 'Paulo',
+          professionalId: 104,
+          marking: null,
+        },
+        {
+          id: 2,
+          startedAt: '2026-10-04T14:32:00',
+          state: 'concluida',
+          professionalId: 4,
+          marking: null,
+        },
       ],
     });
 
@@ -86,9 +113,27 @@ describe('toPatientDetail', () => {
     const { exams } = toPatientDetail({
       ...registro,
       exams: [
-        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida' },
-        { id: 2, startedAt: '2026-10-04T14:32:00', state: 'interrompida' },
-        { id: 3, startedAt: '2026-10-03T14:32:00', state: 'cancelada' },
+        {
+          id: 1,
+          startedAt: '2026-10-05T14:32:00',
+          state: 'concluida',
+          professionalId: 4,
+          marking: null,
+        },
+        {
+          id: 2,
+          startedAt: '2026-10-04T14:32:00',
+          state: 'interrompida',
+          professionalId: 4,
+          marking: null,
+        },
+        {
+          id: 3,
+          startedAt: '2026-10-03T14:32:00',
+          state: 'cancelada',
+          professionalId: 4,
+          marking: null,
+        },
       ],
     });
 
@@ -111,7 +156,7 @@ describe('toPatientDetail', () => {
   ])('classifica o exame %s como "%s", para a cor e o ícone da situação', (state, tone) => {
     const { exams } = toPatientDetail({
       ...registro,
-      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state }],
+      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state, professionalId: 4, marking: null }],
     });
 
     expect(exams[0].tone).toBe(tone);
@@ -125,7 +170,7 @@ describe('toPatientDetail', () => {
   ])('mostra o exame %s ainda sem desfecho como "%s"', (state, label) => {
     const { exams } = toPatientDetail({
       ...registro,
-      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state }],
+      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state, professionalId: 4, marking: null }],
     });
 
     expect(exams[0]).toMatchObject({ status: null, label });
@@ -134,10 +179,55 @@ describe('toPatientDetail', () => {
   it('não esconde um estado que a tela não conhece', () => {
     const { exams } = toPatientDetail({
       ...registro,
-      exams: [{ id: 1, startedAt: '2026-10-05T14:32:00', state: 'outro_estado' }],
+      exams: [
+        {
+          id: 1,
+          startedAt: '2026-10-05T14:32:00',
+          state: 'outro_estado',
+          professionalId: 4,
+          marking: null,
+        },
+      ],
     });
 
     expect(exams[0]).toMatchObject({ status: null, label: 'Situação desconhecida' });
+  });
+});
+
+describe('marcação do exame (#58)', () => {
+  const exame = (marking: string | null, professionalId = 4) =>
+    toPatientDetail({
+      ...registro,
+      exams: [
+        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida', professionalId, marking },
+      ],
+    }).exams[0];
+
+  it.each([
+    ['teste', 'teste'],
+    ['ensino', 'ensino'],
+    [null, null],
+    ['valor_estranho', null],
+  ])('traduz a marcação %p do banco para %p', (valor, esperado) => {
+    expect(exame(valor).marking).toBe(esperado);
+  });
+
+  it('mantém quem aplicou o exame', () => {
+    expect(exame(null, 9).professionalId).toBe(9);
+  });
+
+  it('só quem aplicou pode marcar ou desmarcar', () => {
+    expect(canMarkExam(exame(null, 4), 4)).toBe(true);
+    expect(canMarkExam(exame('teste', 4), 9)).toBe(false);
+  });
+
+  it('o leitor de tela lê a marcação no fim da frase do exame', () => {
+    expect(describeExamForReader(exame('teste'), 'Ana')).toBe(
+      '05/10/2026 às 14:32, aplicado por Ana, Concluído, marcado como Teste',
+    );
+    expect(describeExamForReader(exame(null), 'Ana')).toBe(
+      '05/10/2026 às 14:32, aplicado por Ana, Concluído',
+    );
   });
 });
 
@@ -212,10 +302,34 @@ describe('exame com resultado (#14)', () => {
       schoolingYears: 5,
       sex: 'masculino',
       exams: [
-        { id: 1, startedAt: '2026-10-05T14:32:00', state: 'concluida' },
-        { id: 2, startedAt: '2026-10-04T14:32:00', state: 'processando_resultado' },
-        { id: 3, startedAt: '2026-10-03T14:32:00', state: 'em_andamento' },
-        { id: 4, startedAt: '2026-10-02T14:32:00', state: 'interrompida' },
+        {
+          id: 1,
+          startedAt: '2026-10-05T14:32:00',
+          state: 'concluida',
+          professionalId: 4,
+          marking: null,
+        },
+        {
+          id: 2,
+          startedAt: '2026-10-04T14:32:00',
+          state: 'processando_resultado',
+          professionalId: 4,
+          marking: null,
+        },
+        {
+          id: 3,
+          startedAt: '2026-10-03T14:32:00',
+          state: 'em_andamento',
+          professionalId: 4,
+          marking: null,
+        },
+        {
+          id: 4,
+          startedAt: '2026-10-02T14:32:00',
+          state: 'interrompida',
+          professionalId: 4,
+          marking: null,
+        },
       ],
     });
 
