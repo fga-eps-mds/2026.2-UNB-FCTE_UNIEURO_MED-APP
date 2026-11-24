@@ -141,6 +141,7 @@ describe('marcarExame (#58)', () => {
     await expect(marcarExame(marcar('senhaForte123'), repository, credenciais)).resolves.toEqual({
       feito: false,
       mensagem: EXAME_JA_MARCADO,
+      desatualizado: true,
     });
     expect(repository.marcarExame).not.toHaveBeenCalled();
   });
@@ -151,6 +152,7 @@ describe('marcarExame (#58)', () => {
     await expect(marcarExame(marcar('senhaForte123'), repository, credenciais)).resolves.toEqual({
       feito: false,
       mensagem: EXAME_JA_MARCADO,
+      desatualizado: true,
     });
   });
 
@@ -225,7 +227,7 @@ describe('desmarcarExame (#58)', () => {
 
     await expect(
       desmarcarExame(desmarcar('senhaForte123'), repository, credenciais),
-    ).resolves.toEqual({ feito: false, mensagem: EXAME_SEM_MARCACAO });
+    ).resolves.toEqual({ feito: false, mensagem: EXAME_SEM_MARCACAO, desatualizado: true });
     expect(repository.desmarcarExame).not.toHaveBeenCalled();
   });
 
@@ -234,7 +236,7 @@ describe('desmarcarExame (#58)', () => {
 
     await expect(
       desmarcarExame(desmarcar('senhaForte123'), repository, credenciais),
-    ).resolves.toEqual({ feito: false, mensagem: EXAME_SEM_MARCACAO });
+    ).resolves.toEqual({ feito: false, mensagem: EXAME_SEM_MARCACAO, desatualizado: true });
   });
 
   it('usa a hora do tablet quando não recebe outra', async () => {

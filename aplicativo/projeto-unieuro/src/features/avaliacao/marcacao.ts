@@ -28,8 +28,8 @@ export const SENHA_VAZIA = 'Digite a sua senha para confirmar.';
 export const SENHA_NAO_CONFERE_MARCAR = 'A senha não confere. O exame continua sem marcação.';
 export const SENHA_NAO_CONFERE_DESMARCAR = 'A senha não confere. A marcação continua.';
 export const EXAME_NAO_ENCONTRADO = 'Exame não encontrado entre os que você aplicou.';
-export const EXAME_JA_MARCADO = 'Este exame já está marcado. Volte à lista e abra de novo.';
-export const EXAME_SEM_MARCACAO = 'Este exame já está sem marcação. Volte à lista e abra de novo.';
+export const EXAME_JA_MARCADO = 'Este exame já estava marcado. A lista foi atualizada.';
+export const EXAME_SEM_MARCACAO = 'Este exame já estava sem marcação. A lista foi atualizada.';
 
 export type ExameParaMarcar = { marcacao: TipoMarcacao | null };
 
@@ -50,7 +50,13 @@ export type MarcacaoRepository = {
   desmarcarExame(atendimentoId: number, profissionalId: number, dataHora: string): Promise<boolean>;
 };
 
-export type ResultadoMarcacao = { feito: true } | { feito: false; mensagem: string };
+/**
+ * `desatualizado` diz que a tela mostrava o exame de um jeito que já mudou (outro pedido
+ * marcou ou desmarcou antes): a tela relê o paciente para o botão ficar certo.
+ */
+export type ResultadoMarcacao =
+  | { feito: true }
+  | { feito: false; mensagem: string; desatualizado?: true };
 
 type Pedido = {
   atendimentoId: number;
@@ -60,6 +66,11 @@ type Pedido = {
 };
 
 const recusa = (mensagem: string): ResultadoMarcacao => ({ feito: false, mensagem });
+const desatualizado = (mensagem: string): ResultadoMarcacao => ({
+  feito: false,
+  mensagem,
+  desatualizado: true,
+});
 
 // A mesma conferência do login, para a senha da conta e não outro segredo.
 async function senhaConfere(
@@ -86,7 +97,7 @@ export async function marcarExame(
   if (tipo === null) return recusa(ESCOLHA_O_TIPO);
   const exame = await repository.buscarExame(atendimentoId, profissional.id);
   if (!exame) return recusa(EXAME_NAO_ENCONTRADO);
-  if (exame.marcacao !== null) return recusa(EXAME_JA_MARCADO);
+  if (exame.marcacao !== null) return desatualizado(EXAME_JA_MARCADO);
   if (senha.length === 0) return recusa(SENHA_VAZIA);
   if (!(await senhaConfere(senha, profissional, credenciais))) {
     return recusa(SENHA_NAO_CONFERE_MARCAR);
@@ -98,7 +109,7 @@ export async function marcarExame(
     tipo,
     agora.toISOString(),
   );
-  return feito ? { feito: true } : recusa(EXAME_JA_MARCADO);
+  return feito ? { feito: true } : desatualizado(EXAME_JA_MARCADO);
 }
 
 /** Desfaz a marcação de um exame do próprio profissional, confirmado pela senha dele. */
@@ -109,7 +120,7 @@ export async function desmarcarExame(
 ): Promise<ResultadoMarcacao> {
   const exame = await repository.buscarExame(atendimentoId, profissional.id);
   if (!exame) return recusa(EXAME_NAO_ENCONTRADO);
-  if (exame.marcacao === null) return recusa(EXAME_SEM_MARCACAO);
+  if (exame.marcacao === null) return desatualizado(EXAME_SEM_MARCACAO);
   if (senha.length === 0) return recusa(SENHA_VAZIA);
   if (!(await senhaConfere(senha, profissional, credenciais))) {
     return recusa(SENHA_NAO_CONFERE_DESMARCAR);
@@ -120,5 +131,5 @@ export async function desmarcarExame(
     profissional.id,
     agora.toISOString(),
   );
-  return feito ? { feito: true } : recusa(EXAME_SEM_MARCACAO);
+  return feito ? { feito: true } : desatualizado(EXAME_SEM_MARCACAO);
 }

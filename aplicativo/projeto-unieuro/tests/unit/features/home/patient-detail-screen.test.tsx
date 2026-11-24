@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { Colors } from '@/constants/theme';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
+import { EXAME_JA_MARCADO } from '@/features/avaliacao/marcacao';
 import { toPatientDetail, type PatientDetail } from '@/features/home/patient-detail';
 import PatientDetailScreen, {
   LOADING_MESSAGE,
@@ -398,6 +399,43 @@ describe('PatientDetailScreen', () => {
       );
       expect(marking.mark).not.toHaveBeenCalled();
       expect(marking.onChanged).toHaveBeenCalled();
+    });
+
+    it('quando o exame já tinha sido marcado, avisa e relê o paciente', async () => {
+      const user = userEvent.setup();
+      const marking = {
+        ...marcacaoGravada(),
+        mark: jest.fn(async () => ({
+          feito: false as const,
+          mensagem: EXAME_JA_MARCADO,
+          desatualizado: true as const,
+        })),
+      };
+      renderTela({ patient: comMarcacao(null) }, profissional, marking);
+
+      await user.press(screen.getByRole('button', { name: /^Marcar o exame/ }));
+      await user.press(screen.getByRole('radio', { name: 'Teste' }));
+      await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA'), 'senhaForte123');
+      await user.press(screen.getByRole('button', { name: 'Marcar exame' }));
+
+      expect(await screen.findByText(EXAME_JA_MARCADO)).toBeOnTheScreen();
+      expect(marking.onChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it('uma recusa por senha errada não relê o paciente', async () => {
+      const user = userEvent.setup();
+      const marking = {
+        ...marcacaoGravada(),
+        mark: jest.fn(async () => ({ feito: false as const, mensagem: 'A senha não confere.' })),
+      };
+      renderTela({ patient: comMarcacao(null) }, profissional, marking);
+
+      await user.press(screen.getByRole('button', { name: /^Marcar o exame/ }));
+      await user.press(screen.getByRole('radio', { name: 'Teste' }));
+      await user.press(screen.getByRole('button', { name: 'Marcar exame' }));
+
+      expect(await screen.findByText('A senha não confere.')).toBeOnTheScreen();
+      expect(marking.onChanged).not.toHaveBeenCalled();
     });
 
     it('Cenário: marcação cancelada: fecha o diálogo sem gravar nem reler', async () => {

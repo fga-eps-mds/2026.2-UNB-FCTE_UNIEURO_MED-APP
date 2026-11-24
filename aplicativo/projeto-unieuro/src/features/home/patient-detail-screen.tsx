@@ -161,11 +161,15 @@ export default function PatientDetailScreen({
           visible
           pedido={markingRequest.request}
           quando={formatDateTime(markingRequest.exam.startedAt)}
-          onConfirm={(type, password) =>
-            markingRequest.request.acao === 'marcar'
-              ? marking.mark(markingRequest.exam.id, professional, type, password)
-              : marking.unmark(markingRequest.exam.id, professional, password)
-          }
+          onConfirm={async (type, password) => {
+            const result =
+              markingRequest.request.acao === 'marcar'
+                ? await marking.mark(markingRequest.exam.id, professional, type, password)
+                : await marking.unmark(markingRequest.exam.id, professional, password);
+            // O exame já tinha mudado: relê o paciente para o botão da linha ficar certo.
+            if (!result.feito && result.desatualizado) marking.onChanged();
+            return result;
+          }}
           onCancel={() => setMarkingRequest(null)}
           onDone={() => {
             setMarkingRequest(null);
