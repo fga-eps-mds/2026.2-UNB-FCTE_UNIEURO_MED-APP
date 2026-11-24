@@ -1,4 +1,5 @@
 import { createExportRepository } from '@/db/export-repository';
+import { createMarkingRepository } from '@/db/marking-repository';
 
 import { PNG_DO_RELOGIO, gravarExamesParaExportar } from '../../test-support/exames-para-exportar';
 import { abrirTabletComAnaEBruno, type TabletComAnaEBruno } from '../../test-support/tablet';
@@ -105,5 +106,80 @@ describe('createExportRepository', () => {
       "SELECT id FROM paciente WHERE data_nascimento = '1945-05-05'",
     );
     await expect(repository().lerExames(tablet.anaId, maria!.id)).resolves.toEqual([]);
+  });
+
+  describe('exclusão lógica (#58, #47)', () => {
+    const excluir = (atendimentoId: number) =>
+      tablet.database.runAsync(
+        "UPDATE avaliacao SET excluido_em = '2026-11-01T10:00:00.000Z' WHERE id = ?",
+        [atendimentoId],
+      );
+
+    it('não lê o exame excluído, nem os desenhos e traçados dele', async () => {
+      const [jose] = await repository().lerExames(tablet.anaId, ids.jose.id);
+      const [comDesenho] = jose.exames;
+      expect(comDesenho.tarefas).toHaveLength(1);
+
+      await excluir(comDesenho.id);
+      const [depois] = await repository().lerExames(tablet.anaId, ids.jose.id);
+
+      expect(depois.exames.map((exame) => exame.id)).not.toContain(comDesenho.id);
+      expect(depois.exames).toHaveLength(1);
+      expect(depois.exames.flatMap((exame) => exame.tarefas)).toEqual([]);
+    });
+
+    it('o paciente com todos os exames excluídos não sai no arquivo', async () => {
+      const [antonio] = await repository().lerExames(tablet.anaId, ids.antonio.id);
+      await excluir(antonio.exames[0].id);
+
+      await expect(repository().lerExames(tablet.anaId, ids.antonio.id)).resolves.toEqual([]);
+      const todos = await repository().lerExames(tablet.anaId);
+      expect(todos.map((p) => p.id)).toEqual([ids.jose.id]);
+    });
+  });
+
+  describe('marcação como teste ou material de ensino (#58)', () => {
+    const marcacoes = () => createMarkingRepository(async () => tablet.database);
+
+    it('lê o tipo, a data e a hora e o CRM de quem marcou, e o exame continua no arquivo', async () => {
+      await marcacoes().marcarExame(1, tablet.anaId, 'teste', '2026-10-20T09:15:00.000Z');
+
+      const [jose] = await repository().lerExames(tablet.anaId, ids.jose.id);
+
+      expect(jose.exames.map((exame) => exame.id)).toEqual([1, 2]);
+      expect(jose.exames[0].marcacao).toEqual({
+        tipo: 'teste',
+        marcadaEm: '2026-10-20T09:15:00.000Z',
+        crmNumero: '12345',
+        crmUf: 'DF',
+      });
+      expect(jose.exames[0].tarefas).toHaveLength(1);
+      expect(jose.exames[1].marcacao).toBeNull();
+    });
+
+    it('o material de ensino sai com o seu tipo', async () => {
+      await marcacoes().marcarExame(2, tablet.anaId, 'ensino', '2026-10-21T10:00:00.000Z');
+
+      const [jose] = await repository().lerExames(tablet.anaId, ids.jose.id);
+
+      expect(jose.exames[1].marcacao?.tipo).toBe('ensino');
+    });
+
+    it('o exame desmarcado volta a sair sem marcação', async () => {
+      await marcacoes().marcarExame(1, tablet.anaId, 'teste', '2026-10-20T09:15:00.000Z');
+      await marcacoes().desmarcarExame(1, tablet.anaId, '2026-10-22T08:00:00.000Z');
+
+      const [jose] = await repository().lerExames(tablet.anaId, ids.jose.id);
+
+      expect(jose.exames[0].marcacao).toBeNull();
+    });
+
+    it('a marcação não esconde o exame da exportação de todos', async () => {
+      await marcacoes().marcarExame(3, tablet.anaId, 'teste', '2026-10-20T09:15:00.000Z');
+
+      const pacientes = await repository().lerExames(tablet.anaId);
+
+      expect(pacientes.flatMap((p) => p.exames).map((exame) => exame.id)).toEqual([1, 2, 3]);
+    });
   });
 });
