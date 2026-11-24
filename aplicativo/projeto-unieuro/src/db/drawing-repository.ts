@@ -45,6 +45,7 @@ export type DrawingRecord = {
   /** Inclui os traços desfeitos e apagados. */
   eventos: readonly TracingEventRecord[];
   imagemPng: Uint8Array;
+  encerraExame: boolean;
 };
 
 const EVENT_COLUMNS = `id_tarefa, ordem, tipo, ponteiro, coord_x, coord_y, instante, pressao,
@@ -94,6 +95,8 @@ async function insertEvents(
 /**
  * Persistência do desenho confirmado (#10). A tarefa, os eventos do traçado e o
  * desenho entram na mesma transação: se qualquer um falhar, nada fica gravado.
+ * Na última tarefa, a mesma transação tira o exame de "em andamento" (#12): ele
+ * nunca fica com os três desenhos gravados e ainda em andamento.
  */
 export function createDrawingRepository(open: () => Promise<SQLiteDatabase> = getDatabase) {
   return {
@@ -120,6 +123,17 @@ export function createDrawingRepository(open: () => Promise<SQLiteDatabase> = ge
           'INSERT INTO desenho (id_tarefa, imagem_final, data_hora_confirmacao) VALUES (?, ?, ?)',
           [taskId, desenho.imagemPng, desenho.confirmadoEm],
         );
+        if (desenho.encerraExame) {
+          // Só com os três desenhos gravados: o fluxo e a retomada já garantem a ordem, mas
+          // um exame que chegasse à última tarefa sem os anteriores continua em andamento.
+          await database.runAsync(
+            `UPDATE avaliacao SET estado = 'processando_resultado', last_update = ?
+             WHERE id = ? AND estado = 'em_andamento'
+               AND (SELECT COUNT(*) FROM tarefa t JOIN desenho d ON d.id_tarefa = t.id
+                    WHERE t.id_avaliacao = ?) = 3`,
+            [desenho.confirmadoEm, desenho.atendimentoId, desenho.atendimentoId],
+          );
+        }
       });
     },
   };

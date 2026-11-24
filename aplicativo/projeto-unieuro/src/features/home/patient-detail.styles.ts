@@ -75,7 +75,8 @@ export function createPatientDetailStyles(theme: ThemeColors) {
       borderColor: theme.primary,
     },
     markButtonText: { color: theme.primary, fontFamily: FontFamilies.semibold, fontSize: 16 },
-    pressed: { opacity: 0.6 },
+    // Exame com resultado: a parte do exame é o botão que abre o resultado (#14).
+    pressed: { opacity: 0.82 },
     examWhen: { flexShrink: 1, gap: 2 },
     examDate: { ...body, color: theme.text, fontFamily: FontFamilies.semibold },
     examBy: {

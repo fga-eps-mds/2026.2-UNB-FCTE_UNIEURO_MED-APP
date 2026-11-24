@@ -431,3 +431,26 @@ describe('PatientDetailScreen', () => {
     });
   });
 });
+
+describe('abrir o resultado do exame (#14)', () => {
+  it('o exame com os três desenhos abre o resultado', async () => {
+    renderTela();
+    const [concluido] = screen.getAllByTestId('exame');
+
+    expect(concluido.props.accessibilityRole).toBe('button');
+    await userEvent.setup().press(concluido);
+
+    expect(useRouter().push).toHaveBeenCalledWith({
+      pathname: '/resultado/[id]',
+      params: { id: '12' },
+    });
+  });
+
+  it('o exame interrompido não tem resultado para abrir', () => {
+    renderTela();
+    const interrompido = screen.getAllByTestId('exame')[1];
+
+    expect(interrompido.props.accessibilityRole).toBeUndefined();
+    expect(screen.getAllByHintText('Abre o resultado do exame')).toHaveLength(1);
+  });
+});

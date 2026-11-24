@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import DrawingRoute from '@/app/desenho';
 import { createAttendanceRepository } from '@/db/attendance-repository';
+import { createDrawingRepository } from '@/db/drawing-repository';
 import { SessionProvider } from '@/features/auth/session';
 import { FALHA_AO_SALVAR } from '@/features/avaliacao/drawing-task-screen';
 import { gerarImagemDesenho } from '@/features/captura/imagem-desenho';
@@ -253,5 +254,49 @@ describe('Cenário: tudo ou nada', () => {
       pathname: '/instrucao',
       params: { atendimento: String(atendimentoId), tarefa: '2' },
     });
+  });
+});
+
+describe('Cenário: exame aguarda o resultado depois da última tarefa', () => {
+  it('confirmar as trilhas grava o desenho, tira o exame de em andamento e abre a tela final', async () => {
+    await mockTablet.database.runAsync(
+      "UPDATE avaliacao SET estado = 'em_andamento' WHERE id = ?",
+      [atendimentoId],
+    );
+    // O relógio e o cubo já gravados, como no fluxo: só com os três desenhos o exame sai
+    // de "em andamento".
+    const desenhos = createDrawingRepository(async () => mockTablet.database);
+    for (const [ordem, tipo] of [
+      [1, 'relogio'],
+      [2, 'cubo'],
+    ] as const) {
+      await desenhos.salvarDesenho({
+        atendimentoId,
+        ordem,
+        tipo,
+        largura: QUADRO.largura,
+        altura: QUADRO.altura,
+        iniciadoEm: '2026-11-03T14:00:00.000Z',
+        confirmadoEm: '2026-11-03T14:02:00.000Z',
+        eventos: [],
+        imagemPng: PNG,
+        encerraExame: false,
+      });
+    }
+    const user = abrirTarefa('3');
+    await desenharNoQuadro([
+      [500, 245],
+      [706, 54],
+    ]);
+
+    await confirmar(user);
+
+    const exame = await mockTablet.database.getFirstAsync<{ estado: string }>(
+      'SELECT estado FROM avaliacao WHERE id = ?',
+      [atendimentoId],
+    );
+    expect(exame!.estado).toBe('processando_resultado');
+    expect(await contar('desenho')).toBe(3);
+    expect(useRouter().replace).toHaveBeenCalledWith('/fim-do-teste');
   });
 });

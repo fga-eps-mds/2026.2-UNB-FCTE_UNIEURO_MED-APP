@@ -4,6 +4,7 @@ import {
   ESCOLHA_O_TIPO,
   SENHA_NAO_CONFERE_MARCAR,
   type ResultadoMarcacao,
+  type TipoMarcacao,
 } from '@/features/avaliacao/marcacao';
 import {
   FALHA_AO_MARCAR,
@@ -11,11 +12,13 @@ import {
   type MarcacaoPedida,
 } from '@/features/home/marcar-exame-dialog';
 
-type Confirmar = jest.Mock<Promise<ResultadoMarcacao>, [string | null, string]>;
+type Confirmar = jest.Mock<Promise<ResultadoMarcacao>, [TipoMarcacao | null, string]>;
+const confirmar = (impl: () => Promise<ResultadoMarcacao>): Confirmar =>
+  jest.fn<Promise<ResultadoMarcacao>, [TipoMarcacao | null, string]>(impl);
 
 function renderDialog(
   pedido: MarcacaoPedida = { acao: 'marcar' },
-  onConfirm: Confirmar = jest.fn(async () => ({ feito: true as const })),
+  onConfirm: Confirmar = confirmar(async () => ({ feito: true as const })),
 ) {
   const onCancel = jest.fn();
   const onDone = jest.fn();
@@ -62,7 +65,7 @@ describe('MarcarExameDialog (#58)', () => {
 
   it('mostra o aviso da regra quando a marcação é recusada', async () => {
     const user = userEvent.setup();
-    const onConfirm: Confirmar = jest.fn(async () => ({
+    const onConfirm: Confirmar = confirmar(async () => ({
       feito: false as const,
       mensagem: ESCOLHA_O_TIPO,
     }));
@@ -77,7 +80,7 @@ describe('MarcarExameDialog (#58)', () => {
 
   it('Cenário: senha incorreta: avisa, e o aviso sai quando a senha muda', async () => {
     const user = userEvent.setup();
-    const onConfirm: Confirmar = jest.fn(async () => ({
+    const onConfirm: Confirmar = confirmar(async () => ({
       feito: false as const,
       mensagem: SENHA_NAO_CONFERE_MARCAR,
     }));
@@ -94,7 +97,7 @@ describe('MarcarExameDialog (#58)', () => {
 
   it('avisa quando a gravação falha, sem fechar', async () => {
     const user = userEvent.setup();
-    const onConfirm: Confirmar = jest.fn(async () => {
+    const onConfirm: Confirmar = confirmar(async () => {
       throw new Error('banco indisponível');
     });
     const { onDone } = renderDialog({ acao: 'marcar' }, onConfirm);
@@ -137,7 +140,7 @@ describe('MarcarExameDialog (#58)', () => {
   it('não envia de novo enquanto grava', async () => {
     const user = userEvent.setup();
     let terminar: (resultado: ResultadoMarcacao) => void = () => undefined;
-    const onConfirm: Confirmar = jest.fn(
+    const onConfirm: Confirmar = confirmar(
       () => new Promise<ResultadoMarcacao>((resolve) => (terminar = resolve)),
     );
     renderDialog({ acao: 'marcar' }, onConfirm);

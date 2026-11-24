@@ -66,7 +66,20 @@ describe('confirmarDesenho', () => {
       confirmadoEm: '2026-11-03T14:03:10.000Z',
       eventos: EVENTOS,
       imagemPng: PNG,
+      encerraExame: false,
     });
+  });
+
+  it.each([
+    [1, false],
+    [2, false],
+    [3, true],
+  ] as const)('a tarefa %i encerra o exame: %s', async (ordem, encerraExame) => {
+    await confirmarDesenho({ atendimentoId: 7, ordem, registro: registro() }, repository);
+
+    expect(repository.salvarDesenho).toHaveBeenCalledWith(
+      expect.objectContaining({ encerraExame }),
+    );
   });
 
   it('usa o relógio do tablet quando nenhum é passado', async () => {

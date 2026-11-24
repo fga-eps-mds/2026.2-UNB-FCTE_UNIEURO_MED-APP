@@ -255,33 +255,55 @@ function ExamRow({
   styles: PatientDetailStyles;
   onRequestMarking?: (request: MarkingRequest) => void;
 }) {
+  const router = useRouter();
   // Para o superusuário, o exame pode ser de outro médico (#49); para o médico
   // comum, todos os exames da tela foram aplicados por ele.
   const appliedBy = exam.appliedBy ?? professional.name;
   // Só quem aplicou marca ou desmarca; o superusuário vê a marcação dos outros (#58).
   const canMark = onRequestMarking !== undefined && canMarkExam(exam, professional.id);
   const when = formatDateTime(exam.startedAt);
+  const conteudo = (
+    <>
+      <View style={styles.examWhen}>
+        <Text style={styles.examDate}>{when}</Text>
+        <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
+      </View>
+      <View style={styles.examChips}>
+        <ExamStatusChip tone={exam.tone} label={exam.label} />
+        {exam.marking && (
+          <View testID="marcacao" style={styles.markingChip}>
+            <Text style={styles.markingText}>{ROTULO_MARCACAO[exam.marking]}</Text>
+          </View>
+        )}
+      </View>
+    </>
+  );
   return (
     <View style={styles.examRow}>
-      {/* A parte do exame é um só item para o leitor de tela, com a frase completa. */}
-      <View
-        testID="exame"
-        accessible
-        accessibilityLabel={describeExamForReader(exam, appliedBy)}
-        style={styles.exam}>
-        <View style={styles.examWhen}>
-          <Text style={styles.examDate}>{when}</Text>
-          <Text style={styles.examBy}>Aplicado por {appliedBy}</Text>
+      {/* A parte do exame é um só item para o leitor de tela, com a frase completa. O
+          exame com os três desenhos vira botão e abre o resultado (#14). O botão de
+          marcar fica fora dela (#58). */}
+      {exam.hasResult ? (
+        <Pressable
+          testID="exame"
+          accessibilityRole="button"
+          accessibilityLabel={describeExamForReader(exam, appliedBy)}
+          accessibilityHint="Abre o resultado do exame"
+          onPress={() =>
+            router.push({ pathname: '/resultado/[id]', params: { id: String(exam.id) } })
+          }
+          style={({ pressed }) => [styles.exam, pressed && styles.pressed]}>
+          {conteudo}
+        </Pressable>
+      ) : (
+        <View
+          testID="exame"
+          accessible
+          accessibilityLabel={describeExamForReader(exam, appliedBy)}
+          style={styles.exam}>
+          {conteudo}
         </View>
-        <View style={styles.examChips}>
-          <ExamStatusChip tone={exam.tone} label={exam.label} />
-          {exam.marking && (
-            <View testID="marcacao" style={styles.markingChip}>
-              <Text style={styles.markingText}>{ROTULO_MARCACAO[exam.marking]}</Text>
-            </View>
-          )}
-        </View>
-      </View>
+      )}
       {canMark && (
         <Pressable
           accessibilityRole="button"
