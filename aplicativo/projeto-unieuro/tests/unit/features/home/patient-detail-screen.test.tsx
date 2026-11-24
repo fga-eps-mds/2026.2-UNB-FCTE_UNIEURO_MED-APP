@@ -5,11 +5,13 @@ import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { EXAME_JA_MARCADO } from '@/features/avaliacao/marcacao';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
 import { toPatientDetail, type PatientDetail } from '@/features/home/patient-detail';
 import PatientDetailScreen, {
   LOADING_MESSAGE,
   LOAD_FAILED_MESSAGE,
   NOT_FOUND_MESSAGE,
+  savedFileMessage,
   type ExamMarking,
 } from '@/features/home/patient-detail-screen';
 
@@ -60,6 +62,7 @@ function renderTela(
   estado: Estado = {},
   sessao: SessionProfessional | null = profissional,
   marking?: ExamMarking,
+  exportPatient?: jest.Mock,
 ) {
   const { patient = jose, loading = false, loadFailed = false, notFound = false } = estado;
   return render(
@@ -71,6 +74,7 @@ function renderTela(
         notFound={notFound}
         today={HOJE}
         marking={marking}
+        exportPatient={exportPatient}
       />
     </SessionProvider>,
   );
@@ -490,5 +494,94 @@ describe('abrir o resultado do exame (#14)', () => {
 
     expect(interrompido.props.accessibilityRole).toBeUndefined();
     expect(screen.getAllByHintText('Abre o resultado do exame')).toHaveLength(1);
+  });
+});
+
+describe('exportar os exames do paciente (#22)', () => {
+  const BOTAO = { name: 'Exportar exames deste paciente (XML)' };
+  const SALVO: ResultadoExportacao = {
+    estado: 'salvo',
+    arquivo: 'exames_paciente_2026-11-13_0900.xml',
+    pacientes: 1,
+    exames: 2,
+  };
+  const pedirExportacao = async (exportPatient: jest.Mock = jest.fn(async () => SALVO)) => {
+    const user = userEvent.setup();
+    renderTela({}, profissional, undefined, exportPatient);
+    await user.press(screen.getByRole('button', BOTAO));
+    return { user, exportPatient };
+  };
+
+  it('mostra o botão e, ao tocar, só pede a confirmação: nada é exportado ainda', async () => {
+    const { exportPatient } = await pedirExportacao();
+
+    expect(screen.getByRole('header', { name: 'Exportar exames do paciente' })).toBeOnTheScreen();
+    expect(exportPatient).not.toHaveBeenCalled();
+  });
+
+  it('cancelar fecha a confirmação sem exportar', async () => {
+    const { user, exportPatient } = await pedirExportacao();
+
+    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('header', { name: 'Exportar exames do paciente' })).toBeNull();
+    expect(exportPatient).not.toHaveBeenCalled();
+  });
+
+  it('salvar exporta o paciente aberto, para o profissional autenticado, e avisa o arquivo', async () => {
+    const { user, exportPatient } = await pedirExportacao();
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+    expect(exportPatient).toHaveBeenCalledTimes(1);
+    expect(exportPatient).toHaveBeenCalledWith(
+      expect.objectContaining({ id: profissional.id, email: profissional.email }),
+      jose.id,
+    );
+    expect(screen.queryByRole('header', { name: 'Exportar exames do paciente' })).toBeNull();
+    expect(await screen.findByText(savedFileMessage(SALVO.arquivo))).toBeOnTheScreen();
+  });
+
+  it('desistir do seletor de pastas mantém a confirmação aberta, sem aviso de arquivo', async () => {
+    const { user } = await pedirExportacao(jest.fn(async () => ({ estado: 'cancelado' as const })));
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+    expect(screen.getByRole('header', { name: 'Exportar exames do paciente' })).toBeOnTheScreen();
+    expect(screen.queryByText(/^Arquivo salvo/)).toBeNull();
+  });
+
+  it('falha ao salvar mostra o erro e deixa tentar de novo', async () => {
+    const { user } = await pedirExportacao(
+      jest.fn().mockRejectedValueOnce(new Error('sem espaço')).mockResolvedValueOnce(SALVO),
+    );
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+    expect(
+      await screen.findByText('Não foi possível salvar o arquivo. Tente de novo.'),
+    ).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+    expect(await screen.findByText(savedFileMessage(SALVO.arquivo))).toBeOnTheScreen();
+  });
+
+  it('sem a exportação ligada, o botão fica desabilitado', () => {
+    renderTela();
+
+    expect(screen.getByRole('button', BOTAO)).toBeDisabled();
+  });
+
+  it('sem exames, o botão fica desabilitado', () => {
+    renderTela({ patient: { ...jose, exams: [] } }, profissional, undefined, jest.fn());
+
+    expect(screen.getByRole('button', BOTAO)).toBeDisabled();
+  });
+
+  it('sem sessão, volta ao login e não mostra o botão nem exporta', () => {
+    const exportPatient = jest.fn();
+    renderTela({}, null, undefined, exportPatient);
+
+    expect(screen.queryByRole('button', BOTAO)).toBeNull();
+    expect(exportPatient).not.toHaveBeenCalled();
   });
 });

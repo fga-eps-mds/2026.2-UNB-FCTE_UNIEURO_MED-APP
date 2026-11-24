@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 
 import { markExam, unmarkExam } from '@/features/avaliacao/composition';
+import { exportarExamesDoPaciente } from '@/features/exportacao/composition';
 
 import { patientDetailRepository } from '@/features/home/composition';
 import PatientDetailScreen from '@/features/home/patient-detail-screen';
@@ -29,6 +30,7 @@ export default function PatientRoute() {
       loadFailed={loadFailed}
       notFound={notFound}
       marking={marking}
+      exportPatient={exportarExamesDoPaciente}
     />
   );
 }

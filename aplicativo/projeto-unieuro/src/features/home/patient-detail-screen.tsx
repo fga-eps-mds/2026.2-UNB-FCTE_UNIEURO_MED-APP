@@ -22,6 +22,8 @@ import {
   type ResultadoMarcacao,
   type TipoMarcacao,
 } from '@/features/avaliacao/marcacao';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
+import { ExportarPacienteDialog } from '@/features/exportacao/exportar-paciente-dialog';
 import ExamStatusChip from '@/features/home/exam-status-chip';
 import { createHomeStyles, WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { MarcarExameDialog, type MarcacaoPedida } from '@/features/home/marcar-exame-dialog';
@@ -55,6 +57,14 @@ type PatientDetailScreenProps = {
   today?: Date;
   /** Marcação do exame como teste ou ensino (#58). Sem ela, a tela não oferece o botão. */
   marking?: ExamMarking;
+  /**
+   * Exporta em XML os exames que `professional` aplicou em `patientId` (#22). Sem ela,
+   * o botão fica desabilitado. Só é chamada depois que o profissional confirma.
+   */
+  exportPatient?: (
+    professional: SessionProfessional,
+    patientId: number,
+  ) => Promise<ResultadoExportacao>;
 };
 
 /** Gravação da marcação, ligada ao banco pela rota, e a releitura depois dela (#58). */
@@ -76,6 +86,8 @@ export type ExamMarking = {
 
 type MarkingRequest = { exam: PatientExam; request: MarcacaoPedida };
 
+export const savedFileMessage = (arquivo: string) => `Arquivo salvo: ${arquivo}.`;
+
 export const LOADING_MESSAGE = 'Carregando os dados do paciente.';
 
 export const NOT_FOUND_MESSAGE = 'Paciente não encontrado entre os seus pacientes.';
@@ -85,8 +97,8 @@ export const LOAD_FAILED_MESSAGE =
 
 /**
  * Tela do paciente (#59): os dados dele e os exames que o profissional aplicou,
- * do mais recente para o mais antigo. A exportação só dos exames do paciente
- * entra com a #22.
+ * do mais recente para o mais antigo. O botão "Exportar exames (XML)" (#22) gera,
+ * a pedido do profissional e só no tablet, o arquivo dos exames deste paciente.
  */
 export default function PatientDetailScreen({
   patient,
@@ -95,6 +107,7 @@ export default function PatientDetailScreen({
   notFound = false,
   today,
   marking,
+  exportPatient,
 }: PatientDetailScreenProps) {
   const router = useRouter();
   const { professional } = useSession();
@@ -103,6 +116,8 @@ export default function PatientDetailScreen({
   const styles = useMemo(() => createPatientDetailStyles(theme), [theme]);
   const isWide = useWindowDimensions().width >= WIDE_LAYOUT_MIN_WIDTH;
   const [markingRequest, setMarkingRequest] = useState<MarkingRequest | null>(null);
+  const [confirmingExport, setConfirmingExport] = useState(false);
+  const [savedFile, setSavedFile] = useState<string | null>(null);
 
   // Como nas outras telas do profissional: sem sessão, volta ao login.
   useEffect(() => {
@@ -134,6 +149,31 @@ export default function PatientDetailScreen({
         {patient ? (
           <>
             <PatientCard patient={patient} today={today} styles={styles} />
+            <View style={styles.exportRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Exportar exames deste paciente (XML)"
+                accessibilityState={{ disabled: !exportPatient || patient.exams.length === 0 }}
+                disabled={!exportPatient || patient.exams.length === 0}
+                onPress={() => {
+                  setSavedFile(null);
+                  setConfirmingExport(true);
+                }}
+                style={({ pressed }) => [
+                  home.outlineButton,
+                  (!exportPatient || patient.exams.length === 0) && home.disabledButton,
+                  pressed && home.pressed,
+                ]}>
+                <Text
+                  style={[
+                    home.outlineButtonText,
+                    (!exportPatient || patient.exams.length === 0) && home.disabledButtonText,
+                  ]}>
+                  Exportar exames (XML)
+                </Text>
+              </Pressable>
+            </View>
+            {savedFile && <FeedbackMessage kind="success" message={savedFileMessage(savedFile)} />}
             <ExamsCard
               exams={patient.exams}
               professional={professional}
@@ -155,6 +195,18 @@ export default function PatientDetailScreen({
           </View>
         ) : null}
       </ScrollView>
+
+      {patient && exportPatient && (
+        <ExportarPacienteDialog
+          visible={confirmingExport}
+          exportar={() => exportPatient(professional, patient.id)}
+          onCancelar={() => setConfirmingExport(false)}
+          onSalvo={(arquivo) => {
+            setConfirmingExport(false);
+            setSavedFile(arquivo);
+          }}
+        />
+      )}
 
       {marking && markingRequest && (
         <MarcarExameDialog

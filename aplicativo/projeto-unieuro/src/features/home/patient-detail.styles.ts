@@ -17,6 +17,7 @@ export function createPatientDetailStyles(theme: ThemeColors) {
 
   return StyleSheet.create({
     content: { gap: 24, padding: 24 },
+    exportRow: { flexDirection: 'row', justifyContent: 'flex-end' },
     contentWide: { paddingHorizontal: 40, paddingTop: 32 },
     card: { gap: 20, padding: 32, borderRadius: 24, backgroundColor: theme.surface },
     patientName: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 34, lineHeight: 42 },
