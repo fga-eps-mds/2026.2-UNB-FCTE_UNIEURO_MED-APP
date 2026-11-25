@@ -26,6 +26,7 @@ const paciente = (id: number, exames: number): PacienteExportado => ({
     inicio: '2026-10-06T12:00:00.000Z',
     estado: 'aguardando_consentimento',
     termo: null,
+    marcacao: null,
     tarefas: [],
   })),
 });

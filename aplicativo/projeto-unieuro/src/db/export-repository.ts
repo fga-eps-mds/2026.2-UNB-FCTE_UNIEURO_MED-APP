@@ -23,6 +23,10 @@ type ExameRow = {
   termo_data_hora: string | null;
   autoriza_imagens_pesquisa: number | null;
   autoriza_dados_pesquisa_futura: number | null;
+  marcacao: 'teste' | 'ensino' | null;
+  marcado_em: string | null;
+  marcado_crm: string | null;
+  marcado_uf: string | null;
 };
 
 type TarefaRow = {
@@ -52,22 +56,31 @@ type EventoRow = {
 };
 
 // Os três SELECTs usam o mesmo filtro: só os exames do profissional e, se houver,
-// só os do paciente pedido.
+// só os do paciente pedido. Exame excluído (#127) não sai no arquivo: a exclusão é
+// lógica, e a linha continua no banco com `excluido_em` preenchido.
+// A marcação como teste ou material de ensino (#58) não esconde o exame: `excluido_em`
+// fica vazio e o exame sai no arquivo, com a marcação. Quem remover `excluido_em` (#47)
+// deve tirar este filtro junto.
 const filtro = (pacienteId?: number) =>
   pacienteId === undefined
-    ? { sql: 'a.id_profissional = ?', params: (id: number): SQLiteBindValue[] => [id] }
+    ? {
+        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL',
+        params: (id: number): SQLiteBindValue[] => [id],
+      }
     : {
-        sql: 'a.id_profissional = ? AND a.id_paciente = ?',
+        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL AND a.id_paciente = ?',
         params: (id: number): SQLiteBindValue[] => [id, pacienteId],
       };
 
 const SELECT_EXAMES = `SELECT a.id, a.data_hora_inicio, a.estado,
     p.id AS paciente_id, p.data_nascimento, p.escolaridade_anos, p.sexo,
     c.versao_tcle, c.aceito, c.assinado_por, c.data_hora AS termo_data_hora,
-    c.autoriza_imagens_pesquisa, c.autoriza_dados_pesquisa_futura
+    c.autoriza_imagens_pesquisa, c.autoriza_dados_pesquisa_futura,
+    a.marcacao, a.marcado_em, m.crm_numero AS marcado_crm, m.uf_crm AS marcado_uf
   FROM avaliacao a
   JOIN paciente p ON p.id = a.id_paciente
-  LEFT JOIN consentimento c ON c.id_avaliacao = a.id`;
+  LEFT JOIN consentimento c ON c.id_avaliacao = a.id
+  LEFT JOIN profissional m ON m.id = a.marcado_por`;
 
 const SELECT_TAREFAS = `SELECT t.id, t.id_avaliacao, t.tipo, t.ordem, t.largura, t.altura,
     t.data_hora_inicio, t.data_hora_termino, d.imagem_final, d.data_hora_confirmacao
@@ -120,6 +133,15 @@ function paraExame(row: ExameRow, tarefas: TarefaExportada[]): ExameExportado {
             dataHora: row.termo_data_hora!,
             autorizaImagens: booleano(row.autoriza_imagens_pesquisa),
             autorizaPesquisaFutura: booleano(row.autoriza_dados_pesquisa_futura),
+          },
+    marcacao:
+      row.marcacao === null
+        ? null
+        : {
+            tipo: row.marcacao,
+            marcadaEm: row.marcado_em!,
+            crmNumero: row.marcado_crm!,
+            crmUf: row.marcado_uf!,
           },
     tarefas,
   };
