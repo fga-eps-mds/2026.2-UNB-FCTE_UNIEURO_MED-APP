@@ -11,6 +11,7 @@ import PatientDetailScreen, {
   LOADING_MESSAGE,
   LOAD_FAILED_MESSAGE,
   NOT_FOUND_MESSAGE,
+  NO_OWN_EXAMS_MESSAGE,
   savedFileMessage,
   type ExamMarking,
 } from '@/features/home/patient-detail-screen';
@@ -575,6 +576,43 @@ describe('exportar os exames do paciente (#22)', () => {
     renderTela({ patient: { ...jose, exams: [] } }, profissional, undefined, jest.fn());
 
     expect(screen.getByRole('button', BOTAO)).toBeDisabled();
+  });
+
+  it('o aviso de arquivo salvo sai sem ponto final, como na tela inicial', async () => {
+    const { user } = await pedirExportacao();
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+    expect(await screen.findByText(`Arquivo salvo: ${SALVO.arquivo}`)).toBeOnTheScreen();
+  });
+
+  it('com exame próprio, o botão fica habilitado e não mostra o aviso de exame alheio', () => {
+    renderTela({}, profissional, undefined, jest.fn());
+
+    expect(screen.getByRole('button', BOTAO)).toBeEnabled();
+    expect(screen.queryByText(NO_OWN_EXAMS_MESSAGE)).toBeNull();
+  });
+
+  it('superusuário diante de paciente só de outro médico: botão desabilitado e explica por quê', () => {
+    const superusuario: SessionProfessional = {
+      ...profissional,
+      id: 99,
+      email: 'pesquisa@unieuro.com.br',
+    };
+    renderTela({}, superusuario, undefined, jest.fn());
+
+    expect(screen.getByRole('button', BOTAO)).toBeDisabled();
+    expect(screen.getByText(NO_OWN_EXAMS_MESSAGE)).toBeOnTheScreen();
+  });
+
+  it('quando só alguns exames são do profissional, o botão fica habilitado', () => {
+    const misto: PatientDetail = {
+      ...jose,
+      exams: jose.exams.map((exam, i) => (i === 0 ? { ...exam, professionalId: 99 } : exam)),
+    };
+    renderTela({ patient: misto }, profissional, undefined, jest.fn());
+
+    expect(screen.getByRole('button', BOTAO)).toBeEnabled();
   });
 
   it('sem sessão, volta ao login e não mostra o botão nem exporta', () => {

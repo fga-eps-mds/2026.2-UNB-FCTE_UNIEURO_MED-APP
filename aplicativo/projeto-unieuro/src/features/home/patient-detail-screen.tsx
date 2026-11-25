@@ -86,7 +86,9 @@ export type ExamMarking = {
 
 type MarkingRequest = { exam: PatientExam; request: MarcacaoPedida };
 
-export const savedFileMessage = (arquivo: string) => `Arquivo salvo: ${arquivo}.`;
+export const savedFileMessage = (arquivo: string) => `Arquivo salvo: ${arquivo}`;
+
+export const NO_OWN_EXAMS_MESSAGE = 'Você não aplicou exames neste paciente.';
 
 export const LOADING_MESSAGE = 'Carregando os dados do paciente.';
 
@@ -126,6 +128,11 @@ export default function PatientDetailScreen({
 
   if (!professional) return null;
 
+  // O arquivo leva só os exames que o profissional aplicou (#22). O superusuário vê os de
+  // outros médicos na tela, mas só exporta os próprios.
+  const hasOwnExams = patient?.exams.some((exam) => canMarkExam(exam, professional.id)) ?? false;
+  const exportDisabled = !exportPatient || !hasOwnExams;
+
   return (
     <SafeAreaView style={home.safeArea}>
       <View style={[home.topBar, isWide && home.topBarWide]}>
@@ -150,25 +157,24 @@ export default function PatientDetailScreen({
           <>
             <PatientCard patient={patient} today={today} styles={styles} />
             <View style={styles.exportRow}>
+              {patient.exams.length > 0 && !hasOwnExams && (
+                <Text style={styles.examsSummary}>{NO_OWN_EXAMS_MESSAGE}</Text>
+              )}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Exportar exames deste paciente (XML)"
-                accessibilityState={{ disabled: !exportPatient || patient.exams.length === 0 }}
-                disabled={!exportPatient || patient.exams.length === 0}
+                accessibilityState={{ disabled: exportDisabled }}
+                disabled={exportDisabled}
                 onPress={() => {
                   setSavedFile(null);
                   setConfirmingExport(true);
                 }}
                 style={({ pressed }) => [
                   home.outlineButton,
-                  (!exportPatient || patient.exams.length === 0) && home.disabledButton,
+                  exportDisabled && home.disabledButton,
                   pressed && home.pressed,
                 ]}>
-                <Text
-                  style={[
-                    home.outlineButtonText,
-                    (!exportPatient || patient.exams.length === 0) && home.disabledButtonText,
-                  ]}>
+                <Text style={[home.outlineButtonText, exportDisabled && home.disabledButtonText]}>
                   Exportar exames (XML)
                 </Text>
               </Pressable>
