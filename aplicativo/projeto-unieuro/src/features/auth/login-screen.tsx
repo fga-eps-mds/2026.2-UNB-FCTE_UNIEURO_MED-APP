@@ -222,12 +222,7 @@ export default function LoginScreen({ repository }: LoginScreenProps) {
               <View style={styles.actions}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() =>
-                    setFeedback({
-                      kind: 'info',
-                      message: 'A recuperação de senha ainda não está disponível.',
-                    })
-                  }
+                  onPress={() => router.push('/recover-password')}
                   style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
                   <Text style={styles.actionText}>ESQUECI MINHA SENHA</Text>
                 </Pressable>
