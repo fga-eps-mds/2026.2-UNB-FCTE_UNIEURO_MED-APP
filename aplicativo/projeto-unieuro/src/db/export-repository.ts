@@ -61,16 +61,22 @@ type EventoRow = {
 // A marcação como teste ou material de ensino (#58) não esconde o exame: `excluido_em`
 // fica vazio e o exame sai no arquivo, com a marcação. Quem remover `excluido_em` (#47)
 // deve tirar este filtro junto.
-const filtro = (pacienteId?: number) =>
-  pacienteId === undefined
-    ? {
-        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL',
-        params: (id: number): SQLiteBindValue[] => [id],
-      }
-    : {
-        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL AND a.id_paciente = ?',
-        params: (id: number): SQLiteBindValue[] => [id, pacienteId],
-      };
+const filtro = (pacienteId?: number, exameId?: number) => {
+  const condicoes = ['a.id_profissional = ?', 'a.excluido_em IS NULL'];
+  const extras: SQLiteBindValue[] = [];
+  if (pacienteId !== undefined) {
+    condicoes.push('a.id_paciente = ?');
+    extras.push(pacienteId);
+  }
+  if (exameId !== undefined) {
+    condicoes.push('a.id = ?');
+    extras.push(exameId);
+  }
+  return {
+    sql: condicoes.join(' AND '),
+    params: (id: number): SQLiteBindValue[] => [id, ...extras],
+  };
+};
 
 const SELECT_EXAMES = `SELECT a.id, a.data_hora_inicio, a.estado,
     p.id AS paciente_id, p.data_nascimento, p.escolaridade_anos, p.sexo,
@@ -156,9 +162,9 @@ export function createExportRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
 ): ExportacaoRepository {
   return {
-    async lerExames(profissionalId, pacienteId) {
+    async lerExames(profissionalId, pacienteId, exameId) {
       const database = await open();
-      const { sql, params } = filtro(pacienteId);
+      const { sql, params } = filtro(pacienteId, exameId);
       const valores = params(profissionalId);
 
       const exames = await database.getAllAsync<ExameRow>(
