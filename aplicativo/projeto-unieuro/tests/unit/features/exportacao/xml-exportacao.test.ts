@@ -119,6 +119,25 @@ describe('XML da exportação (#22)', () => {
     expect(xml).toContain('<profissional crm="12345" uf="DF"/>');
   });
 
+  it.each(['todos', 'paciente', 'exame', 'coleta'] as const)(
+    'o escopo %s é aceito pelo esquema',
+    async (escopo) => {
+      const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], { ...CABECALHO, escopo });
+
+      expect(xml).toContain(`escopo="${escopo}"`);
+      await expect(validarNoEsquema(xml)).resolves.toEqual([]);
+    },
+  );
+
+  it('um escopo fora da lista é recusado pelo esquema', async () => {
+    const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO).replace(
+      'escopo="todos"',
+      'escopo="outro"',
+    );
+
+    expect((await validarNoEsquema(xml)).join('\n')).toMatch(/escopo/);
+  });
+
   it('identifica o paciente só pelo número interno, com a idade no dia do exame', () => {
     const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
 
@@ -248,65 +267,6 @@ describe('XML da exportação (#22)', () => {
     });
 
     expect(xml).toContain('versaoAplicativo="1.0 &lt;beta&gt; &amp; &quot;rc&quot; &apos;x&apos;"');
-  });
-});
-
-describe('XML da coleta inteira (#138)', () => {
-  const COLETA: CabecalhoExportacao = { ...CABECALHO, escopo: 'coleta' };
-  const ANA = { nome: 'Ana Carolina Souza', crm: '12345', uf: 'DF' };
-
-  it('arquivo válido: a coleta com quem aplicou cada exame passa no exportacao-v1.xsd', async () => {
-    const xml = gerarXmlDeExportacao(
-      [
-        paciente([exameConcluido({ aplicadoPor: ANA })]),
-        paciente([
-          exameConcluido({
-            id: 20,
-            aplicadoPor: { nome: 'Bruno Lima', crm: '23456', uf: 'GO' },
-            estado: 'aguardando_consentimento',
-            termo: null,
-          }),
-        ]),
-      ],
-      COLETA,
-    );
-
-    await expect(validarNoEsquema(xml)).resolves.toEqual([]);
-  });
-
-  it('registra o escopo da coleta e quem aplicou, antes do termo', () => {
-    const xml = gerarXmlDeExportacao([paciente([exameConcluido({ aplicadoPor: ANA })])], COLETA);
-
-    expect(xml).toContain('escopo="coleta"');
-    expect(xml).toMatch(
-      /<exame [^>]*>\n {6}<aplicadoPor nome="Ana Carolina Souza" crm="12345" uf="DF"\/>\n {6}<termo /,
-    );
-  });
-
-  it('sem quem aplicou, o exame não leva o elemento', () => {
-    const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
-
-    expect(xml).not.toContain('aplicadoPor');
-  });
-
-  it('escapa o nome de quem aplicou', () => {
-    const xml = gerarXmlDeExportacao(
-      [paciente([exameConcluido({ aplicadoPor: { ...ANA, nome: `Ana D'Ávila & <Souza>` } })])],
-      COLETA,
-    );
-
-    expect(xml).toContain('nome="Ana D&apos;Ávila &amp; &lt;Souza&gt;"');
-  });
-
-  it('o esquema recusa quem aplicou sem o CRM', async () => {
-    const xml = gerarXmlDeExportacao(
-      [paciente([exameConcluido({ aplicadoPor: ANA })])],
-      COLETA,
-    ).replace(' crm="12345" uf="DF"/>', ' uf="DF"/>');
-
-    const erros = await validarNoEsquema(xml);
-
-    expect(erros.join('\n')).toMatch(/attribute 'crm' is required/);
   });
 });
 

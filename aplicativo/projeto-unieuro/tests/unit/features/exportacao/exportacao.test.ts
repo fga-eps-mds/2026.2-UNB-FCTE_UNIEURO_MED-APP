@@ -48,7 +48,7 @@ describe('exportarExames (#22)', () => {
       salvar,
     );
 
-    expect(repository.lerExames).toHaveBeenCalledWith(7, undefined);
+    expect(repository.lerExames).toHaveBeenCalledWith(7, undefined, undefined);
     expect(repository.lerExamesDeTodos).not.toHaveBeenCalled();
     expect(resultado).toEqual({
       estado: 'salvo',
@@ -73,11 +73,50 @@ describe('exportarExames (#22)', () => {
       salvar,
     );
 
-    expect(repository.lerExames).toHaveBeenCalledWith(7, 3);
+    expect(repository.lerExames).toHaveBeenCalledWith(7, 3, undefined);
     expect(resultado).toMatchObject({ arquivo: 'exames_paciente_2026-11-12_1405.xml' });
     expect(salvar).toHaveBeenCalledWith(
       'exames_paciente_2026-11-12_1405.xml',
       expect.stringContaining('escopo="paciente"'),
+    );
+  });
+
+  it('exportar um exame solo: lê só esse exame, com escopo exame e o número dele no nome', async () => {
+    const repository = repositorio([paciente(1, 1)]);
+    const salvar = jest.fn(async () => true);
+
+    const resultado = await exportarExames(
+      { profissional: ana, exameId: 10, agora: AGORA, versaoAplicativo: '1.4.0' },
+      repository,
+      salvar,
+    );
+
+    expect(repository.lerExames).toHaveBeenCalledWith(7, undefined, 10);
+    expect(resultado).toEqual({
+      estado: 'salvo',
+      arquivo: 'exame_10_2026-11-12_1405.xml',
+      pacientes: 1,
+      exames: 1,
+    });
+    expect(salvar).toHaveBeenCalledWith(
+      'exame_10_2026-11-12_1405.xml',
+      expect.stringContaining('escopo="exame"'),
+    );
+  });
+
+  it('com paciente e exame no mesmo pedido, o exame específico vence', async () => {
+    const repository = repositorio([paciente(1, 1)]);
+    const salvar = jest.fn(async () => true);
+
+    await exportarExames(
+      { profissional: ana, pacienteId: 1, exameId: 10, agora: AGORA, versaoAplicativo: '1.4.0' },
+      repository,
+      salvar,
+    );
+
+    expect(salvar).toHaveBeenCalledWith(
+      'exame_10_2026-11-12_1405.xml',
+      expect.stringContaining('escopo="exame"'),
     );
   });
 
@@ -141,7 +180,7 @@ describe('exportarExames da coleta inteira (#138)', () => {
       jest.fn(async () => true),
     );
 
-    expect(repository.lerExames).toHaveBeenCalledWith(7, undefined);
+    expect(repository.lerExames).toHaveBeenCalledWith(7, undefined, undefined);
     expect(repository.lerExamesDeTodos).not.toHaveBeenCalled();
   });
 
@@ -154,8 +193,27 @@ describe('exportarExames da coleta inteira (#138)', () => {
       jest.fn(async () => true),
     );
 
-    expect(repository.lerExames).toHaveBeenCalledWith(1, 3);
+    expect(repository.lerExames).toHaveBeenCalledWith(1, 3, undefined);
+    expect(repository.lerExamesDeTodos).not.toHaveBeenCalled();
     expect(resultado).toMatchObject({ arquivo: 'exames_paciente_2026-11-12_1405.xml' });
+  });
+
+  it('com um exame aberto, o responsável exporta só aquele exame, e não a coleta', async () => {
+    const repository = repositorio([paciente(1, 1)]);
+    const salvar = jest.fn(async () => true);
+
+    await exportarExames(
+      { profissional: responsavel, exameId: 10, agora: AGORA, versaoAplicativo: '1.4.0' },
+      repository,
+      salvar,
+    );
+
+    expect(repository.lerExames).toHaveBeenCalledWith(1, undefined, 10);
+    expect(repository.lerExamesDeTodos).not.toHaveBeenCalled();
+    expect(salvar).toHaveBeenCalledWith(
+      'exame_10_2026-11-12_1405.xml',
+      expect.stringContaining('escopo="exame"'),
+    );
   });
 
   it('coleta sem exame não gera arquivo', async () => {
@@ -175,5 +233,26 @@ describe('exportarExames da coleta inteira (#138)', () => {
 describe('nomeDoArquivo', () => {
   it('usa a data e a hora locais com dois dígitos', () => {
     expect(nomeDoArquivo(new Date(2026, 0, 5, 9, 3), 'todos')).toBe('exames_2026-01-05_0903.xml');
+  });
+
+  it('no escopo exame, leva o número do exame para não repetir o nome no mesmo minuto', () => {
+    const agora = new Date(2026, 0, 5, 9, 3);
+
+    expect(nomeDoArquivo(agora, 'exame', 7)).toBe('exame_7_2026-01-05_0903.xml');
+    expect(nomeDoArquivo(agora, 'exame', 8)).not.toBe(nomeDoArquivo(agora, 'exame', 7));
+  });
+
+  it('no escopo exame, sem o número, usa só o prefixo exame_', () => {
+    expect(nomeDoArquivo(new Date(2026, 0, 5, 9, 3), 'exame')).toBe('exame_2026-01-05_0903.xml');
+  });
+
+  it('usa o prefixo coleta_ no escopo coleta', () => {
+    expect(nomeDoArquivo(new Date(2026, 0, 5, 9, 3), 'coleta')).toBe('coleta_2026-01-05_0903.xml');
+  });
+
+  it('usa o prefixo exames_paciente_ no escopo paciente', () => {
+    expect(nomeDoArquivo(new Date(2026, 0, 5, 9, 3), 'paciente')).toBe(
+      'exames_paciente_2026-01-05_0903.xml',
+    );
   });
 });

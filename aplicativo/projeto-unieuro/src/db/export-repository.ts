@@ -65,14 +65,22 @@ type Filtro = { sql: string; params: SQLiteBindValue[] };
 // como teste ou material de ensino (#58) não esconde o exame: ele sai com a marcação.
 const NAO_EXCLUIDO = 'a.excluido_em IS NULL';
 
-// Só os exames do profissional e, se houver, só os do paciente pedido.
-const doProfissional = (profissionalId: number, pacienteId?: number): Filtro =>
-  pacienteId === undefined
-    ? { sql: `${NAO_EXCLUIDO} AND a.id_profissional = ?`, params: [profissionalId] }
-    : {
-        sql: `${NAO_EXCLUIDO} AND a.id_profissional = ? AND a.id_paciente = ?`,
-        params: [profissionalId, pacienteId],
-      };
+// Só os exames do profissional e, se houver, só os do paciente e/ou do exame pedido.
+// O exame é pedido pela tela de resultado (#22): o filtro do profissional continua
+// valendo, então o exame de outro médico não sai, mesmo pedindo pelo número.
+function doProfissional(profissionalId: number, pacienteId?: number, exameId?: number): Filtro {
+  const condicoes = [NAO_EXCLUIDO, 'a.id_profissional = ?'];
+  const params: SQLiteBindValue[] = [profissionalId];
+  if (pacienteId !== undefined) {
+    condicoes.push('a.id_paciente = ?');
+    params.push(pacienteId);
+  }
+  if (exameId !== undefined) {
+    condicoes.push('a.id = ?');
+    params.push(exameId);
+  }
+  return { sql: condicoes.join(' AND '), params };
+}
 
 // Os exames de todos os profissionais (#138), com a mesma trava das consultas de
 // todos (#129): para quem não é superusuário ativo, nenhuma linha, por qualquer
@@ -238,8 +246,8 @@ export function createExportRepository(
   }
 
   return {
-    lerExames: (profissionalId, pacienteId) =>
-      ler(doProfissional(profissionalId, pacienteId), false),
+    lerExames: (profissionalId, pacienteId, exameId) =>
+      ler(doProfissional(profissionalId, pacienteId, exameId), false),
     lerExamesDeTodos: (solicitanteId) => ler(deTodos(solicitanteId), true),
   };
 }

@@ -15,6 +15,7 @@ const ana: SessionProfessional = {
 
 const exame: ExameComDesenhos = {
   id: 12,
+  professionalId: 7,
   startedAt: '2026-11-03T14:00:00.000Z',
   state: 'concluida',
   patientName: 'José Alves Martins',

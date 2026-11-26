@@ -21,3 +21,6 @@ export const exportarTodosOsExames = (profissional: SessionProfessional) =>
  */
 export const exportarExamesDoPaciente = (profissional: SessionProfessional, pacienteId: number) =>
   exportarExames({ ...pedido(profissional), pacienteId }, exportRepository, salvarArquivoXml);
+
+export const exportarExame = (profissional: SessionProfessional, exameId: number) =>
+  exportarExames({ ...pedido(profissional), exameId }, exportRepository, salvarArquivoXml);

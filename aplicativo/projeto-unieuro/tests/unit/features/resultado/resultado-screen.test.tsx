@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { montarResultado, type ExameComDesenhos } from '@/features/resultado/resultado';
+import { FALHA_AO_EXPORTAR } from '@/features/exportacao/exportar-xml-dialog';
 import ResultadoScreen, {
   CARREGANDO,
   FALHA_AO_CARREGAR,
@@ -26,6 +27,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
 
 const exame = (drawings: ExameComDesenhos['drawings']): ExameComDesenhos => ({
   id: 12,
+  professionalId: 7,
   startedAt: '2026-11-03T14:00:00',
   state: 'concluida',
   patientName: 'José Alves Martins',
@@ -163,5 +165,67 @@ describe('navegação e acesso', () => {
       screen.UNSAFE_getByType(ScrollView).props.contentContainerStyle,
     );
     expect(conteudo.paddingHorizontal).toBe(40);
+  });
+});
+
+describe('exportar XML do exame (#22)', () => {
+  it('mostra o botão para quem aplicou e exporta o exame após confirmar', async () => {
+    const exportExam = jest.fn(async () => ({
+      estado: 'salvo' as const,
+      arquivo: 'exame_12_2026-11-12_1430.xml',
+      pacientes: 1,
+      exames: 1,
+    }));
+    renderizar({ exportExam });
+
+    const user = userEvent.setup();
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
+    expect(screen.getByRole('header', { name: 'Exportar este exame' })).toBeOnTheScreen();
+
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+    expect(exportExam).toHaveBeenCalledWith(expect.objectContaining(ana), 12);
+    expect(
+      await screen.findByText('Arquivo salvo: exame_12_2026-11-12_1430.xml'),
+    ).toBeOnTheScreen();
+  });
+
+  it('se o profissional desiste da pasta, o diálogo continua aberto e nada é salvo', async () => {
+    const exportExam = jest.fn(async () => ({ estado: 'cancelado' as const }));
+    renderizar({ exportExam });
+
+    const user = userEvent.setup();
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+    expect(exportExam).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('header', { name: 'Exportar este exame' })).toBeOnTheScreen();
+    expect(screen.queryByText(/Arquivo salvo/)).toBeNull();
+  });
+
+  it('se salvar falhar, mostra o erro e mantém o diálogo para tentar de novo', async () => {
+    const exportExam = jest.fn(async () => {
+      throw new Error('disco cheio');
+    });
+    renderizar({ exportExam });
+
+    const user = userEvent.setup();
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
+    await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
+
+    expect(await screen.findByText(FALHA_AO_EXPORTAR)).toBeOnTheScreen();
+    expect(screen.queryByText(/Arquivo salvo/)).toBeNull();
+  });
+
+  it('não mostra o botão quando outro profissional (ex.: superusuário) abre o exame', () => {
+    const superusuario: SessionProfessional = {
+      id: 99,
+      name: 'Carlos Bernardo Tauil',
+      email: 'carlos@neurosinapse.med.br',
+      crmNumber: '12771',
+      crmState: 'DF',
+      superuser: true,
+    };
+    renderizar({ exportExam: jest.fn() }, superusuario);
+    expect(screen.queryByRole('button', { name: 'Exportar exame (XML)' })).toBeNull();
   });
 });

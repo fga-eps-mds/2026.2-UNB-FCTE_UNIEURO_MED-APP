@@ -1,6 +1,10 @@
 import { exportRepository } from '@/db/export-repository';
 import type { SessionProfessional } from '@/features/auth/session';
-import { exportarExamesDoPaciente, exportarTodosOsExames } from '@/features/exportacao/composition';
+import {
+  exportarExame,
+  exportarExamesDoPaciente,
+  exportarTodosOsExames,
+} from '@/features/exportacao/composition';
 import { exportarExames } from '@/features/exportacao/exportacao';
 import { salvarArquivoXml } from '@/features/exportacao/salvar-arquivo';
 
@@ -42,6 +46,19 @@ describe('composição da exportação', () => {
     expect(exportarExames).toHaveBeenCalledTimes(1);
     expect(exportarExames).toHaveBeenCalledWith(
       { profissional: ana, pacienteId: 42, agora: expect.any(Date), versaoAplicativo: '1.4.0' },
+      exportRepository,
+      salvarArquivoXml,
+    );
+  });
+
+  it('exportar um exame pede só ele, com o mesmo banco e o mesmo seletor de pastas', async () => {
+    jest.mocked(exportarExames).mockClear();
+
+    await exportarExame(ana, 99);
+
+    expect(exportarExames).toHaveBeenCalledTimes(1);
+    expect(exportarExames).toHaveBeenCalledWith(
+      { profissional: ana, exameId: 99, agora: expect.any(Date), versaoAplicativo: '1.4.0' },
       exportRepository,
       salvarArquivoXml,
     );

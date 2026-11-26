@@ -2,7 +2,12 @@ import { createExportRepository } from '@/db/export-repository';
 import { createMarkingRepository } from '@/db/marking-repository';
 
 import { PNG_DO_RELOGIO, gravarExamesParaExportar } from '../../test-support/exames-para-exportar';
-import { BRUNO, abrirTabletComAnaEBruno, type TabletComAnaEBruno } from '../../test-support/tablet';
+import {
+  BRUNO,
+  abrirTabletComAnaEBruno,
+  hashDaSenhaDeTeste,
+  type TabletComAnaEBruno,
+} from '../../test-support/tablet';
 
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
@@ -186,6 +191,44 @@ describe('createExportRepository', () => {
       const pacientes = await repository().lerExames(tablet.anaId);
 
       expect(pacientes.flatMap((p) => p.exames).map((exame) => exame.id)).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe('exportação de um exame específico (#22)', () => {
+    it('com o exame, lê só ele, mesmo que o paciente tenha outros exames', async () => {
+      const pacientes = await repository().lerExames(tablet.anaId, undefined, 1);
+      expect(pacientes).toHaveLength(1);
+      expect(pacientes[0].id).toBe(ids.jose.id);
+      expect(pacientes[0].exames.map((exame) => exame.id)).toEqual([1]);
+      expect(pacientes[0].exames[0].tarefas).toHaveLength(1);
+    });
+
+    it('o superusuário não lê o exame de outro médico por aqui: a exportação é só do que o profissional aplicou', async () => {
+      await tablet.repository.insertSuperuser(
+        {
+          name: 'Carlos Bernardo Tauil',
+          email: 'carlos.tauil@unieuro.com.br',
+          crmNumber: '12771',
+          crmState: 'DF',
+          cpf: '39053344705',
+          passwordHash: await hashDaSenhaDeTeste(),
+          createdAt: '2026-10-01T00:00:00.000Z',
+        },
+        null,
+      );
+      const carlos = (await tablet.repository.findByEmail('carlos.tauil@unieuro.com.br'))!;
+
+      await expect(repository().lerExames(carlos.id, undefined, 1)).resolves.toEqual([]);
+    });
+
+    it('não lê exame de outro profissional nem exame excluído', async () => {
+      // Exame 4 pertence ao Bruno na fixture gravarExamesParaExportar
+      await expect(repository().lerExames(tablet.anaId, undefined, 4)).resolves.toEqual([]);
+
+      await tablet.database.runAsync(
+        "UPDATE avaliacao SET excluido_em = '2026-11-01T10:00:00.000Z' WHERE id = 1",
+      );
+      await expect(repository().lerExames(tablet.anaId, undefined, 1)).resolves.toEqual([]);
     });
   });
 });
