@@ -46,8 +46,8 @@ export type LinhaConta = {
   crm: string;
   situacao: SituacaoConta;
   exames: number;
-  /** "Excluir conta" só aparece para médico com a conta ativa. */
-  podeExcluir: boolean;
+  /** "Desativar conta" só aparece para médico com a conta ativa. */
+  podeDesativar: boolean;
 };
 
 // Uma conta desativada aparece como desativada mesmo que seja de superusuário.
@@ -64,7 +64,7 @@ export function toLinhaConta(conta: ContaProfissional): LinhaConta {
     crm: formatCrm(conta),
     situacao: situacaoDa(conta),
     exames: conta.examCount,
-    podeExcluir: conta.active && !conta.superuser,
+    podeDesativar: conta.active && !conta.superuser,
   };
 }
 

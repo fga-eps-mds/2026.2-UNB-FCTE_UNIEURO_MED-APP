@@ -28,7 +28,7 @@ describe('linha da tabela de contas', () => {
       crm: '12345/DF',
       situacao: 'ativa',
       exames: 12,
-      podeExcluir: true,
+      podeDesativar: true,
     });
   });
 
@@ -45,8 +45,8 @@ describe('linha da tabela de contas', () => {
     ['médico ativo', conta(), true],
     ['médico desativado', conta({ active: false }), false],
     ['superusuário', conta({ superuser: true }), false],
-  ])('"Excluir conta" para %s: %s', (_caso, dados, esperado) => {
-    expect(toLinhaConta(dados).podeExcluir).toBe(esperado);
+  ])('"Desativar conta" para %s: %s', (_caso, dados, esperado) => {
+    expect(toLinhaConta(dados).podeDesativar).toBe(esperado);
   });
 
   it('cada situação tem o texto e a cor do selo', () => {
