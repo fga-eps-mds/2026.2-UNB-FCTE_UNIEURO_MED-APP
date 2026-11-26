@@ -23,6 +23,9 @@ type ExameRow = {
   termo_data_hora: string | null;
   autoriza_imagens_pesquisa: number | null;
   autoriza_dados_pesquisa_futura: number | null;
+  aplicado_por_nome: string;
+  aplicado_por_crm: string;
+  aplicado_por_uf: string;
   marcacao: 'teste' | 'ensino' | null;
   marcado_em: string | null;
   marcado_crm: string | null;
@@ -55,32 +58,43 @@ type EventoRow = {
   inclinacao_y: number | null;
 };
 
-// Os três SELECTs usam o mesmo filtro: só os exames do profissional e, se houver,
-// só os do paciente pedido. Exame excluído (#127) não sai no arquivo: a exclusão é
-// lógica, e a linha continua no banco com `excluido_em` preenchido.
-// A marcação como teste ou material de ensino (#58) não esconde o exame: `excluido_em`
-// fica vazio e o exame sai no arquivo, com a marcação. Quem remover `excluido_em` (#47)
-// deve tirar este filtro junto.
-const filtro = (pacienteId?: number) =>
+type Filtro = { sql: string; params: SQLiteBindValue[] };
+
+// Os três SELECTs usam o mesmo filtro. Os exames excluídos (#47 e #58) continuam
+// no tablet, mas não entram no arquivo, como já não entram nas listas. A marcação
+// como teste ou material de ensino (#58) não esconde o exame: ele sai com a marcação.
+const NAO_EXCLUIDO = 'a.excluido_em IS NULL';
+
+// Só os exames do profissional e, se houver, só os do paciente pedido.
+const doProfissional = (profissionalId: number, pacienteId?: number): Filtro =>
   pacienteId === undefined
-    ? {
-        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL',
-        params: (id: number): SQLiteBindValue[] => [id],
-      }
+    ? { sql: `${NAO_EXCLUIDO} AND a.id_profissional = ?`, params: [profissionalId] }
     : {
-        sql: 'a.id_profissional = ? AND a.excluido_em IS NULL AND a.id_paciente = ?',
-        params: (id: number): SQLiteBindValue[] => [id, pacienteId],
+        sql: `${NAO_EXCLUIDO} AND a.id_profissional = ? AND a.id_paciente = ?`,
+        params: [profissionalId, pacienteId],
       };
+
+// Os exames de todos os profissionais (#138), com a mesma trava das consultas de
+// todos (#129): para quem não é superusuário ativo, nenhuma linha, por qualquer
+// caminho do código.
+const deTodos = (solicitanteId: number): Filtro => ({
+  sql: `${NAO_EXCLUIDO} AND EXISTS (SELECT 1 FROM profissional s
+    WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1)`,
+  params: [solicitanteId],
+});
 
 const SELECT_EXAMES = `SELECT a.id, a.data_hora_inicio, a.estado,
     p.id AS paciente_id, p.data_nascimento, p.escolaridade_anos, p.sexo,
     c.versao_tcle, c.aceito, c.assinado_por, c.data_hora AS termo_data_hora,
     c.autoriza_imagens_pesquisa, c.autoriza_dados_pesquisa_futura,
-    a.marcacao, a.marcado_em, m.crm_numero AS marcado_crm, m.uf_crm AS marcado_uf
+    ap.nome AS aplicado_por_nome, ap.crm_numero AS aplicado_por_crm,
+    ap.uf_crm AS aplicado_por_uf,
+    a.marcacao, a.marcado_em, mp.crm_numero AS marcado_crm, mp.uf_crm AS marcado_uf
   FROM avaliacao a
   JOIN paciente p ON p.id = a.id_paciente
+  JOIN profissional ap ON ap.id = a.id_profissional
   LEFT JOIN consentimento c ON c.id_avaliacao = a.id
-  LEFT JOIN profissional m ON m.id = a.marcado_por`;
+  LEFT JOIN profissional mp ON mp.id = a.marcado_por`;
 
 const SELECT_TAREFAS = `SELECT t.id, t.id_avaliacao, t.tipo, t.ordem, t.largura, t.altura,
     t.data_hora_inicio, t.data_hora_termino, d.imagem_final, d.data_hora_confirmacao
@@ -118,9 +132,16 @@ const paraEvento = (row: EventoRow): EventoExportado => ({
   inclinacaoY: row.inclinacao_y,
 });
 
-function paraExame(row: ExameRow, tarefas: TarefaExportada[]): ExameExportado {
+function paraExame(
+  row: ExameRow,
+  tarefas: TarefaExportada[],
+  comQuemAplicou: boolean,
+): ExameExportado {
   return {
     id: row.id,
+    aplicadoPor: comQuemAplicou
+      ? { nome: row.aplicado_por_nome, crm: row.aplicado_por_crm, uf: row.aplicado_por_uf }
+      : undefined,
     inicio: row.data_hora_inicio,
     estado: row.estado,
     termo:
@@ -150,69 +171,76 @@ function paraExame(row: ExameRow, tarefas: TarefaExportada[]): ExameExportado {
 /**
  * Leitura dos exames para o XML (#22). Não lê nome, CPF nem ficha do paciente:
  * o arquivo identifica o paciente pelo `id` interno. A ordem é a do cadastro do
- * paciente e, dentro dele, a do início do exame.
+ * paciente e, dentro dele, a do início do exame. Na leitura de todos os
+ * profissionais (#138), cada exame traz quem o aplicou.
  */
 export function createExportRepository(
   open: () => Promise<SQLiteDatabase> = getDatabase,
 ): ExportacaoRepository {
-  return {
-    async lerExames(profissionalId, pacienteId) {
-      const database = await open();
-      const { sql, params } = filtro(pacienteId);
-      const valores = params(profissionalId);
+  async function ler(
+    { sql, params: valores }: Filtro,
+    comQuemAplicou: boolean,
+  ): Promise<PacienteExportado[]> {
+    const database = await open();
 
-      const exames = await database.getAllAsync<ExameRow>(
-        `${SELECT_EXAMES} WHERE ${sql} ORDER BY p.id, a.data_hora_inicio, a.id`,
-        valores,
-      );
-      const tarefas = await database.getAllAsync<TarefaRow>(
-        `${SELECT_TAREFAS} WHERE ${sql} ORDER BY t.id_avaliacao, t.ordem`,
-        valores,
-      );
-      const eventos = await database.getAllAsync<EventoRow>(
-        `${SELECT_EVENTOS} WHERE ${sql} ORDER BY e.id_tarefa, e.ordem`,
-        valores,
-      );
+    const exames = await database.getAllAsync<ExameRow>(
+      `${SELECT_EXAMES} WHERE ${sql} ORDER BY p.id, a.data_hora_inicio, a.id`,
+      valores,
+    );
+    const tarefas = await database.getAllAsync<TarefaRow>(
+      `${SELECT_TAREFAS} WHERE ${sql} ORDER BY t.id_avaliacao, t.ordem`,
+      valores,
+    );
+    const eventos = await database.getAllAsync<EventoRow>(
+      `${SELECT_EVENTOS} WHERE ${sql} ORDER BY e.id_tarefa, e.ordem`,
+      valores,
+    );
 
-      const eventosPorTarefa = agrupar(eventos, (evento) => evento.id_tarefa);
-      const tarefasPorExame = agrupar(
-        tarefas.map((row) => ({
-          exame: row.id_avaliacao,
-          tarefa: {
-            ordem: row.ordem,
-            tipo: row.tipo,
-            largura: row.largura,
-            altura: row.altura,
-            inicio: row.data_hora_inicio,
-            termino: row.data_hora_termino,
-            desenho:
-              row.imagem_final === null
-                ? null
-                : { confirmadoEm: row.data_hora_confirmacao!, png: row.imagem_final },
-            eventos: (eventosPorTarefa.get(row.id) ?? []).map(paraEvento),
-          } satisfies TarefaExportada,
-        })),
-        (item) => item.exame,
-      );
+    const eventosPorTarefa = agrupar(eventos, (evento) => evento.id_tarefa);
+    const tarefasPorExame = agrupar(
+      tarefas.map((row) => ({
+        exame: row.id_avaliacao,
+        tarefa: {
+          ordem: row.ordem,
+          tipo: row.tipo,
+          largura: row.largura,
+          altura: row.altura,
+          inicio: row.data_hora_inicio,
+          termino: row.data_hora_termino,
+          desenho:
+            row.imagem_final === null
+              ? null
+              : { confirmadoEm: row.data_hora_confirmacao!, png: row.imagem_final },
+          eventos: (eventosPorTarefa.get(row.id) ?? []).map(paraEvento),
+        } satisfies TarefaExportada,
+      })),
+      (item) => item.exame,
+    );
 
-      const pacientes: PacienteExportado[] = [];
-      for (const [, linhas] of agrupar(exames, (row) => row.paciente_id)) {
-        const [primeira] = linhas;
-        pacientes.push({
-          id: primeira.paciente_id,
-          dataNascimento: primeira.data_nascimento,
-          escolaridadeAnos: primeira.escolaridade_anos,
-          sexo: primeira.sexo,
-          exames: linhas.map((row) =>
-            paraExame(
-              row,
-              (tarefasPorExame.get(row.id) ?? []).map((item) => item.tarefa),
-            ),
+    const pacientes: PacienteExportado[] = [];
+    for (const [, linhas] of agrupar(exames, (row) => row.paciente_id)) {
+      const [primeira] = linhas;
+      pacientes.push({
+        id: primeira.paciente_id,
+        dataNascimento: primeira.data_nascimento,
+        escolaridadeAnos: primeira.escolaridade_anos,
+        sexo: primeira.sexo,
+        exames: linhas.map((row) =>
+          paraExame(
+            row,
+            (tarefasPorExame.get(row.id) ?? []).map((item) => item.tarefa),
+            comQuemAplicou,
           ),
-        });
-      }
-      return pacientes;
-    },
+        ),
+      });
+    }
+    return pacientes;
+  }
+
+  return {
+    lerExames: (profissionalId, pacienteId) =>
+      ler(doProfissional(profissionalId, pacienteId), false),
+    lerExamesDeTodos: (solicitanteId) => ler(deTodos(solicitanteId), true),
   };
 }
 

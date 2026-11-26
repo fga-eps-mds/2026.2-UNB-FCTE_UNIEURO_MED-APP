@@ -4,7 +4,9 @@
 
   Proposta para validar com o parceiro. O paciente aparece só pelo número interno do tablet, sem nome,
   CPF, ficha ou data de nascimento. Exame sem TCLE aceito leva só a data, o estado e
-  a decisão do termo. Mudança de campo obrigatório ou de significado gera a versão 2,
+  a decisão do termo. Na exportação da coleta inteira (escopo "coleta", #138), feita pelo
+  responsável pela pesquisa, cada exame traz quem o aplicou (aplicadoPor). Os dois são
+  opcionais e não mudam o significado dos campos que já existiam. Mudança de campo obrigatório ou de significado gera a versão 2,
   com outro namespace.
 -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
@@ -50,6 +52,8 @@
           <xs:restriction base="xs:string">
             <xs:enumeration value="todos"/>
             <xs:enumeration value="paciente"/>
+            <!-- A coleta inteira do tablet, pelo responsável pela pesquisa (#138). -->
+            <xs:enumeration value="coleta"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
@@ -75,6 +79,8 @@
 
   <xs:complexType name="Exame">
     <xs:sequence>
+      <!-- Só no escopo "coleta": o profissional que aplicou o exame (#138). -->
+      <xs:element name="aplicadoPor" type="AplicadoPor" minOccurs="0"/>
       <xs:element name="termo" type="Termo" minOccurs="0"/>
       <!-- Só no exame que o médico marcou como teste ou material de ensino (#58). -->
       <xs:element name="marcacao" type="Marcacao" minOccurs="0"/>
@@ -98,6 +104,12 @@
     </xs:attribute>
     <!-- Idade em anos completos no dia do exame, só com o TCLE aceito. -->
     <xs:attribute name="idadeAnos" type="xs:nonNegativeInteger"/>
+  </xs:complexType>
+
+  <xs:complexType name="AplicadoPor">
+    <xs:attribute name="nome" type="xs:string" use="required"/>
+    <xs:attribute name="crm" type="xs:string" use="required"/>
+    <xs:attribute name="uf" type="xs:string" use="required"/>
   </xs:complexType>
 
   <xs:complexType name="Marcacao">
