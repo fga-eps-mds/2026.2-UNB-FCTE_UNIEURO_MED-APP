@@ -40,6 +40,7 @@ import {
 } from '@/features/home/patients';
 import ExamStatusChip from '@/features/home/exam-status-chip';
 import { usePatientCpfs } from '@/features/home/use-patient-cpfs';
+import { ehSuperusuario } from '@/features/superusuario/acesso';
 import { useTheme } from '@/hooks/use-theme';
 
 type HomeScreenProps = {
@@ -159,6 +160,17 @@ export default function HomeScreen({
               {allProfessionals ? 'Responsável pela pesquisa' : `CRM ${formatCrm(professional)}`}
             </Text>
           </View>
+          {/* Só o responsável pela pesquisa tem a entrada da área administrativa (#119). */}
+          {ehSuperusuario(professional) && (
+            <HeaderLink
+              icon="shield-account-outline"
+              label="Área do superusuário"
+              onPress={() => router.push('/superusuario')}
+              styles={styles}
+              color={theme.primary}
+              showIcon={allProfessionals}
+            />
+          )}
           <HeaderLink
             icon="cog-outline"
             label="Configurações"

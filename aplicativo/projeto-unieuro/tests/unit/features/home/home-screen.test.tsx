@@ -336,9 +336,11 @@ describe('HomeScreen', () => {
 
       expect(screen.queryByText('RASTREIO COGNITIVO')).toBeNull();
       expect(screen.getByText('Novo exame')).toBeOnTheScreen();
+      // Área do superusuário (#119), Configurações, Sair, Novo exame, Exportar e Sincronizar.
       expect(screen.getAllByTestId('icone-do-botao', { includeHiddenElements: true })).toHaveLength(
-        5,
+        6,
       );
+      expect(screen.getByRole('button', { name: 'Área do superusuário' })).toBeOnTheScreen();
     });
 
     it('mostra os atalhos do protótipo do responsável pela pesquisa', () => {
@@ -846,5 +848,23 @@ describe('HomeScreen', () => {
     expect(screen.getByText(nome)).toHaveProp('numberOfLines', 1);
     expect(screen.getByRole('button', { name: 'Configurações' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sair' })).toBeOnTheScreen();
+  });
+});
+
+describe('entrada da área do superusuário (#119)', () => {
+  const botaoArea = () => screen.queryByRole('button', { name: 'Área do superusuário' });
+
+  it('o superusuário tem o botão no topo e abre a área por ele', async () => {
+    renderTela(pacientes, { ...profissional, superuser: true });
+
+    await userEvent.setup().press(botaoArea()!);
+
+    expect(useRouter().push).toHaveBeenCalledWith('/superusuario');
+  });
+
+  it('Cenário: acesso de um profissional comum: o médico comum não tem o botão', () => {
+    renderTela();
+
+    expect(botaoArea()).toBeNull();
   });
 });
