@@ -12,6 +12,11 @@ export type ExportacaoRepository = {
     pacienteId?: number,
     exameId?: number,
   ): Promise<PacienteExportado[]>;
+  /**
+   * Pacientes e exames de todos os profissionais do tablet, com quem aplicou cada
+   * exame (#138). Só responde ao superusuário ativo; para outro, vem vazio.
+   */
+  lerExamesDeTodos(solicitanteId: number): Promise<PacienteExportado[]>;
 };
 
 /** Grava o arquivo onde o profissional escolher. `false` quando ele desiste. */
@@ -19,9 +24,12 @@ export type SalvarArquivo = (nome: string, conteudo: string) => Promise<boolean>
 
 export type PedidoDeExportacao = {
   profissional: SessionProfessional;
-  /** Sem paciente nem exame, exporta todos os que o profissional atendeu. */
+  /**
+   * Sem paciente nem exame, exporta todos os que o profissional atendeu; para o
+   * responsável pela pesquisa (superusuário), a coleta inteira do tablet (#49 e #138).
+   */
   pacienteId?: number;
-  /** Quando informado, exporta só este exame (tem precedência sobre `pacienteId`). */
+  /** Quando informado, exporta só este exame (tem precedência sobre `pacienteId` e sobre a coleta). */
   exameId?: number;
   agora: Date;
   versaoAplicativo: string;
@@ -36,10 +44,18 @@ const doisDigitos = (n: number) => String(n).padStart(2, '0');
 
 export type EscopoDaExportacao = CabecalhoExportacao['escopo'];
 
-/** O exame específico vence o paciente; sem nenhum dos dois, são todos. */
-function escopoDoPedido(pacienteId?: number, exameId?: number): EscopoDaExportacao {
+/**
+ * O exame específico vence o paciente. Sem nenhum dos dois, o responsável pela
+ * pesquisa exporta a coleta inteira e o médico comum, todos os exames dele.
+ */
+function escopoDoPedido(
+  profissional: SessionProfessional,
+  pacienteId?: number,
+  exameId?: number,
+): EscopoDaExportacao {
   if (exameId !== undefined) return 'exame';
-  return pacienteId === undefined ? 'todos' : 'paciente';
+  if (pacienteId !== undefined) return 'paciente';
+  return profissional.superuser === true ? 'coleta' : 'todos';
 }
 
 /**
@@ -54,13 +70,15 @@ export function nomeDoArquivo(agora: Date, escopo: EscopoDaExportacao, exameId?:
     todos: 'exames',
     paciente: 'exames_paciente',
     exame: exameId === undefined ? 'exame' : `exame_${exameId}`,
+    coleta: 'coleta',
   };
   return `${prefixos[escopo]}_${data}_${hora}.xml`;
 }
 
 /**
  * Exportação em XML (#22). Só roda por comando do profissional autenticado e
- * só lê os exames que ele aplicou. O arquivo fica no aparelho, na pasta que ele
+ * só lê os exames que ele aplicou; o responsável pela pesquisa exporta a coleta
+ * inteira, com quem aplicou cada exame (#138). O arquivo fica no aparelho, na pasta que ele
  * escolher: a transferência para o REDCap é manual.
  */
 export async function exportarExames(
@@ -68,8 +86,11 @@ export async function exportarExames(
   repository: ExportacaoRepository,
   salvar: SalvarArquivo,
 ): Promise<ResultadoExportacao> {
-  const escopo = escopoDoPedido(pacienteId, exameId);
-  const pacientes = await repository.lerExames(profissional.id, pacienteId, exameId);
+  const escopo = escopoDoPedido(profissional, pacienteId, exameId);
+  const pacientes =
+    escopo === 'coleta'
+      ? await repository.lerExamesDeTodos(profissional.id)
+      : await repository.lerExames(profissional.id, pacienteId, exameId);
   const exames = pacientes.reduce((total, paciente) => total + paciente.exames.length, 0);
   if (exames === 0) return { estado: 'vazio' };
 

@@ -3,6 +3,7 @@ import { createMarkingRepository } from '@/db/marking-repository';
 
 import { PNG_DO_RELOGIO, gravarExamesParaExportar } from '../../test-support/exames-para-exportar';
 import {
+  BRUNO,
   abrirTabletComAnaEBruno,
   hashDaSenhaDeTeste,
   type TabletComAnaEBruno,
@@ -110,6 +111,12 @@ describe('createExportRepository', () => {
       "SELECT id FROM paciente WHERE data_nascimento = '1945-05-05'",
     );
     await expect(repository().lerExames(tablet.anaId, maria!.id)).resolves.toEqual([]);
+  });
+
+  it('cada exame do profissional vem sem quem aplicou: o arquivo já traz o CRM dele', async () => {
+    const pacientes = await repository().lerExames(tablet.anaId);
+
+    expect(pacientes.flatMap((p) => p.exames).every((e) => e.aplicadoPor === undefined)).toBe(true);
   });
 
   describe('exclusão lógica (#58, #47)', () => {
@@ -223,5 +230,77 @@ describe('createExportRepository', () => {
       );
       await expect(repository().lerExames(tablet.anaId, undefined, 1)).resolves.toEqual([]);
     });
+  });
+});
+
+async function excluirOExameDoAntonio() {
+  await tablet.database.runAsync(
+    'UPDATE avaliacao SET excluido_em = ?, excluido_por = ? WHERE id_paciente = ?',
+    ['2026-10-20T12:00:00.000Z', tablet.anaId, ids.antonio.id],
+  );
+}
+
+describe('lerExamesDeTodos (#138)', () => {
+  const tornarSuperusuario = (id: number) =>
+    tablet.database.runAsync("UPDATE profissional SET perfil = 'superusuario' WHERE id = ?", [id]);
+
+  it('o superusuário lê os exames de todos os profissionais, com quem aplicou cada um', async () => {
+    await tornarSuperusuario(tablet.anaId);
+
+    const pacientes = await repository().lerExamesDeTodos(tablet.anaId);
+
+    expect(pacientes.map((p) => p.dataNascimento)).toEqual([
+      '1948-10-07',
+      '1950-01-20',
+      '1945-05-05',
+    ]);
+    expect(pacientes.map((p) => p.exames.map((e) => e.aplicadoPor))).toEqual([
+      [
+        { nome: 'Ana Carolina Souza', crm: '12345', uf: 'DF' },
+        { nome: 'Ana Carolina Souza', crm: '12345', uf: 'DF' },
+      ],
+      [{ nome: 'Ana Carolina Souza', crm: '12345', uf: 'DF' }],
+      [{ nome: BRUNO.name, crm: BRUNO.crmNumber, uf: BRUNO.crmState }],
+    ]);
+  });
+
+  it('traz os mesmos exames que cada profissional lê, sem nome, CPF nem ficha do paciente', async () => {
+    await tornarSuperusuario(tablet.anaId);
+    const bruno = (await tablet.repository.findByEmail(BRUNO.email))!;
+
+    const todos = await repository().lerExamesDeTodos(tablet.anaId);
+    const semQuemAplicou = todos.map((p) => ({
+      ...p,
+      exames: p.exames.map(({ aplicadoPor: _, ...exame }) => exame),
+    }));
+
+    expect(semQuemAplicou).toEqual([
+      ...(await repository().lerExames(tablet.anaId)),
+      ...(await repository().lerExames(bruno.id)),
+    ]);
+    expect(JSON.stringify(todos)).not.toMatch(/José|Maria|12345678909|2026-000\d/);
+  });
+
+  it('o médico comum não lê os exames de todos, nem chamando direto', async () => {
+    await expect(repository().lerExamesDeTodos(tablet.anaId)).resolves.toEqual([]);
+  });
+
+  it('não lê para um superusuário com a conta desativada nem para quem não existe', async () => {
+    await tornarSuperusuario(tablet.anaId);
+    await tablet.database.runAsync('UPDATE profissional SET ativo = 0 WHERE id = ?', [
+      tablet.anaId,
+    ]);
+
+    await expect(repository().lerExamesDeTodos(tablet.anaId)).resolves.toEqual([]);
+    await expect(repository().lerExamesDeTodos(tablet.anaId + 99)).resolves.toEqual([]);
+  });
+
+  it('não lê os exames excluídos', async () => {
+    await tornarSuperusuario(tablet.anaId);
+    await excluirOExameDoAntonio();
+
+    const pacientes = await repository().lerExamesDeTodos(tablet.anaId);
+
+    expect(pacientes.map((p) => p.dataNascimento)).toEqual(['1948-10-07', '1945-05-05']);
   });
 });

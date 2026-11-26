@@ -13,6 +13,8 @@ type ExportarXmlDialogProps = {
   visible: boolean;
   titulo: string;
   descricao: string;
+  /** Aviso quando não há exame para exportar. */
+  mensagemVazio?: string;
   exportar: () => Promise<ResultadoExportacao>;
   onCancelar: () => void;
   onSalvo: (arquivo: string) => void;
@@ -27,6 +29,7 @@ export function ExportarXmlDialog({
   visible,
   titulo,
   descricao,
+  mensagemVazio = NADA_A_EXPORTAR,
   exportar,
   onCancelar,
   onSalvo,
@@ -49,7 +52,7 @@ export function ExportarXmlDialog({
     try {
       const resultado = await exportar();
       if (resultado.estado === 'salvo') onSalvo(resultado.arquivo);
-      else if (resultado.estado === 'vazio') setErro(NADA_A_EXPORTAR);
+      else if (resultado.estado === 'vazio') setErro(mensagemVazio);
     } catch {
       setErro(FALHA_AO_EXPORTAR);
     } finally {

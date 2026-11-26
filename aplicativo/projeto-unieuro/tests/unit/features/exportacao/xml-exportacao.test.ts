@@ -119,7 +119,7 @@ describe('XML da exportação (#22)', () => {
     expect(xml).toContain('<profissional crm="12345" uf="DF"/>');
   });
 
-  it.each(['todos', 'paciente', 'exame'] as const)(
+  it.each(['todos', 'paciente', 'exame', 'coleta'] as const)(
     'o escopo %s é aceito pelo esquema',
     async (escopo) => {
       const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], { ...CABECALHO, escopo });

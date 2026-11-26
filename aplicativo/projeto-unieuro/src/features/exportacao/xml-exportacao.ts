@@ -45,6 +45,8 @@ export type TermoExportado = {
   autorizaPesquisaFutura: boolean | null;
 };
 
+export type ProfissionalQueAplicou = { nome: string; crm: string; uf: string };
+
 export type MarcacaoExportada = {
   tipo: 'teste' | 'ensino';
   /** Data e hora em que o exame foi marcado. */
@@ -57,6 +59,8 @@ export type MarcacaoExportada = {
 export type ExameExportado = {
   /** Número interno do exame no tablet. */
   id: number;
+  /** Só na exportação da coleta inteira, pelo responsável pela pesquisa (#138). */
+  aplicadoPor?: ProfissionalQueAplicou;
   inicio: string;
   estado: string;
   termo: TermoExportado | null;
@@ -78,8 +82,11 @@ export type PacienteExportado = {
 export type CabecalhoExportacao = {
   geradaEm: string;
   versaoAplicativo: string;
-  /** `exame` é a exportação de um único exame, aberto na tela de resultado. */
-  escopo: 'todos' | 'paciente' | 'exame';
+  /**
+   * `exame` é a exportação de um único exame, aberto na tela de resultado; `coleta`, a do
+   * responsável pela pesquisa, com os exames de todos os profissionais.
+   */
+  escopo: 'todos' | 'paciente' | 'exame' | 'coleta';
   profissional: { crmNumero: string; crmUf: string };
 };
 
@@ -177,6 +184,15 @@ function xmlDoExame(exame: ExameExportado, paciente: PacienteExportado): string 
       idadeAnos: aceito ? idadeNoExame(paciente.dataNascimento, exame.inicio) : null,
     })}>`,
   ];
+  if (exame.aplicadoPor) {
+    linhas.push(
+      `      <aplicadoPor${atributos({
+        nome: exame.aplicadoPor.nome,
+        crm: exame.aplicadoPor.crm,
+        uf: exame.aplicadoPor.uf,
+      })}/>`,
+    );
+  }
   if (exame.termo) {
     linhas.push(
       `      <termo${atributos({
