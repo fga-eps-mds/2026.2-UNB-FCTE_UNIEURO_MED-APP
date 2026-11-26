@@ -17,6 +17,7 @@ import {
   type RetomadaResultado,
 } from '@/features/avaliacao/interrupcao';
 import { createInterrupcaoStyles } from '@/features/avaliacao/interrupcao.styles';
+import { useTemaDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 import {
   obterTarefa,
   TOTAL_TAREFAS,
@@ -56,7 +57,8 @@ function descreverTarefa(numero: number) {
 }
 
 function Item({ texto, icone }: Readonly<{ texto: string; icone: 'check' | 'information' }>) {
-  const styles = useMemo(() => createInterrupcaoStyles(), []);
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => createInterrupcaoStyles(cores, escala), [cores, escala]);
   return (
     <View style={styles.item}>
       <MaterialCommunityIcons
@@ -85,7 +87,8 @@ export default function ExameInterrompidoScreen({
 }: Readonly<ExameInterrompidoScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
-  const styles = useMemo(() => createInterrupcaoStyles(), []);
+  const { cores, escala } = useTemaDoPaciente();
+  const styles = useMemo(() => createInterrupcaoStyles(cores, escala), [cores, escala]);
   const atendimentoId = Number(valorDoParametro(atendimento));
   const [carga, setCarga] = useState<Carga>({ estado: 'carregando' });
   const [retomando, setRetomando] = useState(false);

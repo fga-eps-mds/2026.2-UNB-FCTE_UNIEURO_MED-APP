@@ -1,11 +1,12 @@
 import { StyleSheet } from 'react-native';
 
-import { FontFamilies, type ThemeColors } from '@/constants/theme';
-import { DESABILITADO, LARANJA_ESCURO } from '@/features/avaliacao/drawing-task.styles';
+import { FontFamilies } from '@/constants/theme';
+import type { CoresDoPaciente } from '@/features/avaliacao/tema-do-paciente';
 
 export const ALTURA_AREA_ASSINATURA = 160;
 
-export function createDecisaoStyles(colors: ThemeColors) {
+/** Cores do tema do paciente (#24): no alto contraste, o pressionado e o desabilitado escurecem. */
+export function createDecisaoStyles(colors: CoresDoPaciente) {
   const botao = {
     minHeight: 64,
     alignItems: 'center',
@@ -31,8 +32,8 @@ export function createDecisaoStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
     },
     botaoLimparDesabilitado: {
-      borderColor: DESABILITADO.fundo,
-      backgroundColor: DESABILITADO.fundo,
+      borderColor: colors.desabilitadoFundo,
+      backgroundColor: colors.desabilitadoFundo,
     },
     botaoLimparTexto: {
       color: colors.primary,
@@ -40,7 +41,7 @@ export function createDecisaoStyles(colors: ThemeColors) {
       fontSize: 18,
       lineHeight: 24,
     },
-    botaoLimparTextoDesabilitado: { color: DESABILITADO.texto },
+    botaoLimparTextoDesabilitado: { color: colors.desabilitadoTexto },
     // Moldura pontilhada do protótipo, no lugar da borda contínua do quadro.
     molduraAssinatura: {
       borderWidth: 2,
@@ -88,15 +89,15 @@ export function createDecisaoStyles(colors: ThemeColors) {
       lineHeight: 30,
     },
     botaoPrincipal: { ...botao, flex: 1, backgroundColor: colors.primary },
-    botaoPrincipalPressionado: { backgroundColor: LARANJA_ESCURO },
-    botaoPrincipalDesabilitado: { backgroundColor: DESABILITADO.fundo },
+    botaoPrincipalPressionado: { backgroundColor: colors.pressionado },
+    botaoPrincipalDesabilitado: { backgroundColor: colors.desabilitadoFundo },
     botaoPrincipalTexto: {
       color: colors.onPrimary,
       fontFamily: FontFamilies.bold,
       fontSize: 24,
       lineHeight: 30,
     },
-    botaoPrincipalTextoDesabilitado: { color: DESABILITADO.texto },
+    botaoPrincipalTextoDesabilitado: { color: colors.desabilitadoTexto },
     botaoPressionado: { opacity: 0.85 },
     botaoOcupado: { opacity: 0.6 },
 
