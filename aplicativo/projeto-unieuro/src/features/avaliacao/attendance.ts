@@ -26,7 +26,10 @@ export type NewPatient = {
 export type ExistingPatient = { id: number; name: string | null; recordNumber: string | null };
 
 export type AttendanceRepository = {
-  findPatientByCpf(cpf: string, professionalId: number): Promise<ExistingPatient | null>;
+  findPatientByCpfForProfessional(
+    cpf: string,
+    professionalId: number,
+  ): Promise<ExistingPatient | null>;
   createAttendance(data: {
     patient: NewPatient | { id: number };
     professionalId: number;
@@ -70,7 +73,7 @@ export async function registerAttendance(
   if (!validation.valid) return { success: false, errors: validation.errors };
 
   const { patient } = validation;
-  const existing = await repository.findPatientByCpf(patient.cpf, professionalId);
+  const existing = await repository.findPatientByCpfForProfessional(patient.cpf, professionalId);
 
   // O CPF identifica o paciente. Se ele já existe, o exame entra na ficha dele e os
   // dados digitados não mudam o cadastro: antes, o médico precisa saber disso (#140).

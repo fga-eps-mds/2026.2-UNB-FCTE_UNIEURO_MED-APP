@@ -38,7 +38,7 @@ const FALHA_AO_SALVAR = 'Não foi possível salvar o atendimento. Tente novament
 
 function criarRepositorio(sobrescritas: Partial<AttendanceRepository> = {}): AttendanceRepository {
   return {
-    findPatientByCpf: jest.fn(async () => null),
+    findPatientByCpfForProfessional: jest.fn(async () => null),
     createAttendance: jest.fn(async () => ({ attendanceId: 42 })),
     ...sobrescritas,
   };
@@ -126,7 +126,7 @@ describe('NewAttendanceScreen', () => {
         campo('schooling').getByText('Preencha a escolaridade, em anos de estudo.'),
       ).toBeOnTheScreen();
       expect(campo('sex').queryByText(MENSAGEM_DE_ERRO)).toBeNull();
-      expect(repository.findPatientByCpf).not.toHaveBeenCalled();
+      expect(repository.findPatientByCpfForProfessional).not.toHaveBeenCalled();
       expect(repository.createAttendance).not.toHaveBeenCalled();
       expect(onRegistered).not.toHaveBeenCalled();
     });
@@ -224,7 +224,7 @@ describe('NewAttendanceScreen', () => {
       expect(await campo('cpf').findByText('Informe um CPF válido.')).toBeOnTheScreen();
       expect(screen.getAllByText(MENSAGEM_DE_ERRO)).toHaveLength(1);
       expect(screen.queryByText(/123\.?456/)).toBeNull();
-      expect(repository.findPatientByCpf).not.toHaveBeenCalled();
+      expect(repository.findPatientByCpfForProfessional).not.toHaveBeenCalled();
       expect(onRegistered).not.toHaveBeenCalled();
     });
   });
@@ -257,7 +257,10 @@ describe('NewAttendanceScreen', () => {
       await enviar(user);
 
       await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
-      expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909', profissional.id);
+      expect(repository.findPatientByCpfForProfessional).toHaveBeenCalledWith(
+        '12345678909',
+        profissional.id,
+      );
       expect(repository.createAttendance).toHaveBeenCalledWith({
         patient: {
           name: 'José Alves Martins',
@@ -304,7 +307,7 @@ describe('NewAttendanceScreen', () => {
 
     it('não grava duas vezes num toque duplo', async () => {
       const repository = criarRepositorio({
-        findPatientByCpf: jest.fn(() => new Promise<null>(() => undefined)),
+        findPatientByCpfForProfessional: jest.fn(() => new Promise<null>(() => undefined)),
       });
       const user = userEvent.setup();
       renderizarTela({ repository });
@@ -313,7 +316,7 @@ describe('NewAttendanceScreen', () => {
       await enviar(user);
       await enviar(user);
 
-      expect(repository.findPatientByCpf).toHaveBeenCalledTimes(1);
+      expect(repository.findPatientByCpfForProfessional).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('button', { name: BOTAO })).toBeDisabled();
     });
 
@@ -360,7 +363,7 @@ describe('NewAttendanceScreen', () => {
     const avisoAberto = () => screen.queryByRole('header', { name: TITULO_CPF_JA_CADASTRADO });
 
     const comCpfCadastrado = () =>
-      criarRepositorio({ findPatientByCpf: jest.fn(async () => jose) });
+      criarRepositorio({ findPatientByCpfForProfessional: jest.fn(async () => jose) });
 
     it('avisa com o nome e a ficha do paciente antes de gravar', async () => {
       const user = userEvent.setup();

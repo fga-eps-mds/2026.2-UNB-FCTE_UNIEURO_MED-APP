@@ -32,7 +32,7 @@ const JOSE_CADASTRADO: ExistingPatient = {
 
 function createRepository(existingPatient: ExistingPatient | null = null) {
   return {
-    findPatientByCpf: jest.fn(async () => existingPatient),
+    findPatientByCpfForProfessional: jest.fn(async () => existingPatient),
     createAttendance: jest.fn(async () => ({ attendanceId: 31 })),
   } satisfies AttendanceRepository;
 }
@@ -93,7 +93,10 @@ describe('Cenário: atendimento registrado', () => {
 
     await register(repository);
 
-    expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909', PROFESSIONAL_ID);
+    expect(repository.findPatientByCpfForProfessional).toHaveBeenCalledWith(
+      '12345678909',
+      PROFESSIONAL_ID,
+    );
   });
 
   it('reaproveita o paciente que volta, sem cadastrar de novo, depois da confirmação', async () => {
@@ -188,7 +191,7 @@ describe('dados inválidos não chegam ao banco', () => {
       const result = await register(repository, change);
 
       expect(result).toEqual({ success: false, errors });
-      expect(repository.findPatientByCpf).not.toHaveBeenCalled();
+      expect(repository.findPatientByCpfForProfessional).not.toHaveBeenCalled();
       expect(repository.createAttendance).not.toHaveBeenCalled();
     },
   );

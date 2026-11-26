@@ -85,7 +85,7 @@ afterEach(async () => {
 describe('contrato', () => {
   it('atende ao AttendanceRepository da regra do atendimento', () => {
     const contract: AttendanceRepository = repository;
-    expect(typeof contract.findPatientByCpf).toBe('function');
+    expect(typeof contract.findPatientByCpfForProfessional).toBe('function');
     expect(typeof contract.createAttendance).toBe('function');
   });
 });
@@ -164,7 +164,7 @@ describe('Cenário: atendimento registrado', () => {
       'SELECT id, id_profissional, id_paciente, data_hora_inicio, estado FROM avaliacao WHERE id = ?',
       [attendanceId],
     );
-    const patient = await repository.findPatientByCpf(PATIENT_CPF, professionalId);
+    const patient = await repository.findPatientByCpf(PATIENT_CPF);
 
     expect(attendanceId).toBeGreaterThan(0);
     expect(attendance).toEqual({
@@ -204,8 +204,23 @@ describe('Cenário: atendimento registrado', () => {
 });
 
 describe('paciente que volta', () => {
+  it('retorna só o ID na busca por CPF sem contexto de profissional', async () => {
+    await expect(repository.findPatientByCpf(PATIENT_CPF)).resolves.toBeNull();
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(repository.findPatientByCpf(PATIENT_CPF)).resolves.toEqual({
+      id: expect.any(Number),
+    });
+  });
+
   it('é encontrado pelo CPF com nome e ficha para quem já atendeu', async () => {
-    await expect(repository.findPatientByCpf(PATIENT_CPF, professionalId)).resolves.toBeNull();
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toBeNull();
 
     await repository.createAttendance({
       patient: newPatient(),
@@ -213,12 +228,16 @@ describe('paciente que volta', () => {
       startedAt: STARTED_AT,
     });
 
-    await expect(repository.findPatientByCpf(PATIENT_CPF, professionalId)).resolves.toEqual({
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toEqual({
       id: expect.any(Number),
       name: newPatient().name,
       recordNumber: expect.stringMatching(/^\d{4}-\d{4}$/),
     });
-    await expect(repository.findPatientByCpf(OTHER_CPF, professionalId)).resolves.toBeNull();
+    await expect(
+      repository.findPatientByCpfForProfessional(OTHER_CPF, professionalId),
+    ).resolves.toBeNull();
   });
 
   it('oculta a identificação se o único exame do profissional foi excluído', async () => {
@@ -232,7 +251,9 @@ describe('paciente que volta', () => {
       attendanceId,
     ]);
 
-    await expect(repository.findPatientByCpf(PATIENT_CPF, professionalId)).resolves.toEqual({
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toEqual({
       id: expect.any(Number),
       name: null,
       recordNumber: null,
@@ -245,7 +266,7 @@ describe('paciente que volta', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const existing = await repository.findPatientByCpf(PATIENT_CPF, professionalId);
+    const existing = await repository.findPatientByCpf(PATIENT_CPF);
 
     const second = await repository.createAttendance({
       patient: existing!,
@@ -340,7 +361,7 @@ describe('número da ficha', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const existing = await repository.findPatientByCpf(PATIENT_CPF, professionalId);
+    const existing = await repository.findPatientByCpf(PATIENT_CPF);
 
     await repository.createAttendance({
       patient: existing!,
@@ -401,7 +422,7 @@ describe('pacientes atendidos pelo profissional', () => {
       professionalId,
       startedAt: '2026-10-09T14:32:00.000Z',
     });
-    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     const { attendanceId: latest } = await repository.createAttendance({
       patient: { id: patientId },
       professionalId,
@@ -448,7 +469,7 @@ describe('pacientes atendidos pelo profissional', () => {
       professionalId,
       startedAt: '2026-10-09T14:32:00.000Z',
     });
-    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     const { attendanceId: doBruno } = await repository.createAttendance({
       patient: { id: patientId },
       professionalId: otherId,
@@ -471,7 +492,7 @@ describe('pacientes atendidos pelo profissional', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     const { attendanceId: second } = await repository.createAttendance({
       patient: { id: patientId },
       professionalId,
@@ -490,7 +511,7 @@ describe('pacientes atendidos pelo profissional', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     await repository.createAttendance({
       patient: { id: patientId },
       professionalId,
@@ -540,7 +561,7 @@ describe('paciente com os exames do profissional', () => {
       professionalId,
       startedAt: '2026-09-28T13:05:00.000Z',
     });
-    const { id } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     await repository.createAttendance({
       patient: { id },
       professionalId,
@@ -572,7 +593,7 @@ describe('paciente com os exames do profissional', () => {
     await database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [
       attendanceId,
     ]);
-    const { id } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
 
     const patient = await repository.findPatientWithExams(professionalId, id);
 
@@ -585,7 +606,7 @@ describe('paciente com os exames do profissional', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const { id } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
 
     await expect(repository.findPatientWithExams(professionalId, id)).resolves.toMatchObject({
       sex: null,
@@ -599,7 +620,7 @@ describe('paciente com os exames do profissional', () => {
       professionalId,
       startedAt: '2026-10-05T17:32:00.000Z',
     });
-    const { id } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
     await repository.createAttendance({
       patient: { id },
       professionalId: otherId,
@@ -622,7 +643,7 @@ describe('paciente com os exames do profissional', () => {
       professionalId: otherId,
       startedAt: STARTED_AT,
     });
-    const { id } = (await repository.findPatientByCpf(OTHER_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(OTHER_CPF))!;
 
     await expect(repository.findPatientWithExams(professionalId, id)).resolves.toBeNull();
   });
@@ -637,7 +658,7 @@ describe('paciente com os exames do profissional', () => {
       professionalId,
       startedAt: STARTED_AT,
     });
-    const { id } = (await repository.findPatientByCpf(PATIENT_CPF, professionalId))!;
+    const { id } = (await repository.findPatientByCpf(PATIENT_CPF))!;
 
     const patient = await repository.findPatientWithExams(professionalId, id);
 

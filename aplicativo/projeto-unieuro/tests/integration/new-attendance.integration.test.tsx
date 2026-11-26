@@ -130,9 +130,9 @@ describe('Registro do atendimento, de ponta a ponta', () => {
     database = temp.open();
 
     expect(cpfVisible).toBe(false);
-    await expect(mockRepository.findPatientByCpf(CPF, professional.id)).resolves.toEqual(
-      expect.objectContaining({ id: expect.any(Number) }),
-    );
+    await expect(
+      mockRepository.findPatientByCpfForProfessional(CPF, professional.id),
+    ).resolves.toEqual(expect.objectContaining({ id: expect.any(Number) }));
   });
 
   it('reaproveita o paciente que volta e cria um novo atendimento', async () => {

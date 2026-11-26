@@ -64,7 +64,7 @@ beforeEach(async () => {
     professionalId: ana.id,
     startedAt: '2026-10-06T12:00:00.000Z',
   });
-  const jose = (await attendances.findPatientByCpf('12345678909', ana.id))!;
+  const jose = (await attendances.findPatientByCpf('12345678909'))!;
   await attendances.createAttendance({
     patient: jose,
     professionalId: ana.id,

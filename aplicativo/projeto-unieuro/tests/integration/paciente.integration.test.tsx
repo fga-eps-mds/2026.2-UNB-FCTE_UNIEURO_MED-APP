@@ -75,7 +75,7 @@ beforeEach(async () => {
   await tablet.database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [
     primeiro.attendanceId,
   ]);
-  joseId = (await attendances.findPatientByCpf(CPF_DO_JOSE, ana.id))!.id;
+  joseId = (await attendances.findPatientByCpf(CPF_DO_JOSE))!.id;
   await attendances.createAttendance({
     patient: { id: joseId },
     professionalId: ana.id,
@@ -91,7 +91,7 @@ beforeEach(async () => {
     professionalId: ana.id,
     startedAt: '2026-10-07T12:00:00.000Z',
   });
-  antonioId = (await attendances.findPatientByCpf('98765432100', ana.id))!.id;
+  antonioId = (await attendances.findPatientByCpf('98765432100'))!.id;
 });
 
 afterEach(async () => {

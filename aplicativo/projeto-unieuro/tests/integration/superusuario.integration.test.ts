@@ -316,7 +316,7 @@ describe('atendimentos de todos os profissionais', () => {
       professionalId: ana.id,
       startedAt: '2026-10-02T12:00:00.000Z',
     });
-    const jose = (await attendances.findPatientByCpf(JOSE.cpf, ana.id))!;
+    const jose = (await attendances.findPatientByCpf(JOSE.cpf))!;
     const { attendanceId: doPaulo } = await attendances.createAttendance({
       patient: { id: jose.id },
       professionalId: paulo.id,
@@ -401,7 +401,9 @@ describe('atendimentos de todos os profissionais', () => {
   });
 
   it('o aviso de CPF pode identificar o paciente para o superusuário ativo', async () => {
-    await expect(attendances.findPatientByCpf(MARIA.cpf, tauil.id)).resolves.toMatchObject({
+    await expect(
+      attendances.findPatientByCpfForProfessional(MARIA.cpf, tauil.id),
+    ).resolves.toMatchObject({
       name: MARIA.name,
       recordNumber: '2026-0002',
     });
@@ -419,7 +421,7 @@ describe('atendimentos de todos os profissionais', () => {
   describe('tela do paciente', () => {
     // O repositório do atendimento atende ao contrato da tela do paciente.
     let detalhe: PatientDetailRepository;
-    const idDe = async (cpf: string) => (await attendances.findPatientByCpf(cpf, tauil.id))!.id;
+    const idDe = async (cpf: string) => (await attendances.findPatientByCpf(cpf))!.id;
 
     beforeEach(() => {
       detalhe = attendances;

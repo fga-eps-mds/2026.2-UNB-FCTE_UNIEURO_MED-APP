@@ -280,8 +280,16 @@ export function createAttendanceRepository(
   };
 
   return {
+    async findPatientByCpf(cpf: string): Promise<{ id: number } | null> {
+      const database = await open();
+      return database.getFirstAsync<{ id: number }>(
+        'SELECT id FROM paciente WHERE cpf_indice = ? LIMIT 1',
+        [await protector.blindIndex(cpf)],
+      );
+    },
+
     /** Encontra a ficha pelo índice cego e aplica a regra de acesso à identificação. */
-    async findPatientByCpf(
+    async findPatientByCpfForProfessional(
       cpf: string,
       professionalId: number,
     ): Promise<ExistingPatientRecord | null> {
