@@ -65,6 +65,28 @@ export function createResultadoStyles(theme: ThemeColors) {
     semDesenhoTexto: { ...corpo, color: theme.textSecondary, textAlign: 'center' },
     estado: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
     estadoTexto: { ...corpo, color: theme.textSecondary, textAlign: 'center' },
+    actionsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: 12,
+      marginTop: 8,
+    },
+    exportButton: {
+      minHeight: 48,
+      paddingHorizontal: 24,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: theme.primary,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    exportButtonText: {
+      color: theme.primary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 16,
+    },
     pressed: { opacity: 0.82 },
   });
 }

@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { returnToLogin, useSession } from '@/features/auth/session';
+import { FeedbackMessage } from '@/features/auth/feedback-message';
+import { returnToLogin, useSession, type SessionProfessional } from '@/features/auth/session';
+import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
+import { ExportarExameDialog } from '@/features/exportacao/exportar-exame-dialog';
 import { formatDateTime } from '@/features/home/patient-detail';
 import { WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import type { DesenhoDoResultado, ResultadoDoExame } from '@/features/resultado/resultado';
@@ -37,12 +40,14 @@ type ResultadoScreenProps = {
   modelo?: ReactNode;
   /** O que mais pesou na pontuação, desenho por desenho (#14, parte do Thales). */
   influencia?: (desenho: DesenhoDoResultado) => ReactNode;
+  exportExam?: (professional: SessionProfessional, examId: number) => Promise<ResultadoExportacao>;
 };
 
 /**
  * Resultado do exame para o médico (#14): os três desenhos do paciente, na ordem das
  * tarefas, e o resultado do modelo. Só o médico que aplicou e o superusuário chegam
- * aqui, porque a consulta já filtra pelo profissional da sessão.
+ * aqui, porque a consulta já filtra pelo profissional da sessão. A exportação do exame
+ * em XML (#22) só aparece para quem o aplicou: o superusuário vê, mas não exporta.
  */
 export default function ResultadoScreen({
   resultado,
@@ -51,6 +56,7 @@ export default function ResultadoScreen({
   naoEncontrado,
   modelo,
   influencia,
+  exportExam,
 }: Readonly<ResultadoScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
@@ -58,6 +64,8 @@ export default function ResultadoScreen({
   const styles = useMemo(() => createResultadoStyles(theme), [theme]);
   const { width } = useWindowDimensions();
   const [larguraMedida, setLarguraMedida] = useState(0);
+  const [confirmingExport, setConfirmingExport] = useState(false);
+  const [savedFile, setSavedFile] = useState<string | null>(null);
   const largo = (larguraMedida || width) >= WIDE_LAYOUT_MIN_WIDTH;
 
   // Sem profissional autenticado, a tela não abre, como as demais telas do médico.
@@ -66,6 +74,9 @@ export default function ResultadoScreen({
   }, [professional, router]);
 
   if (!professional) return null;
+
+  const canExport =
+    Boolean(exportExam) && resultado !== null && resultado.professionalId === professional.id;
 
   return (
     <SafeAreaView
@@ -113,6 +124,23 @@ export default function ResultadoScreen({
               />
             ))}
           </View>
+
+          {savedFile && <FeedbackMessage kind="success" message={`Arquivo salvo: ${savedFile}`} />}
+
+          {canExport && (
+            <View style={styles.actionsRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Exportar exame em XML"
+                onPress={() => {
+                  setSavedFile(null);
+                  setConfirmingExport(true);
+                }}
+                style={({ pressed }) => [styles.exportButton, pressed && styles.pressed]}>
+                <Text style={styles.exportButtonText}>Exportar XML</Text>
+              </Pressable>
+            </View>
+          )}
         </ScrollView>
       ) : (
         <Estado
@@ -120,6 +148,18 @@ export default function ResultadoScreen({
           falhou={falhou}
           naoEncontrado={naoEncontrado}
           styles={styles}
+        />
+      )}
+
+      {resultado && exportExam && (
+        <ExportarExameDialog
+          visible={confirmingExport}
+          exportar={() => exportExam(professional, resultado.id)}
+          onCancelar={() => setConfirmingExport(false)}
+          onSalvo={(arquivo) => {
+            setConfirmingExport(false);
+            setSavedFile(arquivo);
+          }}
         />
       )}
     </SafeAreaView>

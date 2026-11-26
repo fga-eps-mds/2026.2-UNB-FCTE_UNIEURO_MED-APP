@@ -10,6 +10,7 @@ import type { TaskType } from '@/db/drawing-repository';
  */
 export type ExamResultRecord = {
   id: number;
+  professionalId: number;
   startedAt: string;
   state: string;
   patientName: string;
@@ -20,6 +21,7 @@ export type ExamResultRecord = {
 
 type ExamRow = {
   id: number;
+  id_profissional: number;
   data_hora_inicio: string;
   estado: string;
   nome_paciente: string;
@@ -32,7 +34,7 @@ type DrawingRow = { tipo: TaskType; ordem: number; imagem_final: Uint8Array };
 // O médico vê só o exame que ele aplicou. O superusuário com a conta ativa vê o de
 // qualquer médico, como na tela do paciente (#49). A trava fica na consulta, e não só
 // na tela: para qualquer outro profissional ela não devolve linha nenhuma.
-const FIND_EXAM = `SELECT a.id, a.data_hora_inicio, a.estado, p.nome AS nome_paciente,
+const FIND_EXAM = `SELECT a.id, a.id_profissional, a.data_hora_inicio, a.estado, p.nome AS nome_paciente,
     p.numero_ficha, m.nome AS aplicado_por
   FROM avaliacao a
   JOIN paciente p ON p.id = a.id_paciente
@@ -64,6 +66,7 @@ export function createExamResultRepository(open: () => Promise<SQLiteDatabase> =
       const drawings = await database.getAllAsync<DrawingRow>(LIST_DRAWINGS, [examId]);
       return {
         id: exam.id,
+        professionalId: exam.id_profissional,
         startedAt: exam.data_hora_inicio,
         state: exam.estado,
         patientName: exam.nome_paciente,

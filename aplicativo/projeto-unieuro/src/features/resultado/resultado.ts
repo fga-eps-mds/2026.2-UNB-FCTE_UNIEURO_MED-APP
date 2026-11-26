@@ -16,6 +16,7 @@ export type ExameComDesenhos = {
   patientName: string;
   recordNumber: string;
   appliedBy: string;
+  professionalId: number;
   drawings: { tipo: TipoDesenho; ordem: number; imagemPng: Uint8Array }[];
 };
 

@@ -11,6 +11,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 2
 
 const exame = (drawings: ExameComDesenhos['drawings']): ExameComDesenhos => ({
   id: 12,
+  professionalId: 7,
   startedAt: '2026-11-03T14:00:00.000Z',
   state: 'concluida',
   patientName: 'José Alves Martins',
