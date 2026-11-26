@@ -82,6 +82,8 @@
       <!-- Só no escopo "coleta": o profissional que aplicou o exame (#138). -->
       <xs:element name="aplicadoPor" type="AplicadoPor" minOccurs="0"/>
       <xs:element name="termo" type="Termo" minOccurs="0"/>
+      <!-- Só no exame que o médico marcou como teste ou material de ensino (#58). -->
+      <xs:element name="marcacao" type="Marcacao" minOccurs="0"/>
       <xs:element name="tarefa" type="Tarefa" minOccurs="0" maxOccurs="3"/>
       <xs:element name="resultado" type="Resultado" minOccurs="0"/>
     </xs:sequence>
@@ -106,6 +108,22 @@
 
   <xs:complexType name="AplicadoPor">
     <xs:attribute name="nome" type="xs:string" use="required"/>
+    <xs:attribute name="crm" type="xs:string" use="required"/>
+    <xs:attribute name="uf" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="Marcacao">
+    <xs:attribute name="tipo" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="teste"/>
+          <xs:enumeration value="ensino"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <!-- Data e hora em que o exame foi marcado. -->
+    <xs:attribute name="marcadaEm" type="xs:dateTime" use="required"/>
+    <!-- CRM e UF do médico que marcou. -->
     <xs:attribute name="crm" type="xs:string" use="required"/>
     <xs:attribute name="uf" type="xs:string" use="required"/>
   </xs:complexType>

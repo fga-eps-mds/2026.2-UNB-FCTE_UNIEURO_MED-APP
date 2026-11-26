@@ -26,6 +26,10 @@ type ExameRow = {
   aplicado_por_nome: string;
   aplicado_por_crm: string;
   aplicado_por_uf: string;
+  marcacao: 'teste' | 'ensino' | null;
+  marcado_em: string | null;
+  marcado_crm: string | null;
+  marcado_uf: string | null;
 };
 
 type TarefaRow = {
@@ -57,7 +61,8 @@ type EventoRow = {
 type Filtro = { sql: string; params: SQLiteBindValue[] };
 
 // Os três SELECTs usam o mesmo filtro. Os exames excluídos (#47 e #58) continuam
-// no tablet, mas não entram no arquivo, como já não entram nas listas.
+// no tablet, mas não entram no arquivo, como já não entram nas listas. A marcação
+// como teste ou material de ensino (#58) não esconde o exame: ele sai com a marcação.
 const NAO_EXCLUIDO = 'a.excluido_em IS NULL';
 
 // Só os exames do profissional e, se houver, só os do paciente pedido.
@@ -82,11 +87,14 @@ const SELECT_EXAMES = `SELECT a.id, a.data_hora_inicio, a.estado,
     p.id AS paciente_id, p.data_nascimento, p.escolaridade_anos, p.sexo,
     c.versao_tcle, c.aceito, c.assinado_por, c.data_hora AS termo_data_hora,
     c.autoriza_imagens_pesquisa, c.autoriza_dados_pesquisa_futura,
-    m.nome AS aplicado_por_nome, m.crm_numero AS aplicado_por_crm, m.uf_crm AS aplicado_por_uf
+    ap.nome AS aplicado_por_nome, ap.crm_numero AS aplicado_por_crm,
+    ap.uf_crm AS aplicado_por_uf,
+    a.marcacao, a.marcado_em, mp.crm_numero AS marcado_crm, mp.uf_crm AS marcado_uf
   FROM avaliacao a
   JOIN paciente p ON p.id = a.id_paciente
-  JOIN profissional m ON m.id = a.id_profissional
-  LEFT JOIN consentimento c ON c.id_avaliacao = a.id`;
+  JOIN profissional ap ON ap.id = a.id_profissional
+  LEFT JOIN consentimento c ON c.id_avaliacao = a.id
+  LEFT JOIN profissional mp ON mp.id = a.marcado_por`;
 
 const SELECT_TAREFAS = `SELECT t.id, t.id_avaliacao, t.tipo, t.ordem, t.largura, t.altura,
     t.data_hora_inicio, t.data_hora_termino, d.imagem_final, d.data_hora_confirmacao
@@ -146,6 +154,15 @@ function paraExame(
             dataHora: row.termo_data_hora!,
             autorizaImagens: booleano(row.autoriza_imagens_pesquisa),
             autorizaPesquisaFutura: booleano(row.autoriza_dados_pesquisa_futura),
+          },
+    marcacao:
+      row.marcacao === null
+        ? null
+        : {
+            tipo: row.marcacao,
+            marcadaEm: row.marcado_em!,
+            crmNumero: row.marcado_crm!,
+            crmUf: row.marcado_uf!,
           },
     tarefas,
   };
