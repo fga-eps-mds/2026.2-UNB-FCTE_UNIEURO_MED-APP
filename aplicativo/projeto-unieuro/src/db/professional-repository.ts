@@ -343,6 +343,26 @@ export function createProfessionalRepository(
         [deactivatedAt, deactivatedAt, id],
       );
     },
+
+    /**
+     * Desativa a conta do médico `targetId`, a pedido do superusuário `actorId`.
+     * Só acontece se quem pede é superusuário com a conta ativa e se a conta alvo é de
+     * um médico ainda ativo. A condição vai no
+     * próprio UPDATE, como em `promoteToSuperuser`. Devolve `false` quando nada mudou.
+     */
+    async deactivateDoctor(
+      targetId: number,
+      actorId: number,
+      deactivatedAt: string,
+    ): Promise<boolean> {
+      const database = await open();
+      const result = await database.runAsync(
+        `UPDATE profissional SET ativo = 0, desativacao = ?, last_update = ?
+         WHERE id = ? AND ativo = 1 AND perfil = 'medico' AND ${REQUESTER_IS_SUPERUSER}`,
+        [deactivatedAt, deactivatedAt, targetId, actorId],
+      );
+      return result.changes > 0;
+    },
   };
 }
 

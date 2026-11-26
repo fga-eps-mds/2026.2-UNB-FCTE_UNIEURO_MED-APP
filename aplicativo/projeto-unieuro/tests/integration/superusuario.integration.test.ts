@@ -377,6 +377,56 @@ describe('contas listadas na área do superusuário (#119)', () => {
   });
 });
 
+describe('superusuário desativa a conta de um médico', () => {
+  let tauil: Awaited<ReturnType<typeof criarAdministrador>>;
+  let ana: Awaited<ReturnType<typeof cadastrar>>;
+
+  beforeEach(async () => {
+    tauil = await criarAdministrador();
+    ana = await cadastrar(ANA);
+  });
+
+  it('desativa a conta do médico, com a data, sem apagar o registro', async () => {
+    await expect(professionals.deactivateDoctor(ana.id, tauil.id, AGORA)).resolves.toBe(true);
+
+    expect(await professionals.findById(ana.id)).toMatchObject({
+      active: false,
+      deactivatedAt: AGORA,
+      updatedAt: AGORA,
+    });
+  });
+
+  it('um médico comum não desativa ninguém, nem chamada direto', async () => {
+    const paulo = await cadastrar(PAULO);
+
+    await expect(professionals.deactivateDoctor(ana.id, paulo.id, AGORA)).resolves.toBe(false);
+    expect((await professionals.findById(ana.id))!.active).toBe(true);
+  });
+
+  it('um superusuário com a conta desativada não desativa ninguém', async () => {
+    await professionals.deactivate(tauil.id, AGORA);
+
+    await expect(professionals.deactivateDoctor(ana.id, tauil.id, AGORA)).resolves.toBe(false);
+    expect((await professionals.findById(ana.id))!.active).toBe(true);
+  });
+
+  it('um superusuário não desativa outro superusuário', async () => {
+    await professionals.insertSuperuser(conta(PAULO), tauil.id);
+    const paulo = (await professionals.findByEmail(PAULO.email))!;
+
+    await expect(professionals.deactivateDoctor(paulo.id, tauil.id, AGORA)).resolves.toBe(false);
+    await expect(professionals.deactivateDoctor(tauil.id, tauil.id, AGORA)).resolves.toBe(false);
+    expect((await professionals.findById(paulo.id))!.active).toBe(true);
+  });
+
+  it('não mexe numa conta já desativada, e a data da primeira desativação fica', async () => {
+    await professionals.deactivate(ana.id, '2026-11-01T12:00:00.000Z');
+
+    await expect(professionals.deactivateDoctor(ana.id, tauil.id, AGORA)).resolves.toBe(false);
+    expect((await professionals.findById(ana.id))!.deactivatedAt).toBe('2026-11-01T12:00:00.000Z');
+  });
+});
+
 describe('atendimentos de todos os profissionais', () => {
   let tauil: { id: number; superuser: boolean };
   let ana: { id: number; superuser: boolean };

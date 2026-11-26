@@ -393,6 +393,37 @@ describe('manutenção da conta', () => {
   });
 });
 
+describe('ações do superusuário sobre a conta de um médico', () => {
+  const SUPERUSUARIO = 1;
+  const AGORA = '2026-11-26T12:00:00.000Z';
+  const SO_MEDICO_ATIVO_A_PEDIDO_DO_SUPERUSUARIO =
+    /WHERE id = \? AND ativo = 1 AND perfil = 'medico' AND EXISTS \(SELECT 1 FROM profissional s\s+WHERE s\.id = \? AND s\.perfil = 'superusuario' AND s\.ativo = 1\)/;
+
+  it('desativa só a conta ativa de um médico, a pedido de um superusuário ativo', async () => {
+    const database = createDatabase();
+
+    await expect(createRepository(database).deactivateDoctor(7, SUPERUSUARIO, AGORA)).resolves.toBe(
+      true,
+    );
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringMatching(SO_MEDICO_ATIVO_A_PEDIDO_DO_SUPERUSUARIO),
+      [AGORA, AGORA, 7, SUPERUSUARIO],
+    );
+    expect(jest.mocked(database.runAsync).mock.calls[0][0]).toMatch(
+      /SET ativo = 0, desativacao = \?, last_update = \?/,
+    );
+  });
+
+  it('avisa quando o banco não desativou nada', async () => {
+    const database = createDatabase();
+    database.runAsync.mockResolvedValueOnce({ lastInsertRowId: 0, changes: 0 });
+
+    await expect(createRepository(database).deactivateDoctor(7, SUPERUSUARIO, AGORA)).resolves.toBe(
+      false,
+    );
+  });
+});
+
 describe('duplicidade de CPF com a proteção real', () => {
   // Banco em memória que só entende o que o repositório pergunta: guarda o
   // índice de cada CPF gravado e responde se um índice já existe.
