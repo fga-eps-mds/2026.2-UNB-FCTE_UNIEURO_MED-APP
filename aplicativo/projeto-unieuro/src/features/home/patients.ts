@@ -1,3 +1,5 @@
+import { lerMarcacao, type TipoMarcacao } from '@/features/avaliacao/marcacao';
+
 /**
  * Pacientes mostrados na tela inicial do profissional.
  *
@@ -29,6 +31,7 @@ export type PatientSummary = {
    * andamento"). Sem ela, a lista usa `lastExamStatus`.
    */
   lastExamSituation?: ExamSituation;
+  markings?: readonly TipoMarcacao[];
 };
 
 /** Cor e ícone da situação, como as mensagens do guia de identidade visual. */
@@ -61,6 +64,7 @@ export type AttendedPatient = {
   attendedBy?: string;
   professionalIds?: number[];
   professionalNames?: string[];
+  markings?: string[];
 };
 
 /** CPF do paciente, só com os dígitos, lido para a busca por CPF (#99). */
@@ -149,6 +153,14 @@ export function describeExamState(state: string): ExamSituation {
 
 /** Cada atendimento registrado conta como um exame do paciente com esse profissional. */
 export function toPatientSummary(patient: AttendedPatient): PatientSummary {
+  const markings = Array.from(
+    new Set(
+      (patient.markings ?? [])
+        .map((item) => lerMarcacao(item))
+        .filter((item): item is TipoMarcacao => item !== null),
+    ),
+  );
+
   return {
     id: patient.id,
     name: patient.name,
@@ -162,6 +174,7 @@ export function toPatientSummary(patient: AttendedPatient): PatientSummary {
     ...(patient.professionalNames === undefined
       ? {}
       : { professionalNames: patient.professionalNames }),
+    ...(markings.length === 0 ? {} : { markings }),
   };
 }
 

@@ -166,6 +166,19 @@ describe('HomeScreen', () => {
       expect(screen.getByText('Recusou o termo')).toBeOnTheScreen();
     });
 
+    it('mostra o selo de paciente marcado na lista e inclui no leitor de tela (#47)', () => {
+      renderTela([{ ...pacientes[0], markings: ['teste', 'ensino'] }]);
+
+      const linha = screen.getByRole('button', { name: /^José Alves Martins, ficha/ });
+      const selos = within(linha).getAllByTestId('marcacao-paciente');
+      expect(selos.map((s) => s)).toHaveLength(2);
+      expect(within(linha).getByText('Teste')).toBeOnTheScreen();
+      expect(within(linha).getByText('Material de ensino')).toBeOnTheScreen();
+      expect(linha.props.accessibilityLabel).toBe(
+        'José Alves Martins, ficha 2026-0184, último exame 28/09/2026, Interrompido, marcado como Teste, marcado como Material de ensino',
+      );
+    });
+
     it.each([
       ['Antônio Carlos Ferreira', 'check-circle'],
       ['José Alves Martins', 'alert'],
