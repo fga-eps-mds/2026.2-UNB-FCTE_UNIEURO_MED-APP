@@ -257,7 +257,7 @@ describe('NewAttendanceScreen', () => {
       await enviar(user);
 
       await waitFor(() => expect(onRegistered).toHaveBeenCalledWith(42));
-      expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909');
+      expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909', profissional.id);
       expect(repository.createAttendance).toHaveBeenCalledWith({
         patient: {
           name: 'José Alves Martins',

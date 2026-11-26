@@ -88,12 +88,12 @@ describe('Cenário: atendimento registrado', () => {
     );
   });
 
-  it('procura o paciente pelo CPF só com dígitos', async () => {
+  it('procura o paciente pelo CPF só com dígitos e pelo profissional logado', async () => {
     const repository = createRepository();
 
     await register(repository);
 
-    expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909');
+    expect(repository.findPatientByCpf).toHaveBeenCalledWith('12345678909', PROFESSIONAL_ID);
   });
 
   it('reaproveita o paciente que volta, sem cadastrar de novo, depois da confirmação', async () => {

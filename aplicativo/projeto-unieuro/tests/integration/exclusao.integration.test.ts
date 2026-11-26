@@ -69,7 +69,7 @@ beforeEach(async () => {
     professionalId: ana.id,
     startedAt: '2026-11-12T12:00:00.000Z',
   }));
-  pacienteId = (await atendimentos.findPatientByCpf('52998224725'))!.id;
+  pacienteId = (await atendimentos.findPatientByCpf('52998224725', ana.id))!.id;
 });
 
 afterEach(async () => {

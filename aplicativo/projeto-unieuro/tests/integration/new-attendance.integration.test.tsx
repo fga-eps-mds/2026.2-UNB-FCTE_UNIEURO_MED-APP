@@ -11,6 +11,7 @@ import { SessionProvider, type SessionProfessional } from '@/features/auth/sessi
 import type { AttendanceRepository } from '@/features/avaliacao/attendance';
 
 import { createTempDatabase, type TempDatabase } from '../test-support/real-sqlite';
+import { BRUNO } from '../test-support/tablet';
 import { webCryptoAesGcm } from '../test-support/web-crypto-aes-gcm';
 
 // Teste de ponta a ponta da #7: a rota "novo-exame", a tela, a regra e o banco
@@ -129,7 +130,7 @@ describe('Registro do atendimento, de ponta a ponta', () => {
     database = temp.open();
 
     expect(cpfVisible).toBe(false);
-    await expect(mockRepository.findPatientByCpf(CPF)).resolves.toEqual(
+    await expect(mockRepository.findPatientByCpf(CPF, professional.id)).resolves.toEqual(
       expect.objectContaining({ id: expect.any(Number) }),
     );
   });
@@ -187,5 +188,50 @@ describe('Registro do atendimento, de ponta a ponta', () => {
       'SELECT count(*) AS total FROM avaliacao',
     );
     expect(atendimentos).toEqual({ total: 2 });
+  });
+
+  it('avisa sem nome nem ficha quando só outro médico atendeu o paciente', async () => {
+    const professionals = createProfessionalRepository(async () => database, protector);
+    await professionals.insert({
+      ...BRUNO,
+      cpf: '39053344705',
+      passwordHash: 'hash-da-senha',
+      createdAt: '2026-10-01T12:00:00.000Z',
+    });
+    const bruno = (await professionals.findByEmail(BRUNO.email))!;
+    await mockRepository.createAttendance({
+      patient: {
+        cpf: CPF,
+        name: 'Antônio Carlos Ferreira',
+        birthDate: '1948-03-14',
+        schoolingYears: 5,
+        sex: null,
+      },
+      professionalId: bruno.id,
+      startedAt: '2026-10-01T12:00:00.000Z',
+    });
+
+    const user = userEvent.setup();
+    await registrarPaciente(user);
+
+    expect(await screen.findByText(/^Este CPF já está cadastrado no tablet\./)).toBeOnTheScreen();
+    expect(screen.queryByText(/Antônio Carlos Ferreira|2026-0001/)).toBeNull();
+    await user.press(screen.getByRole('button', { name: 'Voltar e revisar' }));
+    expect(useRouter().replace).not.toHaveBeenCalled();
+    const exames = () =>
+      database.getAllAsync<{ id_profissional: number; id_paciente: number }>(
+        'SELECT id_profissional, id_paciente FROM avaliacao ORDER BY id',
+      );
+    const anteriores = await exames();
+    expect(anteriores).toEqual([{ id_profissional: bruno.id, id_paciente: expect.any(Number) }]);
+
+    await user.press(screen.getByRole('button', { name: 'Ir para o termo de consentimento' }));
+    await user.press(await screen.findByRole('button', { name: 'Continuar com esta ficha' }));
+    await waitFor(() => expect(useRouter().replace).toHaveBeenCalledTimes(1));
+
+    await expect(exames()).resolves.toEqual([
+      ...anteriores,
+      { id_profissional: professional.id, id_paciente: anteriores[0].id_paciente },
+    ]);
   });
 });

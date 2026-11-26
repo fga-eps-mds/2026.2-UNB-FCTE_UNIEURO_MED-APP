@@ -7,10 +7,17 @@ export const TITULO_CPF_JA_CADASTRADO = 'CPF já cadastrado';
 export const BOTAO_REVISAR = 'Voltar e revisar';
 export const BOTAO_CONTINUAR_NA_FICHA = 'Continuar com esta ficha';
 
-export const textoCpfJaCadastrado = ({ name, recordNumber }: ExistingPatient) =>
-  `Este CPF já é do paciente ${name}, ficha ${recordNumber}. O novo exame entra na ficha dele, ` +
-  'com os dados do cadastro. O nome, a data de nascimento, a escolaridade e o sexo digitados ' +
-  'não serão salvos.';
+export const textoCpfJaCadastrado = ({ name, recordNumber }: ExistingPatient) => {
+  const aviso =
+    name === null || recordNumber === null
+      ? 'Este CPF já está cadastrado no tablet.'
+      : `Este CPF já é do paciente ${name}, ficha ${recordNumber}.`;
+
+  return (
+    `${aviso} O novo exame entra na ficha existente, com os dados do cadastro. ` +
+    'O nome, a data de nascimento, a escolaridade e o sexo digitados não serão salvos.'
+  );
+};
 
 type CpfJaCadastradoProps = {
   patient: ExistingPatient | null;
