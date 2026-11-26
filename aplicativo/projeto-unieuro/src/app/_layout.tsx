@@ -8,6 +8,7 @@ import { Button, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AjustesDoTesteProvider } from '@/features/acessibilidade/ajustes-do-teste';
+import { ajustesDoTesteStore } from '@/features/acessibilidade/ajustes-store';
 import { SessionProvider } from '@/features/auth/session';
 import { databaseStartupMessage, initializeDatabase } from '@/features/auth/database-startup';
 
@@ -69,7 +70,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SessionProvider>
         {/* Ajustes do teste (#24): a tela de configurações muda, e as telas do paciente leem. */}
-        <AjustesDoTesteProvider>
+        <AjustesDoTesteProvider store={ajustesDoTesteStore}>
           <Stack screenOptions={{ headerShown: false }} />
         </AjustesDoTesteProvider>
       </SessionProvider>
