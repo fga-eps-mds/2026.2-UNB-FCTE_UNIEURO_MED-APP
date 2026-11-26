@@ -6,8 +6,8 @@
  * ficha ou data de nascimento. Do paciente só vão a escolaridade, o sexo e a idade
  * no dia do exame, que são variáveis da análise.
  *
- * Exame sem TCLE aceito leva só a data, o estado e a decisão do termo: sem aceite
- * não há autorização para usar os dados da pessoa.
+ * Exame sem TCLE aceito leva só a data, o estado, a decisão do termo e a marcação de
+ * teste ou ensino, se houver: sem aceite não há autorização para usar os dados da pessoa.
  */
 
 export const VERSAO_ESQUEMA = '1';
@@ -46,12 +46,27 @@ export type TermoExportado = {
   autorizaPesquisaFutura: boolean | null;
 };
 
+export type ProfissionalQueAplicou = { nome: string; crm: string; uf: string };
+
+export type MarcacaoExportada = {
+  tipo: 'teste' | 'ensino';
+  /** Data e hora em que o exame foi marcado. */
+  marcadaEm: string;
+  /** Médico que marcou. */
+  crmNumero: string;
+  crmUf: string;
+};
+
 export type ExameExportado = {
   /** Número interno do exame no tablet. */
   id: number;
+  /** Só na exportação da coleta inteira, pelo responsável pela pesquisa (#138). */
+  aplicadoPor?: ProfissionalQueAplicou;
   inicio: string;
   estado: string;
   termo: TermoExportado | null;
+  /** Marcação como teste ou material de ensino (#58); `null` se o exame não foi marcado. */
+  marcacao: MarcacaoExportada | null;
   tarefas: readonly TarefaExportada[];
 };
 
@@ -68,7 +83,7 @@ export type PacienteExportado = {
 export type CabecalhoExportacao = {
   geradaEm: string;
   versaoAplicativo: string;
-  escopo: 'todos' | 'paciente';
+  escopo: 'todos' | 'paciente' | 'coleta';
   profissional: { crmNumero: string; crmUf: string };
 };
 
@@ -166,6 +181,15 @@ function xmlDoExame(exame: ExameExportado, paciente: PacienteExportado): string 
       idadeAnos: aceito ? idadeNoExame(paciente.dataNascimento, exame.inicio) : null,
     })}>`,
   ];
+  if (exame.aplicadoPor) {
+    linhas.push(
+      `      <aplicadoPor${atributos({
+        nome: exame.aplicadoPor.nome,
+        crm: exame.aplicadoPor.crm,
+        uf: exame.aplicadoPor.uf,
+      })}/>`,
+    );
+  }
   if (exame.termo) {
     linhas.push(
       `      <termo${atributos({
@@ -175,6 +199,17 @@ function xmlDoExame(exame: ExameExportado, paciente: PacienteExportado): string 
         dataHora: exame.termo.dataHora,
         autorizaImagens: exame.termo.autorizaImagens,
         autorizaPesquisaFutura: exame.termo.autorizaPesquisaFutura,
+      })}/>`,
+    );
+  }
+  // A marcação descreve o exame, não a pessoa: sai também sem o aceite do termo.
+  if (exame.marcacao) {
+    linhas.push(
+      `      <marcacao${atributos({
+        tipo: exame.marcacao.tipo,
+        marcadaEm: exame.marcacao.marcadaEm,
+        crm: exame.marcacao.crmNumero,
+        uf: exame.marcacao.crmUf,
       })}/>`,
     );
   }

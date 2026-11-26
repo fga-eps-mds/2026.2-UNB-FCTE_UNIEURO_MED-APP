@@ -21,7 +21,15 @@ const jose: PatientWithExams = {
   birthDate: '1948-03-14',
   schoolingYears: 5,
   sex: 'masculino',
-  exams: [{ id: 1, startedAt: '2026-10-13T09:10:00.000Z', state: 'concluida' }],
+  exams: [
+    {
+      id: 1,
+      startedAt: '2026-10-13T09:10:00.000Z',
+      state: 'concluida',
+      professionalId: 7,
+      marking: null,
+    },
+  ],
 };
 
 const findWith = (answers: (PatientWithExams | null | Error)[]) => {
@@ -82,6 +90,8 @@ describe('exames do paciente', () => {
           startedAt: '2026-10-13T09:10:00.000Z',
           state: 'concluida',
           appliedBy: 'Paulo Henrique Rocha',
+          professionalId: 107,
+          marking: null,
         },
       ],
     });
@@ -126,7 +136,13 @@ describe('exames do paciente', () => {
     const maisUm = {
       ...jose,
       exams: [
-        { id: 2, startedAt: '2026-10-14T09:10:00.000Z', state: 'interrompida' },
+        {
+          id: 2,
+          startedAt: '2026-10-14T09:10:00.000Z',
+          state: 'interrompida',
+          professionalId: 7,
+          marking: null,
+        },
         ...jose.exams,
       ],
     };
@@ -137,6 +153,22 @@ describe('exames do paciente', () => {
     await refocus();
 
     await waitFor(() => expect(result.current.patient?.exams).toHaveLength(2));
+    expect(repository.findPatientWithExams).toHaveBeenCalledTimes(2);
+  });
+
+  it('lê de novo quando a tela pede, depois de marcar um exame (#58)', async () => {
+    const marcado = {
+      ...jose,
+      exams: [{ ...jose.exams[0], marking: 'teste' }],
+    };
+    const repository = repositoryWith(jose, marcado);
+    const { result } = renderWithSession(repository, ana);
+    await waitFor(() => expect(result.current.patient?.exams[0].marking).toBeNull());
+
+    // Com a tela aberta, o efeito de foco roda de novo assim que a releitura é pedida.
+    act(() => result.current.reload());
+
+    await waitFor(() => expect(result.current.patient?.exams[0].marking).toBe('teste'));
     expect(repository.findPatientWithExams).toHaveBeenCalledTimes(2);
   });
 
