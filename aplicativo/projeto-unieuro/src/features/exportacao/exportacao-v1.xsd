@@ -2,10 +2,11 @@
 <!--
   Esquema da exportação em XML do MNEMA (#22), versão 1.
 
-  Proposta para validar com o parceiro. O paciente aparece só pelo número interno do tablet, sem nome,
-  CPF, ficha ou data de nascimento. Exame sem TCLE aceito leva só a data, o estado e
-  a decisão do termo. Mudança de campo obrigatório ou de significado gera a versão 2,
-  com outro namespace.
+  O paciente aparece só pelo número interno do tablet, sem nome, CPF, ficha ou data de
+  nascimento. Exame sem TCLE aceito leva só a data, o estado e a decisão do termo.
+  O atributo `escopo` diz o que o arquivo reúne: todos os exames do profissional, os de
+  um paciente ou um único exame. Mudança de campo obrigatório ou de significado gera a
+  versão 2, com outro namespace.
 -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            xmlns="urn:mnema:exportacao:v1"
@@ -50,6 +51,7 @@
           <xs:restriction base="xs:string">
             <xs:enumeration value="todos"/>
             <xs:enumeration value="paciente"/>
+            <xs:enumeration value="exame"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>

@@ -1,10 +1,9 @@
 /**
  * XML da exportação (#22), versão 1 do esquema, descrita em `exportacao-v1.xsd`.
  *
- * O esquema ainda depende do aceite do parceiro. Esta versão segue a regra de
- * identificação pseudonimizada: o paciente aparece pelo número interno do tablet, sem nome, CPF,
- * ficha ou data de nascimento. Do paciente só vão a escolaridade, o sexo e a idade
- * no dia do exame, que são variáveis da análise.
+ * Esta versão segue a regra de identificação pseudonimizada: o paciente aparece pelo
+ * número interno do tablet, sem nome, CPF, ficha ou data de nascimento. Do paciente só
+ * vão a escolaridade, o sexo e a idade no dia do exame, que são variáveis da análise.
  *
  * Exame sem TCLE aceito leva só a data, o estado, a decisão do termo e a marcação de
  * teste ou ensino, se houver: sem aceite não há autorização para usar os dados da pessoa.
@@ -79,7 +78,8 @@ export type PacienteExportado = {
 export type CabecalhoExportacao = {
   geradaEm: string;
   versaoAplicativo: string;
-  escopo: 'todos' | 'paciente';
+  /** `exame` é a exportação de um único exame, aberto na tela de resultado. */
+  escopo: 'todos' | 'paciente' | 'exame';
   profissional: { crmNumero: string; crmUf: string };
 };
 

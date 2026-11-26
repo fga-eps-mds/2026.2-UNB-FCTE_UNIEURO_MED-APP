@@ -119,6 +119,25 @@ describe('XML da exportação (#22)', () => {
     expect(xml).toContain('<profissional crm="12345" uf="DF"/>');
   });
 
+  it.each(['todos', 'paciente', 'exame'] as const)(
+    'o escopo %s é aceito pelo esquema',
+    async (escopo) => {
+      const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], { ...CABECALHO, escopo });
+
+      expect(xml).toContain(`escopo="${escopo}"`);
+      await expect(validarNoEsquema(xml)).resolves.toEqual([]);
+    },
+  );
+
+  it('um escopo fora da lista é recusado pelo esquema', async () => {
+    const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO).replace(
+      'escopo="todos"',
+      'escopo="outro"',
+    );
+
+    expect((await validarNoEsquema(xml)).join('\n')).toMatch(/escopo/);
+  });
+
   it('identifica o paciente só pelo número interno, com a idade no dia do exame', () => {
     const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
 
