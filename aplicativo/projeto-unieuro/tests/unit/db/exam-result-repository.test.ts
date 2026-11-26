@@ -44,6 +44,7 @@ async function gravarDesenhos(atendimentoId: number, tarefas = TAREFAS) {
       confirmadoEm: '2026-11-03T14:03:10.000Z',
       eventos: [],
       imagemPng: png(ordem),
+      encerraExame: false,
     });
   }
 }

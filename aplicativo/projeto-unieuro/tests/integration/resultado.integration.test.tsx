@@ -68,6 +68,7 @@ beforeEach(async () => {
       confirmadoEm: '2026-11-03T14:03:10.000Z',
       eventos: [],
       imagemPng: PNG,
+      encerraExame: false,
     });
   }
 });

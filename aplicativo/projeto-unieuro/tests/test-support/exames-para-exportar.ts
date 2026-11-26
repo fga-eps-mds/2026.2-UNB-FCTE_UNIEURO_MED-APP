@@ -61,6 +61,7 @@ export async function gravarExamesParaExportar(tablet: TabletComAnaEBruno) {
       { tipo: 'desfazer', ordem: 3, instante: 900 },
     ],
     imagemPng: PNG_DO_RELOGIO,
+    encerraExame: false,
   });
 
   const jose = (await atendimentos.findPatientByCpf('12345678909'))!;
