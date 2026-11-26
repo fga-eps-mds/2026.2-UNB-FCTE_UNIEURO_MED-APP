@@ -78,13 +78,13 @@ describe('LoginScreen', () => {
     expect(useRouter().push).not.toHaveBeenCalled();
   });
 
-  it('avisa que a recuperação de senha ainda não está conectada', async () => {
+  it('abre a recuperação de senha', async () => {
     const user = userEvent.setup();
     render(<LoginScreen />);
 
     await user.press(screen.getByRole('button', { name: 'ESQUECI MINHA SENHA' }));
 
-    expect(screen.getByText('A recuperação de senha ainda não está disponível.')).toBeOnTheScreen();
+    expect(useRouter().push).toHaveBeenCalledWith('/recover-password');
   });
 
   describe('medição da área disponível', () => {

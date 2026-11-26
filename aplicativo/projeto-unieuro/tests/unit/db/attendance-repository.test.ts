@@ -537,8 +537,20 @@ describe('paciente com os exames do profissional', () => {
       schoolingYears: 5,
       sex: 'masculino',
       exams: [
-        { id: 2, startedAt: '2026-10-05T17:32:00.000Z', state: 'aguardando_consentimento' },
-        { id: 1, startedAt: '2026-09-28T13:05:00.000Z', state: 'aguardando_consentimento' },
+        {
+          id: 2,
+          startedAt: '2026-10-05T17:32:00.000Z',
+          state: 'aguardando_consentimento',
+          professionalId,
+          marking: null,
+        },
+        {
+          id: 1,
+          startedAt: '2026-09-28T13:05:00.000Z',
+          state: 'aguardando_consentimento',
+          professionalId,
+          marking: null,
+        },
       ],
     });
   });

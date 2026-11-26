@@ -347,6 +347,79 @@ END;
 `;
 
 /**
+ * Versão 12: marcação do exame como teste ou material de ensino (#58), no lugar da
+ * exclusão. Na validação das histórias da R3, o cliente pediu que nada seja apagado e
+ * que a exportação deixe claro o que foi teste ou ensino (Ata 13, 16/11). O exame
+ * marcado continua nas listas e no tablet, inclusive o finalizado.
+ *
+ * As colunas guardam a marcação de agora, e a tabela `marcacao` guarda cada vez que
+ * o exame foi marcado ou desmarcado, com o profissional e a data e hora. O histórico
+ * não aceita alteração nem remoção. Os gatilhos repetem no banco que só o médico que
+ * aplicou o exame marca ou desmarca, por qualquer caminho do código, e que a marcação de
+ * agora sempre corresponde ao último registro do histórico: quem muda as colunas sem
+ * gravar antes o registro (uma sincronização futura, por exemplo) é recusado.
+ */
+const SCHEMA_V12 = `
+ALTER TABLE avaliacao ADD COLUMN marcacao TEXT CHECK (marcacao IN ('teste', 'ensino'));
+ALTER TABLE avaliacao ADD COLUMN marcado_em TEXT;
+ALTER TABLE avaliacao ADD COLUMN marcado_por INTEGER REFERENCES profissional (id);
+
+CREATE TABLE IF NOT EXISTS marcacao (
+    id INTEGER PRIMARY KEY,
+    id_avaliacao INTEGER NOT NULL REFERENCES avaliacao (id),
+    acao TEXT NOT NULL CHECK (acao IN ('marcar', 'desmarcar')),
+    tipo TEXT CHECK (tipo IN ('teste', 'ensino')),
+    id_profissional INTEGER NOT NULL REFERENCES profissional (id),
+    data_hora TEXT NOT NULL,
+    CHECK ((acao = 'marcar') = (tipo IS NOT NULL)),
+    CHECK (length(trim(data_hora)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marcacao_avaliacao ON marcacao (id_avaliacao);
+
+CREATE TRIGGER IF NOT EXISTS marcacao_sem_alteracao
+BEFORE UPDATE ON marcacao
+BEGIN
+    SELECT RAISE(ABORT, 'registro de marcacao nao pode ser alterado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS marcacao_sem_remocao
+BEFORE DELETE ON marcacao
+BEGIN
+    SELECT RAISE(ABORT, 'registro de marcacao nao pode ser apagado');
+END;
+
+CREATE TRIGGER IF NOT EXISTS marcacao_so_de_quem_aplicou
+BEFORE INSERT ON marcacao
+WHEN NEW.id_profissional IS NOT (SELECT id_profissional FROM avaliacao WHERE id = NEW.id_avaliacao)
+BEGIN
+    SELECT RAISE(ABORT, 'so quem aplicou o exame pode marcar ou desmarcar');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_marcada_por_quem_aplicou
+BEFORE UPDATE OF marcacao, marcado_em, marcado_por ON avaliacao
+WHEN NEW.marcacao IS NOT NULL AND NEW.marcado_por IS NOT OLD.id_profissional
+BEGIN
+    SELECT RAISE(ABORT, 'so quem aplicou o exame pode marcar ou desmarcar');
+END;
+
+CREATE TRIGGER IF NOT EXISTS avaliacao_marcacao_com_historico
+BEFORE UPDATE OF marcacao, marcado_em, marcado_por ON avaliacao
+WHEN NOT (
+    (NEW.marcacao IS NULL AND NEW.marcado_em IS NULL AND NEW.marcado_por IS NULL
+        AND (SELECT acao FROM marcacao WHERE id_avaliacao = NEW.id ORDER BY id DESC LIMIT 1)
+            IS NOT 'marcar')
+    OR EXISTS (SELECT 1 FROM marcacao m
+        WHERE m.id = (SELECT max(id) FROM marcacao WHERE id_avaliacao = NEW.id)
+          AND m.acao = 'marcar' AND m.tipo = NEW.marcacao
+          AND m.id_profissional = NEW.marcado_por AND m.data_hora = NEW.marcado_em)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'marcacao sem registro no historico');
+END;
+`;
+
+/**
  * Um passo é um script SQL ou, quando a mudança precisa de cálculo (como cifrar
  * dados já gravados), uma função que recebe o banco e o protetor de CPF.
  */
@@ -362,7 +435,8 @@ export type MigrationStep =
  * (tarefas, desenho e traçado), e a posição 6 à versão 7 (autorizações de dados),
  * a posição 7 à versão 8 (CPF do responsável legal), a posição 8 à versão 9
  * (perfil do profissional), a posição 9 à versão 10 (desistência do exame), a
- * posição 10 à versão 11 (exclusão de exame e de paciente), e assim por diante.
+ * posição 10 à versão 11 (exclusão de exame e de paciente), a posição 11 à
+ * versão 12 (marcação do exame como teste ou ensino), e assim por diante.
  * Para mudar o esquema,
  * acrescente um passo no fim; não altere os que já existem, porque os tablets com
  * o banco criado não os executam de novo.
@@ -379,6 +453,7 @@ export const MIGRATIONS: readonly MigrationStep[] = [
   SCHEMA_V9,
   SCHEMA_V10,
   SCHEMA_V11,
+  SCHEMA_V12,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

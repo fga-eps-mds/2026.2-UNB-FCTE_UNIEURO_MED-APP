@@ -325,6 +325,7 @@ export default function HomeScreen({
           visible={exporting}
           pacientes={patients.length}
           exames={examCount}
+          todosOsProfissionais={allProfessionals}
           exportar={() => exportAll(professional)}
           onCancelar={() => setExporting(false)}
           onSalvo={(arquivo) => {

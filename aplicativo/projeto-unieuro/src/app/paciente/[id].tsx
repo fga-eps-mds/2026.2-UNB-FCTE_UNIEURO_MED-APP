@@ -1,4 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
+
+import { markExam, unmarkExam } from '@/features/avaliacao/composition';
+import { exportarExamesDoPaciente } from '@/features/exportacao/composition';
 
 import { patientDetailRepository } from '@/features/home/composition';
 import PatientDetailScreen from '@/features/home/patient-detail-screen';
@@ -10,9 +14,14 @@ const patientIdOf = (param: string | string[] | undefined) =>
 
 export default function PatientRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { patient, loading, loadFailed, notFound } = usePatientDetail(
+  const { patient, loading, loadFailed, notFound, reload } = usePatientDetail(
     patientDetailRepository,
     patientIdOf(id),
+  );
+  // Marcação do exame como teste ou ensino (#58), gravada no banco e relida em seguida.
+  const marking = useMemo(
+    () => ({ mark: markExam, unmark: unmarkExam, onChanged: reload }),
+    [reload],
   );
   return (
     <PatientDetailScreen
@@ -20,6 +29,8 @@ export default function PatientRoute() {
       loading={loading}
       loadFailed={loadFailed}
       notFound={notFound}
+      marking={marking}
+      exportPatient={exportarExamesDoPaciente}
     />
   );
 }

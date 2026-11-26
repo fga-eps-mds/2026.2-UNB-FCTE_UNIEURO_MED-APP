@@ -21,7 +21,8 @@ type Reading = {
  * superusuário, os exames de todos os profissionais (#49).
  *
  * A leitura se repete sempre que a tela volta a ter foco, para mostrar o exame
- * que acabou de ser aplicado. `patientId` é `null` quando o parâmetro da rota
+ * que acabou de ser aplicado, e quando a tela pede `reload`, depois de marcar ou
+ * desmarcar um exame (#58). `patientId` é `null` quando o parâmetro da rota
  * não é um número, e a tela mostra "paciente não encontrado".
  */
 export function usePatientDetail(repository: PatientDetailRepository, patientId: number | null) {
@@ -33,6 +34,9 @@ export function usePatientDetail(repository: PatientDetailRepository, patientId:
       ? `${professionalId}:${superuser}:${patientId}`
       : null;
   const [reading, setReading] = useState<Reading | null>(null);
+  // Cada pedido de releitura troca o efeito de foco, que roda de novo com a tela aberta.
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((current) => current + 1), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -59,7 +63,9 @@ export function usePatientDetail(repository: PatientDetailRepository, patientId:
       return () => {
         current = false;
       };
-    }, [professionalId, superuser, patientId, repository]),
+      // `version` só existe para refazer a leitura quando a tela pede.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [professionalId, superuser, patientId, repository, version]),
   );
 
   const latest = reading?.key === key ? reading : null;
@@ -68,5 +74,6 @@ export function usePatientDetail(repository: PatientDetailRepository, patientId:
     loading: key !== null && latest === null,
     loadFailed: latest?.failed ?? false,
     notFound: patientId === null || (latest !== null && !latest.failed && latest.patient === null),
+    reload,
   };
 }

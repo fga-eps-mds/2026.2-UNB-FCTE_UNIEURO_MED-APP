@@ -19,6 +19,8 @@ const TIPO_POR_ORDEM: Readonly<Record<number, TipoTarefa>> = {
   3: 'trilhas',
 };
 
+const ULTIMA_ORDEM = Object.keys(TIPO_POR_ORDEM).length;
+
 export type DesenhoConfirmado = {
   atendimentoId: number;
   /** O `numero` da tarefa, de 1 a 3. */
@@ -33,6 +35,8 @@ export type DesenhoConfirmado = {
   /** Inclui os traços desfeitos e apagados. */
   eventos: readonly EventoTracado[];
   imagemPng: Uint8Array;
+  /** A última tarefa encerra a aplicação: o exame passa a aguardar o resultado (#12). */
+  encerraExame: boolean;
 };
 
 export type DrawingRepository = {
@@ -81,5 +85,6 @@ export async function confirmarDesenho(
     confirmadoEm: agora().toISOString(),
     eventos: registro.eventos,
     imagemPng: gerarImagemDesenho(registro.tracos, dimensoes),
+    encerraExame: ordem === ULTIMA_ORDEM,
   });
 }

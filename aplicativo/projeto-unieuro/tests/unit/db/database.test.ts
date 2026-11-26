@@ -211,10 +211,20 @@ describe('esquema', () => {
   it('chega à versão 11 com a exclusão de exame (#58) e de paciente (#47)', () => {
     const schemaV11 = MIGRATIONS[10];
 
-    expect(SCHEMA_VERSION).toBe(11);
     expect(schemaV11).toContain('ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT');
     expect(schemaV11).toContain('CREATE TABLE IF NOT EXISTS exclusao');
     expect(schemaV11).toContain('avaliacao_finalizada_sem_exclusao');
+  });
+
+  it('chega à versão 12 com a marcação do exame como teste ou ensino (#58)', () => {
+    const schemaV12 = MIGRATIONS[11];
+
+    expect(SCHEMA_VERSION).toBe(12);
+    expect(schemaV12).toContain("ADD COLUMN marcacao TEXT CHECK (marcacao IN ('teste', 'ensino'))");
+    expect(schemaV12).toContain('CREATE TABLE IF NOT EXISTS marcacao');
+    expect(schemaV12).toContain('marcacao_so_de_quem_aplicou');
+    expect(schemaV12).toContain('avaliacao_marcacao_com_historico');
+    expect(schemaV12).toContain('idx_marcacao_avaliacao');
   });
 });
 

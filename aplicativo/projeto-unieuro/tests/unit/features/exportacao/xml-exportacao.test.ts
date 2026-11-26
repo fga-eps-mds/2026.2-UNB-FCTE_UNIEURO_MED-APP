@@ -30,6 +30,7 @@ const exameConcluido = (extra: Partial<ExameExportado> = {}): ExameExportado => 
     autorizaImagens: true,
     autorizaPesquisaFutura: false,
   },
+  marcacao: null,
   tarefas: [
     {
       ordem: 1,
@@ -90,6 +91,7 @@ describe('XML da exportação (#22)', () => {
         autorizaImagens: null,
         autorizaPesquisaFutura: null,
       },
+      marcacao: null,
       tarefas: [],
     };
     const xml = gerarXmlDeExportacao([paciente([exameConcluido(), recusado])], CABECALHO);
@@ -164,6 +166,81 @@ describe('XML da exportação (#22)', () => {
     expect(xml).toContain('estado="aguardando_consentimento">\n    </exame>');
   });
 
+  describe('marcação como teste ou material de ensino (#58)', () => {
+    const MARCACAO = {
+      tipo: 'teste',
+      marcadaEm: '2026-10-20T09:15:00.000Z',
+      crmNumero: '12345',
+      crmUf: 'DF',
+    } as const;
+
+    it('o exame marcado sai com o tipo, a data e a hora e o médico que marcou', () => {
+      const xml = gerarXmlDeExportacao(
+        [paciente([exameConcluido({ marcacao: MARCACAO })])],
+        CABECALHO,
+      );
+
+      expect(xml).toContain(
+        '<marcacao tipo="teste" marcadaEm="2026-10-20T09:15:00.000Z" crm="12345" uf="DF"/>',
+      );
+    });
+
+    it('o material de ensino sai com o seu tipo', () => {
+      const xml = gerarXmlDeExportacao(
+        [paciente([exameConcluido({ marcacao: { ...MARCACAO, tipo: 'ensino' } })])],
+        CABECALHO,
+      );
+
+      expect(xml).toContain('<marcacao tipo="ensino"');
+    });
+
+    it('o exame sem marcação vai sem o elemento', () => {
+      const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
+
+      expect(xml).not.toContain('<marcacao');
+    });
+
+    it('a marcação vem depois do termo e antes das tarefas, e o arquivo passa no esquema', async () => {
+      const xml = gerarXmlDeExportacao(
+        [paciente([exameConcluido({ marcacao: MARCACAO })])],
+        CABECALHO,
+      );
+
+      expect(xml.indexOf('<termo')).toBeLessThan(xml.indexOf('<marcacao'));
+      expect(xml.indexOf('<marcacao')).toBeLessThan(xml.indexOf('<tarefa'));
+      await expect(validarNoEsquema(xml)).resolves.toEqual([]);
+    });
+
+    it('o exame sem TCLE aceito leva a marcação, que descreve o exame e não a pessoa', async () => {
+      const recusado = exameConcluido({
+        estado: 'cancelada',
+        termo: {
+          versao: 'TCLE v1.0',
+          aceito: false,
+          assinadoPor: 'responsavel_legal',
+          dataHora: '2026-10-13T12:01:00.000Z',
+          autorizaImagens: null,
+          autorizaPesquisaFutura: null,
+        },
+        marcacao: MARCACAO,
+      });
+      const xml = gerarXmlDeExportacao([paciente([recusado])], CABECALHO);
+
+      expect(xml).toContain('<marcacao tipo="teste"');
+      expect(xml).not.toContain('<tarefa');
+      await expect(validarNoEsquema(xml)).resolves.toEqual([]);
+    });
+
+    it('o esquema recusa um tipo de marcação desconhecido', async () => {
+      const xml = gerarXmlDeExportacao(
+        [paciente([exameConcluido({ marcacao: MARCACAO })])],
+        CABECALHO,
+      ).replace('tipo="teste"', 'tipo="outro"');
+
+      await expect(validarNoEsquema(xml)).resolves.not.toEqual([]);
+    });
+  });
+
   it('escapa os caracteres especiais do XML', () => {
     const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], {
       ...CABECALHO,
@@ -171,6 +248,65 @@ describe('XML da exportação (#22)', () => {
     });
 
     expect(xml).toContain('versaoAplicativo="1.0 &lt;beta&gt; &amp; &quot;rc&quot; &apos;x&apos;"');
+  });
+});
+
+describe('XML da coleta inteira (#138)', () => {
+  const COLETA: CabecalhoExportacao = { ...CABECALHO, escopo: 'coleta' };
+  const ANA = { nome: 'Ana Carolina Souza', crm: '12345', uf: 'DF' };
+
+  it('arquivo válido: a coleta com quem aplicou cada exame passa no exportacao-v1.xsd', async () => {
+    const xml = gerarXmlDeExportacao(
+      [
+        paciente([exameConcluido({ aplicadoPor: ANA })]),
+        paciente([
+          exameConcluido({
+            id: 20,
+            aplicadoPor: { nome: 'Bruno Lima', crm: '23456', uf: 'GO' },
+            estado: 'aguardando_consentimento',
+            termo: null,
+          }),
+        ]),
+      ],
+      COLETA,
+    );
+
+    await expect(validarNoEsquema(xml)).resolves.toEqual([]);
+  });
+
+  it('registra o escopo da coleta e quem aplicou, antes do termo', () => {
+    const xml = gerarXmlDeExportacao([paciente([exameConcluido({ aplicadoPor: ANA })])], COLETA);
+
+    expect(xml).toContain('escopo="coleta"');
+    expect(xml).toMatch(
+      /<exame [^>]*>\n {6}<aplicadoPor nome="Ana Carolina Souza" crm="12345" uf="DF"\/>\n {6}<termo /,
+    );
+  });
+
+  it('sem quem aplicou, o exame não leva o elemento', () => {
+    const xml = gerarXmlDeExportacao([paciente([exameConcluido()])], CABECALHO);
+
+    expect(xml).not.toContain('aplicadoPor');
+  });
+
+  it('escapa o nome de quem aplicou', () => {
+    const xml = gerarXmlDeExportacao(
+      [paciente([exameConcluido({ aplicadoPor: { ...ANA, nome: `Ana D'Ávila & <Souza>` } })])],
+      COLETA,
+    );
+
+    expect(xml).toContain('nome="Ana D&apos;Ávila &amp; &lt;Souza&gt;"');
+  });
+
+  it('o esquema recusa quem aplicou sem o CRM', async () => {
+    const xml = gerarXmlDeExportacao(
+      [paciente([exameConcluido({ aplicadoPor: ANA })])],
+      COLETA,
+    ).replace(' crm="12345" uf="DF"/>', ' uf="DF"/>');
+
+    const erros = await validarNoEsquema(xml);
+
+    expect(erros.join('\n')).toMatch(/attribute 'crm' is required/);
   });
 });
 

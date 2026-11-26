@@ -63,6 +63,10 @@ export type PatientExamRecord = {
    * médico comum, todos os exames foram aplicados por ele.
    */
   appliedBy?: string;
+  /** Profissional que aplicou o exame: só ele pode marcá-lo ou desmarcá-lo (#58). */
+  professionalId: number;
+  /** Marcação de teste ou material de ensino, como está na coluna `avaliacao.marcacao` (#58). */
+  marking: string | null;
 };
 
 /**
@@ -99,7 +103,21 @@ type PatientRow = {
   sexo: 'feminino' | 'masculino' | null;
 };
 
-type ExamRow = { id: number; data_hora_inicio: string; estado: string };
+type ExamRow = {
+  id: number;
+  data_hora_inicio: string;
+  estado: string;
+  id_profissional: number;
+  marcacao: string | null;
+};
+
+const toExamRecord = (row: ExamRow): PatientExamRecord => ({
+  id: row.id,
+  startedAt: row.data_hora_inicio,
+  state: row.estado,
+  professionalId: row.id_profissional,
+  marking: row.marcacao,
+});
 
 const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'> => ({
   id: row.id,
@@ -142,7 +160,8 @@ const FIND_PATIENT_OF_PROFESSIONAL = `SELECT p.id, p.nome, p.numero_ficha, p.dat
 
 // Mesmo critério da lista: `data_hora_inicio` é comparada como texto, o que só
 // ordena certo com datas no formato de `toISOString()`, em UTC.
-const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado FROM avaliacao
+const LIST_EXAMS_OF_PATIENT = `SELECT id, data_hora_inicio, estado, id_profissional, marcacao
+  FROM avaliacao
   WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
   ORDER BY data_hora_inicio DESC, id DESC`;
 
@@ -197,7 +216,8 @@ const FIND_ANY_ATTENDED_PATIENT = `SELECT p.id, p.nome, p.numero_ficha, p.data_n
 // Exames do paciente aplicados por todos os profissionais, com o nome de quem
 // aplicou, na mesma ordem da consulta do médico. A trava do superusuário se repete
 // aqui para a consulta não depender de ser chamada só depois da anterior.
-const LIST_ALL_EXAMS_OF_PATIENT = `SELECT a.id, a.data_hora_inicio, a.estado, m.nome AS aplicado_por
+const LIST_ALL_EXAMS_OF_PATIENT = `SELECT a.id, a.data_hora_inicio, a.estado, a.id_profissional,
+    a.marcacao, m.nome AS aplicado_por
   FROM avaliacao a
   JOIN profissional m ON m.id = a.id_profissional
   WHERE a.id_paciente = ? AND a.excluido_em IS NULL AND ${REQUESTER_IS_SUPERUSER}
@@ -336,11 +356,7 @@ export function createAttendanceRepository(
       ]);
       return {
         ...toPatientRecord(patient),
-        exams: exams.map((exam) => ({
-          id: exam.id,
-          startedAt: exam.data_hora_inicio,
-          state: exam.estado,
-        })),
+        exams: exams.map(toExamRecord),
       };
     },
 
@@ -421,12 +437,7 @@ export function createAttendanceRepository(
       );
       return {
         ...toPatientRecord(patient),
-        exams: exams.map((exam) => ({
-          id: exam.id,
-          startedAt: exam.data_hora_inicio,
-          state: exam.estado,
-          appliedBy: exam.aplicado_por,
-        })),
+        exams: exams.map((exam) => ({ ...toExamRecord(exam), appliedBy: exam.aplicado_por })),
       };
     },
 
