@@ -1,11 +1,18 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '@/db/database';
-import type { MarcacaoRepository, TipoMarcacao } from '@/features/avaliacao/marcacao';
+import {
+  lerMarcacao,
+  type MarcacaoRepository,
+  type TipoMarcacao,
+} from '@/features/avaliacao/marcacao';
 
 // Só os exames que o profissional aplicou e que não foram excluídos pela versão 11.
 const EXAME_DO_PROFISSIONAL = `FROM avaliacao
   WHERE id = ? AND id_profissional = ? AND excluido_em IS NULL`;
+
+const EXAMES_DO_PACIENTE_DO_PROFISSIONAL = `FROM avaliacao
+  WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL`;
 
 const REGISTRO = `INSERT INTO marcacao (id_avaliacao, acao, tipo, id_profissional, data_hora)
   VALUES (?, ?, ?, ?, ?)`;
@@ -80,6 +87,72 @@ export function createMarkingRepository(
              last_update = ?
            WHERE id = ?`,
           [dataHora, atendimentoId],
+        );
+        feito = true;
+      });
+      return feito;
+    },
+
+    async buscarPaciente(pacienteId, profissionalId) {
+      const database = await open();
+      const rows = await database.getAllAsync<{ marcacao: string | null }>(
+        `SELECT marcacao ${EXAMES_DO_PACIENTE_DO_PROFISSIONAL}`,
+        [pacienteId, profissionalId],
+      );
+      if (rows.length === 0) return null;
+      return {
+        totalExames: rows.length,
+        marcacoes: rows.map((row) => lerMarcacao(row.marcacao)),
+      };
+    },
+
+    async marcarPaciente(pacienteId, profissionalId, tipo, dataHora) {
+      const database = await open();
+      let feito = false;
+      await database.withTransactionAsync(async () => {
+        const exames = await database.getAllAsync<{ id: number }>(
+          `SELECT id ${EXAMES_DO_PACIENTE_DO_PROFISSIONAL} AND (marcacao IS NULL OR marcacao != ?)`,
+          [pacienteId, profissionalId, tipo],
+        );
+        if (exames.length === 0) return;
+        for (const exame of exames) {
+          await database.runAsync(REGISTRO, [exame.id, 'marcar', tipo, profissionalId, dataHora]);
+        }
+        await database.runAsync(
+          `UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ?, last_update = ?
+           WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
+             AND (marcacao IS NULL OR marcacao != ?)`,
+          [tipo, dataHora, profissionalId, dataHora, pacienteId, profissionalId, tipo],
+        );
+        feito = true;
+      });
+      return feito;
+    },
+
+    async desmarcarPaciente(pacienteId, profissionalId, dataHora) {
+      const database = await open();
+      let feito = false;
+      await database.withTransactionAsync(async () => {
+        const exames = await database.getAllAsync<{ id: number }>(
+          `SELECT id ${EXAMES_DO_PACIENTE_DO_PROFISSIONAL} AND marcacao IS NOT NULL`,
+          [pacienteId, profissionalId],
+        );
+        if (exames.length === 0) return;
+        for (const exame of exames) {
+          await database.runAsync(REGISTRO, [
+            exame.id,
+            'desmarcar',
+            null,
+            profissionalId,
+            dataHora,
+          ]);
+        }
+        await database.runAsync(
+          `UPDATE avaliacao SET marcacao = NULL, marcado_em = NULL, marcado_por = NULL,
+             last_update = ?
+           WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
+             AND marcacao IS NOT NULL`,
+          [dataHora, pacienteId, profissionalId],
         );
         feito = true;
       });
