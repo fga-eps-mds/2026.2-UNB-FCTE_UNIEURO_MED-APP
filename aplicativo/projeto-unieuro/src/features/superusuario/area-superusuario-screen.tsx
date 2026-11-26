@@ -51,7 +51,7 @@ export default function AreaSuperusuarioScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voltar ao início"
-          onPress={() => router.back()}
+          onPress={() => router.dismissTo('/menu')}
           style={({ pressed }) => [settings.back, pressed && home.pressed]}>
           <Text style={settings.backText}>‹ Início</Text>
         </Pressable>

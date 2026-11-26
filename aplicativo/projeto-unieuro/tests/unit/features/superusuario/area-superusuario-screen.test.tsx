@@ -66,7 +66,9 @@ describe('Cenário: acesso à área administrativa', () => {
     const usuario = userEvent.setup();
 
     await usuario.press(screen.getByRole('button', { name: 'Voltar ao início' }));
-    expect(useRouter().back).toHaveBeenCalled();
+    // Vai direto ao início, e não à tela anterior, que pode ser Configurações (revisão do #131).
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    expect(useRouter().back).not.toHaveBeenCalled();
 
     await usuario.press(screen.getByRole('button', { name: 'Configurações' }));
     expect(useRouter().push).toHaveBeenCalledWith('/settings');
