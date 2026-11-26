@@ -14,7 +14,7 @@ export function ExportarExameDialog(props: Readonly<ExportarExameDialogProps>) {
     <ExportarXmlDialog
       {...props}
       titulo="Exportar este exame"
-      descricao="O arquivo XML reúne apenas este exame: termo, desenhos, traçados e situação. Se o termo não foi aceito, o arquivo leva só a situação e a decisão do termo. O paciente aparece só por um código, sem nome, CPF ou ficha."
+      descricao="O arquivo XML reúne apenas este exame: termo, desenhos, traçados e situação. O paciente aparece só por um código, sem nome, CPF ou ficha."
     />
   );
 }

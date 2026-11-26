@@ -131,13 +131,13 @@ export default function ResultadoScreen({
             <View style={styles.actionsRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Exportar exame em XML"
+                accessibilityLabel="Exportar exame (XML)"
                 onPress={() => {
                   setSavedFile(null);
                   setConfirmingExport(true);
                 }}
                 style={({ pressed }) => [styles.exportButton, pressed && styles.pressed]}>
-                <Text style={styles.exportButtonText}>Exportar XML</Text>
+                <Text style={styles.exportButtonText}>Exportar exame (XML)</Text>
               </Pressable>
             </View>
           )}

@@ -179,7 +179,7 @@ describe('exportar XML do exame (#22)', () => {
     renderizar({ exportExam });
 
     const user = userEvent.setup();
-    await user.press(screen.getByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
     expect(screen.getByRole('header', { name: 'Exportar este exame' })).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
@@ -194,7 +194,7 @@ describe('exportar XML do exame (#22)', () => {
     renderizar({ exportExam });
 
     const user = userEvent.setup();
-    await user.press(screen.getByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
 
     expect(exportExam).toHaveBeenCalledTimes(1);
@@ -209,7 +209,7 @@ describe('exportar XML do exame (#22)', () => {
     renderizar({ exportExam });
 
     const user = userEvent.setup();
-    await user.press(screen.getByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(screen.getByRole('button', { name: 'Exportar exame (XML)' }));
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
 
     expect(await screen.findByText(FALHA_AO_EXPORTAR)).toBeOnTheScreen();
@@ -226,6 +226,6 @@ describe('exportar XML do exame (#22)', () => {
       superuser: true,
     };
     renderizar({ exportExam: jest.fn() }, superusuario);
-    expect(screen.queryByRole('button', { name: 'Exportar exame em XML' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Exportar exame (XML)' })).toBeNull();
   });
 });

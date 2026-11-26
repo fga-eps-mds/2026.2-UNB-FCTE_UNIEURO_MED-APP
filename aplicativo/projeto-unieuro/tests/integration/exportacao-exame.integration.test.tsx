@@ -110,7 +110,7 @@ describe('exportar XML de um exame solo na tela de resultado (#22)', () => {
     abrirResultado(ana, 1);
     const user = userEvent.setup();
 
-    await user.press(await screen.findByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(await screen.findByRole('button', { name: 'Exportar exame (XML)' }));
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
     screen.unmount();
 
@@ -129,7 +129,7 @@ describe('exportar XML de um exame solo na tela de resultado (#22)', () => {
     abrirResultado(ana, 2);
     const user = userEvent.setup();
 
-    await user.press(await screen.findByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(await screen.findByRole('button', { name: 'Exportar exame (XML)' }));
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
     screen.unmount();
 
@@ -151,7 +151,7 @@ describe('exportar XML de um exame solo na tela de resultado (#22)', () => {
     abrirResultado(ana, 1);
     const user = userEvent.setup();
 
-    await user.press(await screen.findByRole('button', { name: 'Exportar exame em XML' }));
+    await user.press(await screen.findByRole('button', { name: 'Exportar exame (XML)' }));
     await user.press(screen.getByRole('button', { name: 'Salvar arquivo' }));
     screen.unmount();
 
@@ -193,7 +193,7 @@ describe('exportar XML de um exame solo na tela de resultado (#22)', () => {
     );
 
     expect(await screen.findByText('José Alves Martins · Ficha 2026-0001')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Exportar exame em XML' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Exportar exame (XML)' })).toBeNull();
     expect(salvos).toEqual([]);
   });
 });
