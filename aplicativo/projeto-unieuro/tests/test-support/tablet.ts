@@ -114,3 +114,38 @@ export async function abrirTabletComAnaEBruno(): Promise<TabletComAnaEBruno> {
   const ana = await tablet.repository.findByEmail(ANA.email);
   return Object.assign(tablet, { anaId: ana!.id });
 }
+
+export const TAUIL = {
+  name: 'Carlos Bernardo Tauil',
+  email: 'carlos.tauil@unieuro.com.br',
+  crmNumber: '12771',
+  crmState: 'DF',
+};
+export const CPF_DO_TAUIL = '39053344705';
+/** Diferente da senha da Ana e do Bruno, para o teste saber de quem é a senha conferida. */
+export const SENHA_DO_TAUIL = 'senha-do-tauil';
+
+let hashDoTauil: Promise<string> | undefined;
+
+export type TabletComSuperusuario = TabletComAnaEBruno & { brunoId: number; tauilId: number };
+
+/**
+ * Ana e Bruno, médicos, e Tauil, o superusuário do tablet, criado como a conta do administrador.
+ */
+export async function abrirTabletComSuperusuario(): Promise<TabletComSuperusuario> {
+  const tablet = await abrirTabletComAnaEBruno();
+  hashDoTauil ??= hashPassword(SENHA_DO_TAUIL);
+  await tablet.repository.insertSuperuser(
+    {
+      ...TAUIL,
+      cpf: CPF_DO_TAUIL,
+      passwordHash: await hashDoTauil,
+      createdAt: '2026-09-26T13:00:00.000Z',
+    },
+    null,
+  );
+
+  const bruno = await tablet.repository.findByEmail(BRUNO.email);
+  const tauil = await tablet.repository.findByEmail(TAUIL.email);
+  return Object.assign(tablet, { brunoId: bruno!.id, tauilId: tauil!.id });
+}
