@@ -28,6 +28,10 @@ import ExamStatusChip from '@/features/home/exam-status-chip';
 import { createHomeStyles, WIDE_LAYOUT_MIN_WIDTH } from '@/features/home/home.styles';
 import { MarcarExameDialog, type MarcacaoPedida } from '@/features/home/marcar-exame-dialog';
 import {
+  MarcarPacienteDialog,
+  type MarcacaoPacientePedida,
+} from '@/features/home/marcar-paciente-dialog';
+import {
   SEX_LABEL,
   canMarkExam,
   describeAge,
@@ -44,6 +48,21 @@ import {
 } from '@/features/home/patient-detail.styles';
 import { useTheme } from '@/hooks/use-theme';
 
+export type PatientMarking = {
+  mark: (
+    patientId: number,
+    professional: SessionProfessional,
+    type: TipoMarcacao | null,
+    password: string,
+  ) => Promise<ResultadoMarcacao>;
+  unmark: (
+    patientId: number,
+    professional: SessionProfessional,
+    password: string,
+  ) => Promise<ResultadoMarcacao>;
+  onChanged: () => void;
+};
+
 type PatientDetailScreenProps = {
   /** Paciente e exames que o profissional autenticado aplicou nele, e só esses. */
   patient: PatientDetail | null;
@@ -57,6 +76,8 @@ type PatientDetailScreenProps = {
   today?: Date;
   /** Marcação do exame como teste ou ensino (#58). Sem ela, a tela não oferece o botão. */
   marking?: ExamMarking;
+  /** Marcação dos exames do paciente como teste ou ensino (#47). */
+  patientMarking?: PatientMarking;
   /**
    * Exporta em XML os exames que `professional` aplicou em `patientId` (#22). Sem ela,
    * o botão fica desabilitado. Só é chamada depois que o profissional confirma.
@@ -109,6 +130,7 @@ export default function PatientDetailScreen({
   notFound = false,
   today,
   marking,
+  patientMarking,
   exportPatient,
 }: PatientDetailScreenProps) {
   const router = useRouter();
@@ -118,6 +140,10 @@ export default function PatientDetailScreen({
   const styles = useMemo(() => createPatientDetailStyles(theme), [theme]);
   const isWide = useWindowDimensions().width >= WIDE_LAYOUT_MIN_WIDTH;
   const [markingRequest, setMarkingRequest] = useState<MarkingRequest | null>(null);
+  const [patientMarkingRequest, setPatientMarkingRequest] = useState<MarcacaoPacientePedida | null>(
+    null,
+  );
+  const [markingNotice, setMarkingNotice] = useState<string | null>(null);
   const [confirmingExport, setConfirmingExport] = useState(false);
   const [savedFile, setSavedFile] = useState<string | null>(null);
 
@@ -130,7 +156,19 @@ export default function PatientDetailScreen({
 
   // O arquivo leva só os exames que o profissional aplicou (#22). O superusuário vê os de
   // outros médicos na tela, mas só exporta os próprios.
-  const hasOwnExams = patient?.exams.some((exam) => canMarkExam(exam, professional.id)) ?? false;
+  const ownExams = patient?.exams.filter((exam) => canMarkExam(exam, professional.id)) ?? [];
+  const hasOwnExams = ownExams.length > 0;
+  const allOwnMarked = hasOwnExams && ownExams.every((exam) => exam.marking !== null);
+  const ownMarkings = Array.from(
+    new Set(ownExams.map((e) => e.marking).filter((m): m is TipoMarcacao => m !== null)),
+  );
+  const visibleMarkings = Array.from(
+    new Set(
+      (patient?.exams ?? []).map((e) => e.marking).filter((m): m is TipoMarcacao => m !== null),
+    ),
+  );
+  const canMarkPatient =
+    patientMarking !== undefined && hasOwnExams && professional.superuser !== true;
   const exportDisabled = !exportPatient || !hasOwnExams;
 
   return (
@@ -155,10 +193,37 @@ export default function PatientDetailScreen({
         {loadFailed && <FeedbackMessage kind="error" message={LOAD_FAILED_MESSAGE} />}
         {patient ? (
           <>
-            <PatientCard patient={patient} today={today} styles={styles} />
+            <PatientCard
+              patient={patient}
+              today={today}
+              markings={visibleMarkings}
+              styles={styles}
+            />
             <View style={styles.exportRow}>
               {patient.exams.length > 0 && !hasOwnExams && (
                 <Text style={styles.examsSummary}>{NO_OWN_EXAMS_MESSAGE}</Text>
+              )}
+              {canMarkPatient && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    allOwnMarked
+                      ? 'Desfazer marcação do paciente'
+                      : 'Marcar paciente como teste ou material de ensino'
+                  }
+                  onPress={() => {
+                    setMarkingNotice(null);
+                    setPatientMarkingRequest(
+                      allOwnMarked
+                        ? { acao: 'desmarcar', marcacoes: ownMarkings }
+                        : { acao: 'marcar' },
+                    );
+                  }}
+                  style={({ pressed }) => [home.outlineButton, pressed && home.pressed]}>
+                  <Text style={home.outlineButtonText}>
+                    {allOwnMarked ? 'Desfazer marcação do paciente' : 'Marcar paciente'}
+                  </Text>
+                </Pressable>
               )}
               <Pressable
                 accessibilityRole="button"
@@ -179,6 +244,7 @@ export default function PatientDetailScreen({
                 </Text>
               </Pressable>
             </View>
+            {markingNotice && <FeedbackMessage kind="success" message={markingNotice} />}
             {savedFile && <FeedbackMessage kind="success" message={savedFileMessage(savedFile)} />}
             <ExamsCard
               exams={patient.exams}
@@ -214,6 +280,32 @@ export default function PatientDetailScreen({
         />
       )}
 
+      {patient && patientMarking && patientMarkingRequest && (
+        <MarcarPacienteDialog
+          visible
+          pedido={patientMarkingRequest}
+          paciente={patient.name}
+          onConfirm={async (type, password) => {
+            const result =
+              patientMarkingRequest.acao === 'marcar'
+                ? await patientMarking.mark(patient.id, professional, type, password)
+                : await patientMarking.unmark(patient.id, professional, password);
+            if (!result.feito && result.desatualizado) patientMarking.onChanged();
+            return result;
+          }}
+          onCancel={() => setPatientMarkingRequest(null)}
+          onDone={() => {
+            const mensagem =
+              patientMarkingRequest.acao === 'marcar'
+                ? 'Marcação aplicada aos seus exames deste paciente.'
+                : 'Marcação removida dos seus exames deste paciente.';
+            setPatientMarkingRequest(null);
+            setMarkingNotice(mensagem);
+            patientMarking.onChanged();
+          }}
+        />
+      )}
+
       {marking && markingRequest && (
         <MarcarExameDialog
           visible
@@ -242,10 +334,12 @@ export default function PatientDetailScreen({
 function PatientCard({
   patient,
   today,
+  markings = [],
   styles,
 }: {
   patient: PatientDetail;
   today?: Date;
+  markings?: readonly TipoMarcacao[];
   styles: PatientDetailStyles;
 }) {
   const facts = [
@@ -257,9 +351,20 @@ function PatientCard({
 
   return (
     <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.patientName}>
-        {patient.name}
-      </Text>
+      <View style={styles.patientHeaderRow}>
+        <Text accessibilityRole="header" style={styles.patientName}>
+          {patient.name}
+        </Text>
+        {markings.length > 0 && (
+          <View style={styles.examChips}>
+            {markings.map((marking) => (
+              <View key={marking} testID="marcacao-paciente" style={styles.markingChip}>
+                <Text style={styles.markingText}>{ROTULO_MARCACAO[marking]}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
       <View style={styles.facts}>
         {facts.map(([label, value]) => (
           <View key={label} style={styles.fact}>

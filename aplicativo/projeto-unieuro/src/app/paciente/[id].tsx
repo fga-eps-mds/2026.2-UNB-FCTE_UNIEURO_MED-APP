@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 
-import { markExam, unmarkExam } from '@/features/avaliacao/composition';
+import { markExam, markPatient, unmarkExam, unmarkPatient } from '@/features/avaliacao/composition';
 import { exportarExamesDoPaciente } from '@/features/exportacao/composition';
 
 import { patientDetailRepository } from '@/features/home/composition';
@@ -23,6 +23,11 @@ export default function PatientRoute() {
     () => ({ mark: markExam, unmark: unmarkExam, onChanged: reload }),
     [reload],
   );
+  // Marcação em lote dos exames do paciente aplicados pelo profissional (#47).
+  const patientMarking = useMemo(
+    () => ({ mark: markPatient, unmark: unmarkPatient, onChanged: reload }),
+    [reload],
+  );
   return (
     <PatientDetailScreen
       patient={patient}
@@ -30,6 +35,7 @@ export default function PatientRoute() {
       loadFailed={loadFailed}
       notFound={notFound}
       marking={marking}
+      patientMarking={patientMarking}
       exportPatient={exportarExamesDoPaciente}
     />
   );
