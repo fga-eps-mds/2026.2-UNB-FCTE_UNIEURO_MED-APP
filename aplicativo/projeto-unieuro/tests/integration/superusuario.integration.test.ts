@@ -427,6 +427,69 @@ describe('superusuário desativa a conta de um médico', () => {
   });
 });
 
+describe('superusuário redefine a senha de um médico', () => {
+  let tauil: Awaited<ReturnType<typeof criarAdministrador>>;
+  let ana: Awaited<ReturnType<typeof cadastrar>>;
+
+  beforeEach(async () => {
+    tauil = await criarAdministrador();
+    ana = await cadastrar(ANA);
+  });
+
+  const senhaDe = async (id: number) => (await professionals.findById(id))!.passwordHash;
+
+  it('troca a senha do médico e a data da última alteração', async () => {
+    await expect(
+      professionals.resetDoctorPassword(ana.id, tauil.id, 'novo-hash', AGORA),
+    ).resolves.toBe(true);
+
+    expect(await professionals.findById(ana.id)).toMatchObject({
+      passwordHash: 'novo-hash',
+      updatedAt: AGORA,
+    });
+  });
+
+  it('um médico comum não troca a senha de ninguém, nem chamada direto', async () => {
+    const paulo = await cadastrar(PAULO);
+
+    await expect(
+      professionals.resetDoctorPassword(ana.id, paulo.id, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+    await expect(senhaDe(ana.id)).resolves.toBe('hash-da-senha');
+  });
+
+  it('um superusuário com a conta desativada não troca a senha de ninguém', async () => {
+    await professionals.deactivate(tauil.id, AGORA);
+
+    await expect(
+      professionals.resetDoctorPassword(ana.id, tauil.id, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+    await expect(senhaDe(ana.id)).resolves.toBe('hash-da-senha');
+  });
+
+  it('não troca a senha de um superusuário, nem a do próprio', async () => {
+    await professionals.insertSuperuser(conta(PAULO), tauil.id);
+    const paulo = (await professionals.findByEmail(PAULO.email))!;
+
+    await expect(
+      professionals.resetDoctorPassword(paulo.id, tauil.id, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+    await expect(
+      professionals.resetDoctorPassword(tauil.id, tauil.id, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+    await expect(senhaDe(paulo.id)).resolves.toBe('hash-da-senha');
+  });
+
+  it('não troca a senha de uma conta desativada', async () => {
+    await professionals.deactivate(ana.id, AGORA);
+
+    await expect(
+      professionals.resetDoctorPassword(ana.id, tauil.id, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+    await expect(senhaDe(ana.id)).resolves.toBe('hash-da-senha');
+  });
+});
+
 describe('atendimentos de todos os profissionais', () => {
   let tauil: { id: number; superuser: boolean };
   let ana: { id: number; superuser: boolean };

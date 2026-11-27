@@ -422,6 +422,30 @@ describe('ações do superusuário sobre a conta de um médico', () => {
       false,
     );
   });
+
+  it('troca a senha só de um médico com a conta ativa, a pedido de um superusuário ativo', async () => {
+    const database = createDatabase();
+
+    await expect(
+      createRepository(database).resetDoctorPassword(7, SUPERUSUARIO, 'novo-hash', AGORA),
+    ).resolves.toBe(true);
+    expect(database.runAsync).toHaveBeenCalledWith(
+      expect.stringMatching(SO_MEDICO_ATIVO_A_PEDIDO_DO_SUPERUSUARIO),
+      ['novo-hash', AGORA, 7, SUPERUSUARIO],
+    );
+    expect(jest.mocked(database.runAsync).mock.calls[0][0]).toMatch(
+      /SET senha_hash = \?, last_update = \?/,
+    );
+  });
+
+  it('avisa quando o banco não trocou a senha', async () => {
+    const database = createDatabase();
+    database.runAsync.mockResolvedValueOnce({ lastInsertRowId: 0, changes: 0 });
+
+    await expect(
+      createRepository(database).resetDoctorPassword(7, SUPERUSUARIO, 'novo-hash', AGORA),
+    ).resolves.toBe(false);
+  });
 });
 
 describe('duplicidade de CPF com a proteção real', () => {

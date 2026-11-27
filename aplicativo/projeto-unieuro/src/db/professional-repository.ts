@@ -363,6 +363,27 @@ export function createProfessionalRepository(
       );
       return result.changes > 0;
     },
+
+    /**
+     * Troca a senha do médico `targetId`, a pedido do superusuário `actorId`, para
+     * quando o médico esquece a senha. O alvo é
+     * um médico com a conta ativa e quem pede é superusuário ativo. Devolve `false`
+     * quando nada mudou.
+     */
+    async resetDoctorPassword(
+      targetId: number,
+      actorId: number,
+      passwordHash: string,
+      updatedAt: string,
+    ): Promise<boolean> {
+      const database = await open();
+      const result = await database.runAsync(
+        `UPDATE profissional SET senha_hash = ?, last_update = ?
+         WHERE id = ? AND ativo = 1 AND perfil = 'medico' AND ${REQUESTER_IS_SUPERUSER}`,
+        [passwordHash, updatedAt, targetId, actorId],
+      );
+      return result.changes > 0;
+    },
   };
 }
 
