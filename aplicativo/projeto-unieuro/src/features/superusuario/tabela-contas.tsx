@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -8,6 +9,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { BrandPalette } from '@/constants/theme';
 import { FeedbackMessage } from '@/features/auth/feedback-message';
 import ExamStatusChip from '@/features/home/exam-status-chip';
 import {
@@ -31,12 +33,24 @@ export const SEM_CONTAS = 'Nenhuma conta cadastrada neste tablet.';
 const local = StyleSheet.create({
   bloco: { gap: 16 },
   busca: { gap: 8 },
+  // As ações ficam numa linha própria, embaixo dos dados, para não apertar as colunas.
+  acoes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
 });
 
 type TabelaContasProps = {
   contas: readonly LinhaConta[];
   loading?: boolean;
   loadFailed?: boolean;
+  /** Sem as ações, a tabela só lista as contas. */
+  onDesativar?: (linha: LinhaConta) => void;
+  onRedefinirSenha?: (linha: LinhaConta) => void;
 };
 
 /**
@@ -47,6 +61,8 @@ export function TabelaContas({
   contas,
   loading = false,
   loadFailed = false,
+  onDesativar,
+  onRedefinirSenha,
 }: Readonly<TabelaContasProps>) {
   const theme = useTheme();
   const styles = useMemo(() => createHomeStyles(theme), [theme]);
@@ -100,6 +116,8 @@ export function TabelaContas({
                   isWide={isWide}
                   showDivider={indice > 0}
                   styles={styles}
+                  onDesativar={onDesativar}
+                  onRedefinirSenha={onRedefinirSenha}
                 />
               ))
             )}
@@ -126,10 +144,21 @@ type LinhaDaTabelaProps = {
   isWide: boolean;
   showDivider: boolean;
   styles: HomeStyles;
+  onDesativar?: (linha: LinhaConta) => void;
+  onRedefinirSenha?: (linha: LinhaConta) => void;
 };
 
-function LinhaDaTabela({ linha, isWide, showDivider, styles }: Readonly<LinhaDaTabelaProps>) {
+function LinhaDaTabela({
+  linha,
+  isWide,
+  showDivider,
+  styles,
+  onDesativar,
+  onRedefinirSenha,
+}: Readonly<LinhaDaTabelaProps>) {
   const situacao = SITUACAO_LABEL[linha.situacao];
+  const desativar = linha.podeDesativar ? onDesativar : undefined;
+  const redefinirSenha = linha.podeRedefinirSenha ? onRedefinirSenha : undefined;
   const exames = linha.exames === 1 ? '1 exame' : `${linha.exames} exames`;
 
   return (
@@ -152,6 +181,30 @@ function LinhaDaTabela({ linha, isWide, showDivider, styles }: Readonly<LinhaDaT
           <Text style={[styles.count, styles.colCount]}>{linha.exames}</Text>
         </View>
       </View>
+      {(redefinirSenha || desativar) && (
+        <View style={local.acoes}>
+          {redefinirSenha && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Redefinir a senha de ${linha.nome}`}
+              onPress={() => redefinirSenha(linha)}
+              style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+              <Text style={styles.textButtonText}>Redefinir senha</Text>
+            </Pressable>
+          )}
+          {desativar && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Desativar a conta de ${linha.nome}`}
+              onPress={() => desativar(linha)}
+              style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
+              <Text style={[styles.textButtonText, { color: BrandPalette.deepWine }]}>
+                Desativar
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }

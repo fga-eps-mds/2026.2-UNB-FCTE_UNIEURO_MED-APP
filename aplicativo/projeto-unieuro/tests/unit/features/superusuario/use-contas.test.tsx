@@ -89,6 +89,39 @@ describe('contas da área do superusuário', () => {
     await waitFor(() => expect(result.current.contas).toHaveLength(2));
   });
 
+  it('recarrega a pedido, depois de uma ação, sem voltar a mostrar que está carregando', async () => {
+    const desativada = { ...ana, active: false };
+    const repository = repositoryWith([ana], [desativada]);
+    const { result } = renderWithSession(repository, tauil);
+    await waitFor(() => expect(result.current.contas[0]?.situacao).toBe('ativa'));
+
+    act(() => result.current.recarregar());
+
+    expect(result.current.loading).toBe(false);
+    await waitFor(() => expect(result.current.contas[0].situacao).toBe('desativada'));
+    expect(repository.listAccounts).toHaveBeenLastCalledWith(1);
+  });
+
+  it('avisa quando a leitura pedida depois de uma ação falha', async () => {
+    const repository = repositoryWith([ana], new Error('banco indisponível'));
+    const { result } = renderWithSession(repository, tauil);
+    await waitFor(() => expect(result.current.contas).toHaveLength(1));
+
+    act(() => result.current.recarregar());
+
+    await waitFor(() => expect(result.current.loadFailed).toBe(true));
+    expect(result.current.contas).toHaveLength(1);
+  });
+
+  it('sem profissional na sessão, recarregar não consulta o banco', () => {
+    const repository = repositoryWith();
+    const { result } = renderWithSession(repository, null);
+
+    act(() => result.current.recarregar());
+
+    expect(repository.listAccounts).not.toHaveBeenCalled();
+  });
+
   it('não consulta o banco sem profissional na sessão', () => {
     const repository = repositoryWith();
 

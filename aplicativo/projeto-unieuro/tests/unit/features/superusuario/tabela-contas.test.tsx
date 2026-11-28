@@ -122,6 +122,53 @@ describe('Buscar médico', () => {
   });
 });
 
+describe('ações da conta', () => {
+  it('oferece desativar só a conta ativa de um médico', () => {
+    render(<TabelaContas contas={contas} onDesativar={jest.fn()} />);
+
+    expect(
+      screen.getByRole('button', { name: 'Desativar a conta de Ana Carolina Souza' }),
+    ).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /^Desativar a conta de/ })).toHaveLength(1);
+  });
+
+  it('entrega a linha escolhida para quem abre a desativação', () => {
+    const onDesativar = jest.fn();
+    render(<TabelaContas contas={contas} onDesativar={onDesativar} />);
+
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Desativar a conta de Ana Carolina Souza' }),
+    );
+
+    expect(onDesativar).toHaveBeenCalledWith(contas[0]);
+  });
+
+  it('oferece redefinir a senha só da conta ativa de um médico', () => {
+    const onRedefinirSenha = jest.fn();
+    render(<TabelaContas contas={contas} onRedefinirSenha={onRedefinirSenha} />);
+
+    expect(screen.getAllByRole('button', { name: /^Redefinir a senha de/ })).toHaveLength(1);
+    fireEvent.press(
+      screen.getByRole('button', { name: 'Redefinir a senha de Ana Carolina Souza' }),
+    );
+
+    expect(onRedefinirSenha).toHaveBeenCalledWith(contas[0]);
+  });
+
+  it('mostra só a ação que recebeu', () => {
+    render(<TabelaContas contas={contas} onRedefinirSenha={jest.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /^Desativar a conta de/ })).toBeNull();
+  });
+
+  it('sem as ações, só lista as contas', () => {
+    render(<TabelaContas contas={contas} />);
+
+    expect(screen.queryByRole('button', { name: /^Desativar a conta de/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Redefinir a senha de/ })).toBeNull();
+  });
+});
+
 describe('carregando e falha', () => {
   it('mostra que está carregando enquanto a primeira leitura não termina', () => {
     render(<TabelaContas contas={[]} loading />);
