@@ -122,18 +122,6 @@ describe('marcação do exame no banco (#58)', () => {
     await expect(historico()).resolves.toHaveLength(1);
   });
 
-  it('ignora o exame excluído pela versão 11', async () => {
-    await tablet.database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id = ?', [
-      AGORA,
-      exameDaAna,
-    ]);
-
-    await expect(repository.buscarExame(exameDaAna, tablet.anaId)).resolves.toBeNull();
-    await expect(repository.marcarExame(exameDaAna, tablet.anaId, 'teste', AGORA)).resolves.toBe(
-      false,
-    );
-  });
-
   it('desfaz a marcação e registra quem desfez, mantendo o histórico', async () => {
     await repository.marcarExame(exameDaAna, tablet.anaId, 'teste', AGORA);
 
@@ -264,24 +252,6 @@ describe('marcação do paciente no banco (#47)', () => {
       false,
     );
     await expect(historico()).resolves.toHaveLength(2);
-  });
-
-  it('ignora exames excluídos pela versão 11 ao buscar e marcar o paciente', async () => {
-    await tablet.database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id = ?', [
-      AGORA,
-      segundoExameDaAna,
-    ]);
-
-    await expect(repository.buscarPaciente(joseId, tablet.anaId)).resolves.toEqual({
-      marcacoes: [null],
-    });
-    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA)).resolves.toBe(
-      true,
-    );
-
-    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'teste' });
-    await expect(exame(segundoExameDaAna)).resolves.toMatchObject({ marcacao: null });
-    await expect(historico()).resolves.toHaveLength(1);
   });
 
   it('não encontra nem marca paciente atendido só por outro médico', async () => {

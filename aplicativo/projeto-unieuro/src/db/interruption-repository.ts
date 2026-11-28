@@ -44,8 +44,7 @@ type InterruptedExamRow = {
 /**
  * Persistência da desistência e da retomada do exame (#25). As duas só valem
  * para a avaliação do próprio profissional e no estado certo: só se desiste de
- * um exame em andamento, e só se retoma um exame interrompido. O exame excluído
- * (#58) fica de fora das três operações, como um exame que não existe.
+ * um exame em andamento, e só se retoma um exame interrompido.
  */
 export function createInterruptionRepository(open: () => Promise<SQLiteDatabase> = getDatabase) {
   return {
@@ -55,8 +54,7 @@ export function createInterruptionRepository(open: () => Promise<SQLiteDatabase>
         `UPDATE avaliacao
          SET estado = 'interrompida', tarefa_interrupcao = ?, motivo_interrupcao = ?,
              data_hora_interrupcao = ?, last_update = ?
-         WHERE id = ? AND id_profissional = ? AND estado = 'em_andamento'
-           AND excluido_em IS NULL`,
+         WHERE id = ? AND id_profissional = ? AND estado = 'em_andamento'`,
         [
           registro.tarefa,
           registro.motivo,
@@ -79,8 +77,7 @@ export function createInterruptionRepository(open: () => Promise<SQLiteDatabase>
                 a.data_hora_interrupcao
          FROM avaliacao a
          JOIN paciente p ON p.id = a.id_paciente
-         WHERE a.id = ? AND a.id_profissional = ? AND a.estado = 'interrompida'
-           AND a.excluido_em IS NULL`,
+         WHERE a.id = ? AND a.id_profissional = ? AND a.estado = 'interrompida'`,
         [atendimentoId, profissionalId],
       );
       if (!row) return null;
@@ -112,8 +109,7 @@ export function createInterruptionRepository(open: () => Promise<SQLiteDatabase>
       const database = await open();
       const resultado = await database.runAsync(
         `UPDATE avaliacao SET estado = 'em_andamento', last_update = ?
-         WHERE id = ? AND id_profissional = ? AND estado = 'interrompida'
-           AND excluido_em IS NULL`,
+         WHERE id = ? AND id_profissional = ? AND estado = 'interrompida'`,
         [retomadoEm, atendimentoId, profissionalId],
       );
       return resultado.changes === 1;

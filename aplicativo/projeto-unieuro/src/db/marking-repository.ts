@@ -7,12 +7,12 @@ import {
   type TipoMarcacao,
 } from '@/features/avaliacao/marcacao';
 
-// Só os exames que o profissional aplicou e que não foram excluídos pela versão 11.
+// Só os exames que o profissional aplicou.
 const EXAME_DO_PROFISSIONAL = `FROM avaliacao
-  WHERE id = ? AND id_profissional = ? AND excluido_em IS NULL`;
+  WHERE id = ? AND id_profissional = ?`;
 
 const EXAMES_DO_PACIENTE_DO_PROFISSIONAL = `FROM avaliacao
-  WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL`;
+  WHERE id_paciente = ? AND id_profissional = ?`;
 
 const REGISTRO = `INSERT INTO marcacao (id_avaliacao, acao, tipo, id_profissional, data_hora)
   VALUES (?, ?, ?, ?, ?)`;
@@ -121,7 +121,7 @@ export function createMarkingRepository(
         }
         await database.runAsync(
           `UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ?, last_update = ?
-           WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
+           WHERE id_paciente = ? AND id_profissional = ?
              AND marcacao IS NULL`,
           [tipo, dataHora, profissionalId, dataHora, pacienteId, profissionalId],
         );
@@ -151,7 +151,7 @@ export function createMarkingRepository(
         await database.runAsync(
           `UPDATE avaliacao SET marcacao = NULL, marcado_em = NULL, marcado_por = NULL,
              last_update = ?
-           WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
+           WHERE id_paciente = ? AND id_profissional = ?
              AND marcacao IS NOT NULL`,
           [dataHora, pacienteId, profissionalId],
         );
