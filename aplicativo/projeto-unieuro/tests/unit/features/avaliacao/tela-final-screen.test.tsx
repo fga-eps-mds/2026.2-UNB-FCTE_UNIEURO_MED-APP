@@ -31,10 +31,13 @@ const repositorio = {
   getCpf: jest.fn(async () => CPF_PROTEGIDO as string | null),
 } satisfies ProfessionalCpfRepository;
 
-function renderizarTela(professional: SessionProfessional | null = profissional) {
+function renderizarTela(
+  professional: SessionProfessional | null = profissional,
+  exameId: number | null = null,
+) {
   render(
     <SessionProvider initialProfessional={professional}>
-      <TelaFinalScreen repository={repositorio} />
+      <TelaFinalScreen repository={repositorio} exameId={exameId} />
     </SessionProvider>,
   );
 }
@@ -85,6 +88,27 @@ describe('TelaFinalScreen', () => {
     expect(repositorio.getCpf).toHaveBeenCalledWith(profissional.id);
     expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
     expect(useRouter().replace).not.toHaveBeenCalled();
+  });
+
+  it('com o exame que terminou, a confirmação abre a análise do modelo por cima da tela inicial', async () => {
+    const user = userEvent.setup();
+    renderizarTela(profissional, 42);
+    await user.press(screen.getByRole('button', { name: BOTAO_PROFISSIONAL }));
+
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(useRouter().dismissTo).toHaveBeenCalledWith('/menu');
+    expect(useRouter().push).toHaveBeenCalledWith('/analise/42');
+  });
+
+  it('sem o exame, a confirmação só volta à tela inicial', async () => {
+    const user = await pedirConfirmacao();
+
+    await user.type(screen.getByLabelText(ROTULO_CPF), '1114');
+    await user.press(screen.getByRole('button', { name: 'Confirmar' }));
+
+    expect(useRouter().push).not.toHaveBeenCalled();
   });
 
   it('com dígitos incorretos, avisa, permanece na tela final e permite nova tentativa', async () => {

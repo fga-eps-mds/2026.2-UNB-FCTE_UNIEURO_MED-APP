@@ -24,6 +24,8 @@ export const FALHA_NA_CONFERENCIA = 'Não foi possível conferir os dígitos ago
 
 type TelaFinalScreenProps = {
   repository: ProfessionalCpfRepository;
+  /** Exame que acabou de terminar. Com ele, a confirmação abre a análise do modelo (#12). */
+  exameId?: number | null;
 };
 
 /**
@@ -33,7 +35,10 @@ type TelaFinalScreenProps = {
  * O voltar do Android não sai da tela, como nas tarefas, e a tela é sempre clara,
  * como as outras do paciente, com o alto contraste e as letras maiores da #24.
  */
-export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreenProps>) {
+export default function TelaFinalScreen({
+  repository,
+  exameId = null,
+}: Readonly<TelaFinalScreenProps>) {
   const router = useRouter();
   const { professional } = useSession();
   const [confirmando, setConfirmando] = useState(false);
@@ -62,8 +67,10 @@ export default function TelaFinalScreen({ repository }: Readonly<TelaFinalScreen
       setConferindo(true);
       const resultado = await confirmarProfissional(digitos, professional.id, repository);
       if (resultado.confirmado) {
-        // Volta à tela inicial que já está embaixo na pilha, sem abrir outra.
+        // Volta à tela inicial que já está embaixo na pilha, sem abrir outra. Com o exame,
+        // a análise abre por cima dela: o "Voltar" do resultado leva à tela inicial.
         router.dismissTo('/menu');
+        if (exameId !== null) router.push(`/analise/${exameId}`);
         return;
       }
       if (resultado.motivo === 'incorreto') setDigitos('');

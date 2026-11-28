@@ -54,7 +54,12 @@ export default function DrawingRoute() {
           registro,
         });
         if (confirmada.numero === TOTAL_TAREFAS) {
-          router.replace('/fim-do-teste');
+          // O exame vai junto para a tela final: depois da confirmação do profissional,
+          // ela abre a análise deste exame (#12).
+          router.replace({
+            pathname: '/fim-do-teste',
+            params: { atendimento: String(atendimento) },
+          });
           return;
         }
         router.replace({

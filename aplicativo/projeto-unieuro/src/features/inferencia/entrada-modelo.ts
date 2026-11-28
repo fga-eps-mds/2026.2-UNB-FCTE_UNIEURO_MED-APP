@@ -14,7 +14,7 @@ const CANAIS_RGBA = 4;
 const CANAIS_RGB = 3;
 const VALOR_MAXIMO_PIXEL = 255;
 
-type Eixo = { minimo: number; extensao: number };
+export type Eixo = { minimo: number; extensao: number };
 
 function eixo(valores: readonly number[]): Eixo {
   // Sem espalhar o vetor no Math.min: um desenho longo tem milhares de pontos.
@@ -30,6 +30,29 @@ function ajustarCoordenada(valor: number, { minimo, extensao }: Eixo): number {
   return BORDA_DA_CAIXA + ((valor - minimo) * ULTIMO_PIXEL_DA_CAIXA) / extensao;
 }
 
+/** Caixa dos pontos de todos os traços, a mesma que o ajuste estica até a caixa do treino. */
+export function caixaDosTracos(tracos: readonly Traco[]): { horizontal: Eixo; vertical: Eixo } {
+  const pontos = tracos.flat();
+  return {
+    horizontal: eixo(pontos.map(({ x }) => x)),
+    vertical: eixo(pontos.map(({ y }) => y)),
+  };
+}
+
+/**
+ * Leva uma coordenada da entrada do modelo de volta ao quadro em que o paciente desenhou, para
+ * pôr o mapa do modelo sobre o desenho (#14). Num eixo sem extensão, todo valor volta ao mesmo
+ * ponto do quadro.
+ */
+export function voltarAoQuadro(valor: number, { minimo, extensao }: Eixo): number {
+  return minimo + ((valor - BORDA_DA_CAIXA) * extensao) / ULTIMO_PIXEL_DA_CAIXA;
+}
+
+/** Posição de uma coordenada da entrada dentro da caixa do desenho: 0 no começo, 1 no fim. */
+export function fracaoDaCaixa(valor: number): number {
+  return (valor - BORDA_DA_CAIXA) / ULTIMO_PIXEL_DA_CAIXA;
+}
+
 export function ajustarTracosNaEntrada(tracos: readonly Traco[]): Traco[] {
   const pontos = tracos.flat();
   const temCoordenadaInvalida = pontos.some(
@@ -41,8 +64,7 @@ export function ajustarTracosNaEntrada(tracos: readonly Traco[]): Traco[] {
   // O paciente desenha em qualquer posição e tamanho do quadro. Recortar pela caixa dos pontos
   // e esticar cada eixo até a caixa do treino deixa o escore estável no tamanho do desenho
   // (IA PR #29, Tabela 9: traçado vetorial, 89 % a 90 % dos pacientes na mesma classe).
-  const horizontal = eixo(pontos.map(({ x }) => x));
-  const vertical = eixo(pontos.map(({ y }) => y));
+  const { horizontal, vertical } = caixaDosTracos(tracos);
   return tracos.map((traco) =>
     traco.map(
       (ponto): PontoTracado => ({

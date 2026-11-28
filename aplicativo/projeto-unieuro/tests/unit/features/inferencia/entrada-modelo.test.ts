@@ -1,8 +1,11 @@
 import type { Traco } from '@/features/captura/eventos-tracado';
 import {
   ajustarTracosNaEntrada,
+  caixaDosTracos,
+  fracaoDaCaixa,
   LADO_ENTRADA,
   pixelsParaEntrada,
+  voltarAoQuadro,
 } from '@/features/inferencia/entrada-modelo';
 
 const INICIO_DA_CAIXA = 16;
@@ -93,6 +96,37 @@ describe('ajuste dos traços à caixa do treino', () => {
     ['coordenada infinita', [[ponto(0, Number.POSITIVE_INFINITY), ponto(10, 10)]]],
   ])('recusa desenho com %s', (_caso, tracos) => {
     expect(() => ajustarTracosNaEntrada(tracos as Traco[])).toThrow('sem traço válido');
+  });
+});
+
+describe('volta da entrada do modelo para o quadro', () => {
+  const tracos = [[ponto(100, 50), ponto(300, 250)], [ponto(180, 90)]];
+
+  it('desfaz o ajuste à caixa, ponto por ponto', () => {
+    const { horizontal, vertical } = caixaDosTracos(tracos);
+
+    const devolvidos = ajustarTracosNaEntrada(tracos).map((traco) =>
+      traco.map(({ x, y }) => [voltarAoQuadro(x, horizontal), voltarAoQuadro(y, vertical)]),
+    );
+
+    devolvidos.flat(2).forEach((valor, indice) => {
+      expect(valor).toBeCloseTo(coordenadas(tracos).flat(2)[indice]);
+    });
+  });
+
+  it('a caixa usa os pontos de todos os traços', () => {
+    expect(caixaDosTracos(tracos)).toEqual({
+      horizontal: { minimo: 100, extensao: 200 },
+      vertical: { minimo: 50, extensao: 200 },
+    });
+  });
+
+  it.each([
+    [INICIO_DA_CAIXA, 0],
+    [FIM_DA_CAIXA, 1],
+    [MEIO_DA_CAIXA, 0.5],
+  ])('a coordenada %d da entrada fica na fração %d da caixa do desenho', (valor, fracao) => {
+    expect(fracaoDaCaixa(valor)).toBeCloseTo(fracao);
   });
 });
 
