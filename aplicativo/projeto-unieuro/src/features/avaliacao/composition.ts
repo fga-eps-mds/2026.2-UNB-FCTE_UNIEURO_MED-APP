@@ -19,7 +19,13 @@ import {
   type DesistenciaInput,
   type InterrupcaoRepository,
 } from '@/features/avaliacao/interrupcao';
-import { desmarcarExame, marcarExame, type TipoMarcacao } from '@/features/avaliacao/marcacao';
+import {
+  desmarcarExame,
+  desmarcarPaciente,
+  marcarExame,
+  marcarPaciente,
+  type TipoMarcacao,
+} from '@/features/avaliacao/marcacao';
 
 /**
  * Liga a regra do atendimento ao banco. As rotas e a tela importam daqui, e não
@@ -100,6 +106,31 @@ export const unmarkExam = (
 ) =>
   desmarcarExame(
     { atendimentoId: attendanceId, profissional: professional, senha: password },
+    markingRepository,
+    professionalRepository,
+  );
+
+/** Marca os exames que o profissional aplicou no paciente (#47), confirmado pela senha dele. */
+export const markPatient = (
+  patientId: number,
+  professional: SessionProfessional,
+  type: TipoMarcacao | null,
+  password: string,
+) =>
+  marcarPaciente(
+    { pacienteId: patientId, profissional: professional, tipo: type, senha: password },
+    markingRepository,
+    professionalRepository,
+  );
+
+/** Desfaz a marcação dos exames do paciente aplicados pelo profissional (#47). */
+export const unmarkPatient = (
+  patientId: number,
+  professional: SessionProfessional,
+  password: string,
+) =>
+  desmarcarPaciente(
+    { pacienteId: patientId, profissional: professional, senha: password },
     markingRepository,
     professionalRepository,
   );

@@ -27,6 +27,13 @@ export function createPatientDetailStyles(theme: ThemeColors) {
     },
     contentWide: { paddingHorizontal: 40, paddingTop: 32 },
     card: { gap: 20, padding: 32, borderRadius: 24, backgroundColor: theme.surface },
+    patientHeaderRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
     patientName: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 34, lineHeight: 42 },
     facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 48, rowGap: 16 },
     fact: { gap: 2 },

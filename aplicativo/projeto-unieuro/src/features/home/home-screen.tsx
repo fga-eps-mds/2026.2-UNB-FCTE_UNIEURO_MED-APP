@@ -19,6 +19,7 @@ import {
   useSession,
   type SessionProfessional,
 } from '@/features/auth/session';
+import { ROTULO_MARCACAO } from '@/features/avaliacao/marcacao';
 import type { ResultadoExportacao } from '@/features/exportacao/exportacao';
 import { ExportarTodosDialog } from '@/features/exportacao/exportar-todos-dialog';
 import {
@@ -397,6 +398,7 @@ function PatientRow({
     `ficha ${patient.recordNumber}`,
     `último exame ${lastExam}`,
     situation?.label,
+    ...(patient.markings ?? []).map((m) => `marcado como ${ROTULO_MARCACAO[m]}`),
     patient.attendedBy && `atendido por ${patient.attendedBy}`,
   ]
     .filter(Boolean)
@@ -423,6 +425,16 @@ function PatientRow({
           <View style={[styles.colLastExam, isWide && styles.colLastExamWide]}>
             <Text style={styles.cell}>{lastExam}</Text>
             {situation && <ExamStatusChip tone={situation.tone} label={situation.label} />}
+            {/* Selos de paciente marcado como teste ou material de ensino (#47). */}
+            {patient.markings && patient.markings.length > 0 && (
+              <View style={styles.markingBadges}>
+                {patient.markings.map((marking) => (
+                  <View key={marking} testID="marcacao-paciente" style={styles.markingChip}>
+                    <Text style={styles.markingText}>{ROTULO_MARCACAO[marking]}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {!isWide && patient.attendedBy ? (
               <Text style={styles.cellSecondary}>Atendido por {patient.attendedBy}</Text>
             ) : null}

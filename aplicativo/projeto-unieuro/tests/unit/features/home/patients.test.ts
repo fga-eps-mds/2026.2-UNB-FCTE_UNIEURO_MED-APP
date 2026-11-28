@@ -291,6 +291,20 @@ describe('atendimento convertido para a lista', () => {
     expect(resumo.professionalIds).toEqual([10, 11]);
     expect(resumo.professionalNames).toEqual(['Ana Souza', 'Bruno Lima']);
   });
+
+  it('leva as marcações válidas e únicas do paciente, ignorando valores desconhecidos (#47)', () => {
+    const resumo = toPatientSummary({
+      id: 4,
+      name: 'José Alves Martins',
+      recordNumber: '2026-0001',
+      attendanceCount: 2,
+      lastStartedAt: '2026-10-13T09:10:00.000Z',
+      lastState: 'concluida',
+      markings: ['teste', 'desconhecida', 'ensino', 'teste'],
+    });
+
+    expect(resumo.markings).toEqual(['teste', 'ensino']);
+  });
 });
 
 describe('tom da situação do exame', () => {

@@ -31,7 +31,23 @@ export const EXAME_NAO_ENCONTRADO = 'Exame não encontrado entre os que você ap
 export const EXAME_JA_MARCADO = 'Este exame já estava marcado. A lista foi atualizada.';
 export const EXAME_SEM_MARCACAO = 'Este exame já estava sem marcação. A lista foi atualizada.';
 
+export const SENHA_NAO_CONFERE_PACIENTE_MARCAR =
+  'A senha não confere. O paciente e os exames continuam sem marcação.';
+export const SENHA_NAO_CONFERE_PACIENTE_DESMARCAR =
+  'A senha não confere. A marcação do paciente continua.';
+export const PACIENTE_NAO_ENCONTRADO = 'Paciente não encontrado entre os que você atendeu.';
+export const PACIENTE_JA_MARCADO =
+  'Os seus exames deste paciente já estavam marcados. A lista foi atualizada.';
+export const PACIENTE_SEM_MARCACAO =
+  'Os seus exames deste paciente já estavam sem marcação. A lista foi atualizada.';
+export const SUPERUSUARIO_NAO_MARCA_PACIENTE =
+  'O superusuário pode ver a marcação, mas não pode marcar nem desmarcar o paciente.';
+
 export type ExameParaMarcar = { marcacao: TipoMarcacao | null };
+
+export type PacienteParaMarcar = {
+  marcacoes: (TipoMarcacao | null)[];
+};
 
 export type MarcacaoRepository = {
   /** Exame que o profissional aplicou, com a marcação de agora, ou `null`. */
@@ -48,6 +64,14 @@ export type MarcacaoRepository = {
   ): Promise<boolean>;
   /** Tira a marcação e grava o histórico na mesma transação. `false` se não havia marcação. */
   desmarcarExame(atendimentoId: number, profissionalId: number, dataHora: string): Promise<boolean>;
+  buscarPaciente(pacienteId: number, profissionalId: number): Promise<PacienteParaMarcar | null>;
+  marcarPaciente(
+    pacienteId: number,
+    profissionalId: number,
+    tipo: TipoMarcacao,
+    dataHora: string,
+  ): Promise<boolean>;
+  desmarcarPaciente(pacienteId: number, profissionalId: number, dataHora: string): Promise<boolean>;
 };
 
 /**
@@ -132,4 +156,69 @@ export async function desmarcarExame(
     agora.toISOString(),
   );
   return feito ? { feito: true } : desatualizado(EXAME_SEM_MARCACAO);
+}
+
+type PedidoPaciente = {
+  pacienteId: number;
+  profissional: SessionProfessional;
+  senha: string;
+  agora?: Date;
+};
+
+/**
+ * Marca os exames que o próprio profissional aplicou no paciente e ainda estão sem
+ * marcação (#47). Os que já tinham marcação, de teste ou de ensino, ficam como estão.
+ */
+export async function marcarPaciente(
+  {
+    pacienteId,
+    profissional,
+    senha,
+    agora = new Date(),
+    tipo,
+  }: PedidoPaciente & { tipo: TipoMarcacao | null },
+  repository: MarcacaoRepository,
+  credenciais: CredentialsRepository,
+): Promise<ResultadoMarcacao> {
+  if (profissional.superuser === true) return recusa(SUPERUSUARIO_NAO_MARCA_PACIENTE);
+  if (tipo === null) return recusa(ESCOLHA_O_TIPO);
+  const paciente = await repository.buscarPaciente(pacienteId, profissional.id);
+  if (!paciente) return recusa(PACIENTE_NAO_ENCONTRADO);
+  // Exame que já tem marcação não muda: só os sem marcação recebem o tipo escolhido.
+  if (paciente.marcacoes.every((m) => m !== null)) return desatualizado(PACIENTE_JA_MARCADO);
+  if (senha.length === 0) return recusa(SENHA_VAZIA);
+  if (!(await senhaConfere(senha, profissional, credenciais))) {
+    return recusa(SENHA_NAO_CONFERE_PACIENTE_MARCAR);
+  }
+
+  const feito = await repository.marcarPaciente(
+    pacienteId,
+    profissional.id,
+    tipo,
+    agora.toISOString(),
+  );
+  return feito ? { feito: true } : desatualizado(PACIENTE_JA_MARCADO);
+}
+
+/** Desfaz a marcação dos exames que o próprio profissional aplicou no paciente (#47). */
+export async function desmarcarPaciente(
+  { pacienteId, profissional, senha, agora = new Date() }: PedidoPaciente,
+  repository: MarcacaoRepository,
+  credenciais: CredentialsRepository,
+): Promise<ResultadoMarcacao> {
+  if (profissional.superuser === true) return recusa(SUPERUSUARIO_NAO_MARCA_PACIENTE);
+  const paciente = await repository.buscarPaciente(pacienteId, profissional.id);
+  if (!paciente) return recusa(PACIENTE_NAO_ENCONTRADO);
+  if (paciente.marcacoes.every((m) => m === null)) return desatualizado(PACIENTE_SEM_MARCACAO);
+  if (senha.length === 0) return recusa(SENHA_VAZIA);
+  if (!(await senhaConfere(senha, profissional, credenciais))) {
+    return recusa(SENHA_NAO_CONFERE_PACIENTE_DESMARCAR);
+  }
+
+  const feito = await repository.desmarcarPaciente(
+    pacienteId,
+    profissional.id,
+    agora.toISOString(),
+  );
+  return feito ? { feito: true } : desatualizado(PACIENTE_SEM_MARCACAO);
 }

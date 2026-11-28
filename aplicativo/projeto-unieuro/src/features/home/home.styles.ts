@@ -183,6 +183,21 @@ export function createHomeStyles(theme: ThemeColors) {
     emptyTitle: { color: theme.text, fontFamily: FontFamilies.bold, fontSize: 24, lineHeight: 32 },
     emptyText: { ...body, color: theme.textSecondary, textAlign: 'center' },
     noResults: { ...body, padding: 32, color: theme.textSecondary, textAlign: 'center' },
+    markingBadges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+    markingChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 2,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.textSecondary,
+      backgroundColor: theme.field,
+    },
+    markingText: {
+      color: theme.textSecondary,
+      fontFamily: FontFamilies.semibold,
+      fontSize: 14,
+      lineHeight: 20,
+    },
   });
 }
 

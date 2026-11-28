@@ -37,6 +37,8 @@ export type AttendedPatientRecord = {
   lastStartedAt: string;
   /** Estado do atendimento mais recente, como está na coluna `avaliacao.estado`. */
   lastState: string;
+  /** Marcações distintas dos exames visíveis, só quando todos eles estão marcados (#47). */
+  markings?: string[];
 };
 
 /**
@@ -92,6 +94,7 @@ type AttendedPatientRow = {
   total: number;
   ultimo_inicio: string;
   ultimo_estado: string;
+  marcacoes: string | null;
 };
 
 type PatientRow = {
@@ -110,6 +113,8 @@ type ExamRow = {
   id_profissional: number;
   marcacao: string | null;
 };
+
+const parseMarkings = (raw: string | null): string[] => (raw ? raw.split(',').filter(Boolean) : []);
 
 const toExamRecord = (row: ExamRow): PatientExamRecord => ({
   id: row.id,
@@ -133,6 +138,9 @@ const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'>
 // (#47 e #58) também ficam de fora. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
 //
+// O selo do paciente (`marcacoes`) só vem quando todos os exames visíveis estão marcados:
+// com um exame ainda da pesquisa, o paciente não saiu dela (#47).
+//
 // O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
 // certo porque toda data entra no formato de `toISOString()`, em UTC (a regra
 // do atendimento grava assim). Uma data com fuso, como "-03:00", quebraria a
@@ -142,7 +150,9 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado FROM avaliacao r
       WHERE r.id_paciente = p.id AND r.id_profissional = ? AND r.excluido_em IS NULL
-      ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado
+      ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado,
+    CASE WHEN COUNT(a.marcacao) = COUNT(a.id)
+      THEN GROUP_CONCAT(DISTINCT a.marcacao) END AS marcacoes
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE a.id_profissional = ? AND a.excluido_em IS NULL
@@ -186,6 +196,8 @@ const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
+    CASE WHEN COUNT(a.marcacao) = COUNT(a.id)
+      THEN GROUP_CONCAT(DISTINCT a.marcacao) END AS marcacoes,
     (SELECT m.nome FROM profissional m
       WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por,
     GROUP_CONCAT(DISTINCT a.id_profissional) AS profissionais,
@@ -330,14 +342,18 @@ export function createAttendanceRepository(
         professionalId,
         professionalId,
       ]);
-      return rows.map((row) => ({
-        id: row.id,
-        name: row.nome,
-        recordNumber: row.numero_ficha,
-        attendanceCount: row.total,
-        lastStartedAt: row.ultimo_inicio,
-        lastState: row.ultimo_estado,
-      }));
+      return rows.map((row) => {
+        const markings = parseMarkings(row.marcacoes);
+        return {
+          id: row.id,
+          name: row.nome,
+          recordNumber: row.numero_ficha,
+          attendanceCount: row.total,
+          lastStartedAt: row.ultimo_inicio,
+          lastState: row.ultimo_estado,
+          ...(markings.length > 0 ? { markings } : {}),
+        };
+      });
     },
 
     async findPatientWithExams(
@@ -386,18 +402,22 @@ export function createAttendanceRepository(
           nomes_profissionais: string;
         }
       >(LIST_ALL_ATTENDED_PATIENTS, [requesterId]);
-      return rows.map((row) => ({
-        id: row.id,
-        name: row.nome,
-        recordNumber: row.numero_ficha,
-        attendanceCount: row.total,
-        lastStartedAt: row.ultimo_inicio,
-        lastState: row.ultimo_estado,
-        attendedBy: row.atendido_por,
-        professionalIds: row.profissionais.split(',').map(Number),
-        // Separados pelo caractere de controle 31, que não aparece em um nome.
-        professionalNames: row.nomes_profissionais.split(PROFESSIONAL_NAME_SEPARATOR),
-      }));
+      return rows.map((row) => {
+        const markings = parseMarkings(row.marcacoes);
+        return {
+          id: row.id,
+          name: row.nome,
+          recordNumber: row.numero_ficha,
+          attendanceCount: row.total,
+          lastStartedAt: row.ultimo_inicio,
+          lastState: row.ultimo_estado,
+          ...(markings.length > 0 ? { markings } : {}),
+          attendedBy: row.atendido_por,
+          professionalIds: row.profissionais.split(',').map(Number),
+          // Separados pelo caractere de controle 31, que não aparece em um nome.
+          professionalNames: row.nomes_profissionais.split(PROFESSIONAL_NAME_SEPARATOR),
+        };
+      });
     },
 
     /** CPF dos pacientes de todos os profissionais, para a busca do superusuário. */
@@ -447,13 +467,11 @@ export function createAttendanceRepository(
       startedAt,
     }: AttendanceRecord): Promise<{ attendanceId: number }> {
       const database = await open();
-
       // A cifra é calculada antes da transação, para que uma falha nela não
       // deixe a transação aberta à espera do Keystore.
       const patientToSave: PatientToSave = isNewPatient(patient)
         ? { params: await newPatientParams(patient, startedAt) }
         : { id: patient.id };
-
       let attendanceId = 0;
 
       // Paciente e atendimento entram juntos: se o atendimento falhar (por
@@ -485,5 +503,4 @@ export function createAttendanceRepository(
 }
 
 export type SqliteAttendanceRepository = ReturnType<typeof createAttendanceRepository>;
-
 export const attendanceRepository = createAttendanceRepository();

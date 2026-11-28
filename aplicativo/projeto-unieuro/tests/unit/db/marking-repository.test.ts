@@ -13,22 +13,26 @@ jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
 const AGORA = '2026-11-21T18:00:00.000Z';
 const DEPOIS = '2026-11-21T19:00:00.000Z';
+const CPF_PACIENTE = '52998224725';
 
 let tablet: TabletComAnaEBruno;
 let brunoId: number;
 let repository: MarcacaoRepository;
 let exameDaAna: number;
 
-const atender = async (profissionalId: number) =>
+const atender = async (profissionalId: number, pacienteExistenteId?: number) =>
   (
     await createAttendanceRepository(async () => tablet.database, cpfProtector).createAttendance({
-      patient: {
-        name: 'José Alves Martins',
-        cpf: '52998224725',
-        birthDate: '1948-03-14',
-        schoolingYears: 5,
-        sex: 'masculino',
-      },
+      patient:
+        pacienteExistenteId === undefined
+          ? {
+              name: 'José Alves Martins',
+              cpf: CPF_PACIENTE,
+              birthDate: '1948-03-14',
+              schoolingYears: 5,
+              sex: 'masculino',
+            }
+          : { id: pacienteExistenteId },
       professionalId: profissionalId,
       startedAt: '2026-11-20T12:00:00.000Z',
     })
@@ -158,6 +162,167 @@ describe('marcação do exame no banco (#58)', () => {
     await repository.marcarExame(exameDaAna, tablet.anaId, 'teste', AGORA);
     await expect(repository.desmarcarExame(exameDaAna, brunoId, DEPOIS)).resolves.toBe(false);
     await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'teste' });
+  });
+});
+
+describe('marcação do paciente no banco (#47)', () => {
+  let joseId: number;
+  let segundoExameDaAna: number;
+  let exameDoBruno: number;
+
+  beforeEach(async () => {
+    const attendances = createAttendanceRepository(async () => tablet.database, cpfProtector);
+    joseId = (await attendances.findPatientByCpf(CPF_PACIENTE))!.id;
+    segundoExameDaAna = await atender(tablet.anaId, joseId);
+    exameDoBruno = await atender(brunoId, joseId);
+    await tablet.database.runAsync("UPDATE avaliacao SET estado = 'concluida' WHERE id = ?", [
+      exameDaAna,
+    ]);
+  });
+
+  it('marca todos os exames que a médica aplicou no paciente, sem tocar nos de outro médico', async () => {
+    await expect(repository.buscarPaciente(joseId, tablet.anaId)).resolves.toEqual({
+      marcacoes: [null, null],
+    });
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'ensino', AGORA)).resolves.toBe(
+      true,
+    );
+
+    await expect(exame(exameDaAna)).resolves.toEqual({
+      estado: 'concluida',
+      marcacao: 'ensino',
+      marcado_em: AGORA,
+      marcado_por: tablet.anaId,
+    });
+    await expect(exame(segundoExameDaAna)).resolves.toEqual({
+      estado: 'aguardando_consentimento',
+      marcacao: 'ensino',
+      marcado_em: AGORA,
+      marcado_por: tablet.anaId,
+    });
+    // O exame do Bruno no mesmo paciente continua sem marcação.
+    await expect(exame(exameDoBruno)).resolves.toMatchObject({
+      marcacao: null,
+      marcado_em: null,
+      marcado_por: null,
+    });
+    await expect(historico()).resolves.toEqual([
+      {
+        id_avaliacao: exameDaAna,
+        acao: 'marcar',
+        tipo: 'ensino',
+        id_profissional: tablet.anaId,
+        data_hora: AGORA,
+      },
+      {
+        id_avaliacao: segundoExameDaAna,
+        acao: 'marcar',
+        tipo: 'ensino',
+        id_profissional: tablet.anaId,
+        data_hora: AGORA,
+      },
+    ]);
+  });
+
+  it('marca só os exames sem marcação e não sobrescreve os que já tinham outra', async () => {
+    await repository.marcarExame(exameDaAna, tablet.anaId, 'ensino', AGORA);
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', DEPOIS)).resolves.toBe(
+      true,
+    );
+
+    // O exame já marcado como ensino continua assim, com a data e o histórico de antes.
+    await expect(exame(exameDaAna)).resolves.toMatchObject({
+      marcacao: 'ensino',
+      marcado_em: AGORA,
+    });
+    await expect(exame(segundoExameDaAna)).resolves.toMatchObject({
+      marcacao: 'teste',
+      marcado_em: DEPOIS,
+    });
+    await expect(historico()).resolves.toEqual([
+      expect.objectContaining({ id_avaliacao: exameDaAna, acao: 'marcar', tipo: 'ensino' }),
+      expect.objectContaining({ id_avaliacao: segundoExameDaAna, acao: 'marcar', tipo: 'teste' }),
+    ]);
+  });
+
+  it('não marca nada quando todos os exames do médico já têm marcação, mesmo de outro tipo', async () => {
+    await repository.marcarPaciente(joseId, tablet.anaId, 'ensino', AGORA);
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', DEPOIS)).resolves.toBe(
+      false,
+    );
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'ensino' });
+    await expect(historico()).resolves.toHaveLength(2);
+  });
+
+  it('não marca de novo quando todos os exames do médico já têm a mesma marcação', async () => {
+    await repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA);
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', DEPOIS)).resolves.toBe(
+      false,
+    );
+    await expect(historico()).resolves.toHaveLength(2);
+  });
+
+  it('ignora exames excluídos pela versão 11 ao buscar e marcar o paciente', async () => {
+    await tablet.database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id = ?', [
+      AGORA,
+      segundoExameDaAna,
+    ]);
+
+    await expect(repository.buscarPaciente(joseId, tablet.anaId)).resolves.toEqual({
+      marcacoes: [null],
+    });
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA)).resolves.toBe(
+      true,
+    );
+
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'teste' });
+    await expect(exame(segundoExameDaAna)).resolves.toMatchObject({ marcacao: null });
+    await expect(historico()).resolves.toHaveLength(1);
+  });
+
+  it('não encontra nem marca paciente atendido só por outro médico', async () => {
+    const outroAtendimento = (
+      await createAttendanceRepository(async () => tablet.database, cpfProtector).createAttendance({
+        patient: {
+          name: 'Maria das Dores',
+          cpf: '11144477735',
+          birthDate: '1952-07-01',
+          schoolingYears: 4,
+          sex: 'feminino',
+        },
+        professionalId: brunoId,
+        startedAt: '2026-11-20T14:00:00.000Z',
+      })
+    ).attendanceId;
+    const mariaId = (await tablet.database.getFirstAsync<{ id_paciente: number }>(
+      'SELECT id_paciente FROM avaliacao WHERE id = ?',
+      [outroAtendimento],
+    ))!.id_paciente;
+
+    await expect(repository.buscarPaciente(mariaId, tablet.anaId)).resolves.toBeNull();
+    await expect(repository.marcarPaciente(mariaId, tablet.anaId, 'teste', AGORA)).resolves.toBe(
+      false,
+    );
+  });
+
+  it('desfaz a marcação dos exames do médico no paciente e mantém o histórico', async () => {
+    await repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA);
+    await repository.marcarExame(exameDoBruno, brunoId, 'ensino', AGORA);
+
+    await expect(repository.desmarcarPaciente(joseId, tablet.anaId, DEPOIS)).resolves.toBe(true);
+
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: null, marcado_por: null });
+    await expect(exame(segundoExameDaAna)).resolves.toMatchObject({
+      marcacao: null,
+      marcado_por: null,
+    });
+    // Marcação do Bruno continua intacta.
+    await expect(exame(exameDoBruno)).resolves.toMatchObject({ marcacao: 'ensino' });
+    await expect(repository.desmarcarPaciente(joseId, tablet.anaId, DEPOIS)).resolves.toBe(false);
   });
 });
 

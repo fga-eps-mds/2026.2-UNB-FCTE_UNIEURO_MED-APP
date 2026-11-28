@@ -5,15 +5,24 @@ import {
   EXAME_JA_MARCADO,
   EXAME_NAO_ENCONTRADO,
   EXAME_SEM_MARCACAO,
+  PACIENTE_JA_MARCADO,
+  PACIENTE_NAO_ENCONTRADO,
+  PACIENTE_SEM_MARCACAO,
   ROTULO_MARCACAO,
   SENHA_NAO_CONFERE_DESMARCAR,
   SENHA_NAO_CONFERE_MARCAR,
+  SENHA_NAO_CONFERE_PACIENTE_DESMARCAR,
+  SENHA_NAO_CONFERE_PACIENTE_MARCAR,
   SENHA_VAZIA,
+  SUPERUSUARIO_NAO_MARCA_PACIENTE,
   TIPOS_MARCACAO,
   desmarcarExame,
+  desmarcarPaciente,
   lerMarcacao,
   marcarExame,
+  marcarPaciente,
   type MarcacaoRepository,
+  type PacienteParaMarcar,
   type TipoMarcacao,
 } from '@/features/avaliacao/marcacao';
 
@@ -46,6 +55,9 @@ function repositorio(
     buscarExame: jest.fn(async () => ({ marcacao })),
     marcarExame: jest.fn(async () => true),
     desmarcarExame: jest.fn(async () => true),
+    buscarPaciente: jest.fn(async () => ({ marcacoes: [marcacao, marcacao] })),
+    marcarPaciente: jest.fn(async () => true),
+    desmarcarPaciente: jest.fn(async () => true),
     ...extra,
   } satisfies MarcacaoRepository;
 }
@@ -61,6 +73,25 @@ const marcar = (senha: string, tipo: TipoMarcacao | null = 'teste') => ({
 const desmarcar = (senha: string) => ({
   atendimentoId: 12,
   profissional: ana,
+  senha,
+  agora: AGORA,
+});
+
+const marcarDadosPaciente = (
+  senha: string,
+  tipo: TipoMarcacao | null = 'teste',
+  profissional: SessionProfessional = ana,
+) => ({
+  pacienteId: 5,
+  profissional,
+  senha,
+  tipo,
+  agora: AGORA,
+});
+
+const desmarcarDadosPaciente = (senha: string, profissional: SessionProfessional = ana) => ({
+  pacienteId: 5,
+  profissional,
   senha,
   agora: AGORA,
 });
@@ -249,5 +280,181 @@ describe('desmarcarExame (#58)', () => {
     );
 
     expect(repository.desmarcarExame).toHaveBeenCalledWith(12, 7, expect.any(String));
+  });
+});
+
+describe('marcarPaciente (#47)', () => {
+  it('Cenário: marcar um paciente: grava o tipo, o profissional e a hora depois da senha', async () => {
+    const repository = repositorio();
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', 'ensino'), repository, credenciais),
+    ).resolves.toEqual({ feito: true });
+
+    expect(repository.buscarPaciente).toHaveBeenCalledWith(5, 7);
+    expect(repository.marcarPaciente).toHaveBeenCalledWith(
+      5,
+      7,
+      'ensino',
+      '2026-11-21T18:00:00.000Z',
+    );
+  });
+
+  it('Cenário: superusuário: não permite marcar o paciente', async () => {
+    const repository = repositorio();
+
+    await expect(
+      marcarPaciente(
+        marcarDadosPaciente('senhaForte123', 'teste', { ...ana, superuser: true }),
+        repository,
+        credenciais,
+      ),
+    ).resolves.toEqual({ feito: false, mensagem: SUPERUSUARIO_NAO_MARCA_PACIENTE });
+    expect(repository.buscarPaciente).not.toHaveBeenCalled();
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('pede o tipo antes de consultar o banco', async () => {
+    const repository = repositorio();
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', null), repository, credenciais),
+    ).resolves.toEqual({ feito: false, mensagem: ESCOLHA_O_TIPO });
+    expect(repository.buscarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('Cenário: senha incorreta: avisa e o paciente continua sem marcação', async () => {
+    const repository = repositorio();
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('errada'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: SENHA_NAO_CONFERE_PACIENTE_MARCAR,
+    });
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('pede a senha quando ela está vazia', async () => {
+    await expect(
+      marcarPaciente(marcarDadosPaciente(''), repositorio(), credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: SENHA_VAZIA,
+    });
+  });
+
+  it('Cenário: paciente de outro médico: não encontra nem marca', async () => {
+    const repository = repositorio(null, { buscarPaciente: jest.fn(async () => null) });
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_NAO_ENCONTRADO,
+    });
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('marca o restante se parte dos exames do médico já tinha outra marcação ou estava sem', async () => {
+    const repository = repositorio(null, {
+      buscarPaciente: jest.fn(
+        async (): Promise<PacienteParaMarcar> => ({
+          marcacoes: ['teste', null],
+        }),
+      ),
+    });
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', 'teste'), repository, credenciais),
+    ).resolves.toEqual({ feito: true });
+    expect(repository.marcarPaciente).toHaveBeenCalledTimes(1);
+  });
+
+  it('avisa quando todos os exames do médico já estavam marcados, mesmo com outro tipo', async () => {
+    const repository = repositorio('ensino');
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', 'teste'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_JA_MARCADO,
+      desatualizado: true,
+    });
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando todos os exames do médico já estavam marcados com o mesmo tipo', async () => {
+    const repository = repositorio('teste');
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', 'teste'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_JA_MARCADO,
+      desatualizado: true,
+    });
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando o banco recusa por já estar marcado', async () => {
+    const repository = repositorio(null, { marcarPaciente: jest.fn(async () => false) });
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_JA_MARCADO,
+      desatualizado: true,
+    });
+  });
+});
+
+describe('desmarcarPaciente (#47)', () => {
+  it('desfaz a marcação de todos os exames do médico no paciente após conferir a senha', async () => {
+    const repository = repositorio('teste');
+
+    await expect(
+      desmarcarPaciente(desmarcarDadosPaciente('senhaForte123'), repository, credenciais),
+    ).resolves.toEqual({ feito: true });
+    expect(repository.desmarcarPaciente).toHaveBeenCalledWith(5, 7, '2026-11-21T18:00:00.000Z');
+  });
+
+  it('Cenário: superusuário: não permite desmarcar o paciente', async () => {
+    const repository = repositorio('teste');
+
+    await expect(
+      desmarcarPaciente(
+        desmarcarDadosPaciente('senhaForte123', { ...ana, superuser: true }),
+        repository,
+        credenciais,
+      ),
+    ).resolves.toEqual({ feito: false, mensagem: SUPERUSUARIO_NAO_MARCA_PACIENTE });
+    expect(repository.desmarcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('com a senha errada, mantém a marcação do paciente', async () => {
+    const repository = repositorio('ensino');
+
+    await expect(
+      desmarcarPaciente(desmarcarDadosPaciente('errada'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: SENHA_NAO_CONFERE_PACIENTE_DESMARCAR,
+    });
+    expect(repository.desmarcarPaciente).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando nenhum exame do médico está marcado', async () => {
+    const repository = repositorio(null);
+
+    await expect(
+      desmarcarPaciente(desmarcarDadosPaciente('senhaForte123'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_SEM_MARCACAO,
+      desatualizado: true,
+    });
+    expect(repository.desmarcarPaciente).not.toHaveBeenCalled();
   });
 });
