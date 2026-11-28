@@ -111,6 +111,21 @@ cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,arm
 
 O APK fica em `android/app/build/outputs/apk/release/app-release.apk`.
 
+### Modelo de IA no APK
+
+O escore é calculado no tablet, sem internet, pelo modelo que vai dentro do APK. O arquivo `.onnx` tem cerca de 185 MB, acima do limite de arquivo do GitHub, então não fica neste repositório: ele é publicado como arquivo de uma release do repositório [IA](https://github.com/fga-eps-mds/2026.2-UNB-FCTE_UNIEURO_MED-IA/releases).
+
+O manifesto `aplicativo/projeto-unieuro/modelo-ia.json` diz qual modelo vai no APK, com a versão, o endereço do arquivo, o SHA-256 e o tamanho em bytes. O job `apk` do `release.yml` baixa o arquivo desse endereço, guarda em cache pelo SHA-256 e para se o arquivo não bater com o manifesto ou se o APK sair sem o modelo. Para trocar o modelo, publique o novo `.onnx` numa release da IA e atualize os quatro campos do manifesto.
+
+Para incluir o modelo no build local, baixe o arquivo do endereço do manifesto e informe o caminho em `MED_MODELO_ONNX` antes do prebuild:
+
+``` bash
+curl -fL -o ../modelo.onnx "$(node -p "require('./modelo-ia.json').url")"
+MED_MODELO_ONNX=../modelo.onnx EAS_BUILD_PROFILE=preview npx expo prebuild --platform android --no-install
+```
+
+O plugin `plugins/with-modelo-ia.js` só copia o arquivo se o tamanho e o SHA-256 forem os do manifesto, para que o APK local e o do pipeline levem o mesmo modelo. Sem `MED_MODELO_ONNX`, o APK sai sem o modelo e a tela de análise avisa que ele não foi incluído. O EAS Build não recebe o modelo, então o APK gerado por ele também sai sem.
+
 Para conferir o manifesto do APK de entrega sem passar pelo EAS:
 
 ``` bash

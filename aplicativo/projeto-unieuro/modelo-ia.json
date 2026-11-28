@@ -1,0 +1,6 @@
+{
+  "versao": "vgg16-semente1-v1.7",
+  "url": "https://github.com/fga-eps-mds/2026.2-UNB-FCTE_UNIEURO_MED-IA/releases/download/modelo-vgg16-semente1-v1.7/modelo.onnx",
+  "sha256": "a1c08901bfd4e9e98d03de9dff0fd5e9e8e725b62b24aaeb59386ec8d65d5ad5",
+  "bytes": 185838443
+}

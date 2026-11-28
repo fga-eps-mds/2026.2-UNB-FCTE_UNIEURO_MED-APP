@@ -211,6 +211,48 @@ jobs:
           fi
           echo "APP_VERSION=$versao" >> "$GITHUB_ENV"
 
+      # O modelo de IA não fica no repositório (#151). O manifesto diz qual arquivo vai no
+      # APK, o job baixa esse arquivo e o guarda em cache pelo SHA-256, para não baixar os
+      # 185 MB a cada build. O plugin with-modelo-ia confere o arquivo de novo no prebuild.
+      - name: Ler o manifesto do modelo
+        id: modelo
+        run: |
+          set -euo pipefail
+          if [ ! -f modelo-ia.json ]; then
+            echo "::error::Este código não tem o modelo-ia.json, então o APK sairia sem o modelo."
+            exit 1
+          fi
+          {
+            echo "versao=$(jq -r .versao modelo-ia.json)"
+            echo "url=$(jq -r .url modelo-ia.json)"
+            echo "sha256=$(jq -r .sha256 modelo-ia.json)"
+          } >> "$GITHUB_OUTPUT"
+          echo "MED_MODELO_ONNX=$RUNNER_TEMP/modelo/modelo.onnx" >> "$GITHUB_ENV"
+
+      - name: Reaproveitar o modelo do cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/modelo
+          key: modelo-ia-${{ steps.modelo.outputs.sha256 }}
+
+      - name: Baixar e conferir o modelo
+        env:
+          URL: ${{ steps.modelo.outputs.url }}
+          SHA256: ${{ steps.modelo.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$MED_MODELO_ONNX")"
+          if [ ! -f "$MED_MODELO_ONNX" ]; then
+            if ! curl -fsSL --retry 3 -o "$MED_MODELO_ONNX" "$URL"; then
+              echo "::error::Não foi possível baixar o modelo de $URL."
+              exit 1
+            fi
+          fi
+          if ! echo "$SHA256  $MED_MODELO_ONNX" | sha256sum --check --status; then
+            echo "::error::O modelo baixado de $URL não tem o SHA-256 do modelo-ia.json."
+            exit 1
+          fi
+
       - name: Gerar o projeto Android no perfil de entrega
         env:
           EAS_BUILD_PROFILE: preview
@@ -244,6 +286,23 @@ jobs:
           MED_KEY_ALIAS: ${{ secrets.MED_KEY_ALIAS }}
           MED_KEY_PASSWORD: ${{ secrets.MED_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      # Garante a #151: sem o modelo, o tablet não calcula o escore.
+      - name: Conferir o modelo no APK
+        env:
+          VERSAO_DO_MODELO: ${{ steps.modelo.outputs.versao }}
+        run: |
+          set -euo pipefail
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          if ! unzip -l "$apk" | grep -q "assets/modelo/modelo.onnx"; then
+            echo "::error::O APK saiu sem o modelo de IA."
+            exit 1
+          fi
+          versao="$(unzip -p "$apk" assets/modelo/modelo.json | jq -r .versao)"
+          if [ "$versao" != "$VERSAO_DO_MODELO" ]; then
+            echo "::error::O APK leva o modelo $versao, mas o manifesto pede o $VERSAO_DO_MODELO."
+            exit 1
+          fi
 
       # Garante a regra do CLAUDE.md: o APK de entrega não pode pedir internet.
       - name: Conferir as permissões do APK
