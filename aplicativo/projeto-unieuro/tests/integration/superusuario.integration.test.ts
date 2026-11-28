@@ -420,6 +420,15 @@ describe('atendimentos de todos os profissionais', () => {
     expect(daAna.map((p) => p.cpf)).toEqual([JOSE.cpf]);
   });
 
+  it('o aviso de CPF pode identificar o paciente para o superusuário ativo', async () => {
+    await expect(
+      attendances.findPatientByCpfForProfessional(MARIA.cpf, tauil.id),
+    ).resolves.toMatchObject({
+      name: MARIA.name,
+      recordNumber: '2026-0002',
+    });
+  });
+
   it('não deixa o CPF dos pacientes legível no arquivo do banco', async () => {
     await listPatientCpfsFor(tauil, lista);
     await database.closeAsync();

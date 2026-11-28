@@ -123,6 +123,7 @@ export function createNewAttendanceStyles(colors: ThemeColors) {
       backgroundColor: colors.surface,
     },
     modalTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 24, lineHeight: 32 },
+    modalText: { ...body, color: colors.text },
     option: {
       ...button,
       borderWidth: 2,

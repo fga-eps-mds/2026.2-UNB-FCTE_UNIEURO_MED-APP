@@ -86,7 +86,7 @@ afterEach(async () => {
 describe('contrato', () => {
   it('atende ao AttendanceRepository da regra do atendimento', () => {
     const contract: AttendanceRepository = repository;
-    expect(typeof contract.findPatientByCpf).toBe('function');
+    expect(typeof contract.findPatientByCpfForProfessional).toBe('function');
     expect(typeof contract.createAttendance).toBe('function');
   });
 });
@@ -205,9 +205,8 @@ describe('Cenário: atendimento registrado', () => {
 });
 
 describe('paciente que volta', () => {
-  it('é encontrado pelo CPF, com ou sem atendimento anterior', async () => {
+  it('retorna só o ID na busca por CPF sem contexto de profissional', async () => {
     await expect(repository.findPatientByCpf(PATIENT_CPF)).resolves.toBeNull();
-
     await repository.createAttendance({
       patient: newPatient(),
       professionalId,
@@ -217,7 +216,49 @@ describe('paciente que volta', () => {
     await expect(repository.findPatientByCpf(PATIENT_CPF)).resolves.toEqual({
       id: expect.any(Number),
     });
-    await expect(repository.findPatientByCpf(OTHER_CPF)).resolves.toBeNull();
+  });
+
+  it('é encontrado pelo CPF com nome e ficha para quem já atendeu', async () => {
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toBeNull();
+
+    await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toEqual({
+      id: expect.any(Number),
+      name: newPatient().name,
+      recordNumber: expect.stringMatching(/^\d{4}-\d{4}$/),
+    });
+    await expect(
+      repository.findPatientByCpfForProfessional(OTHER_CPF, professionalId),
+    ).resolves.toBeNull();
+  });
+
+  it('oculta a identificação se o único exame do profissional foi excluído', async () => {
+    const { attendanceId } = await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: STARTED_AT,
+    });
+    await database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id = ?', [
+      STARTED_AT,
+      attendanceId,
+    ]);
+
+    await expect(
+      repository.findPatientByCpfForProfessional(PATIENT_CPF, professionalId),
+    ).resolves.toEqual({
+      id: expect.any(Number),
+      name: null,
+      recordNumber: null,
+    });
   });
 
   it('ganha um novo atendimento sem duplicar o paciente', async () => {

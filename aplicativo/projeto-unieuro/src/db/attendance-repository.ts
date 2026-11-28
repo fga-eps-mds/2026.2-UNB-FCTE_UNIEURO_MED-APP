@@ -4,6 +4,13 @@ import type { CpfProtector } from '@/db/cpf-protection';
 import { cpfProtector } from '@/db/cpf-runtime';
 import { getDatabase } from '@/db/database';
 
+/** Nome e ficha só são retornados se o profissional puder ver o paciente. */
+export type ExistingPatientRecord = {
+  id: number;
+  name: string | null;
+  recordNumber: string | null;
+};
+
 /**
  * Paciente pronto para gravar. Espelha o `NewPatient` da regra do atendimento:
  * o banco não importa tipos da camada de aplicação, e a `composition.ts` da
@@ -158,6 +165,9 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
   WHERE a.id_profissional = ? AND a.excluido_em IS NULL
   GROUP BY p.id`;
 
+const PATIENT_ATTENDED_BY_REQUESTER = `EXISTS (SELECT 1 FROM avaliacao a
+    WHERE a.id_paciente = p.id AND a.id_profissional = ? AND a.excluido_em IS NULL)`;
+
 // O paciente só existe para o profissional que o atendeu: um médico não vê o que
 // outro coletou no mesmo tablet. Quem pede um paciente que não atendeu recebe o
 // mesmo resultado de quem pede um que não existe.
@@ -165,8 +175,7 @@ const FIND_PATIENT_OF_PROFESSIONAL = `SELECT p.id, p.nome, p.numero_ficha, p.dat
     p.escolaridade_anos, p.sexo
   FROM paciente p
   WHERE p.id = ?
-    AND EXISTS (SELECT 1 FROM avaliacao a
-      WHERE a.id_paciente = p.id AND a.id_profissional = ? AND a.excluido_em IS NULL)`;
+    AND ${PATIENT_ATTENDED_BY_REQUESTER}`;
 
 // Mesmo critério da lista: `data_hora_inicio` é comparada como texto, o que só
 // ordena certo com datas no formato de `toISOString()`, em UTC.
@@ -315,11 +324,26 @@ export function createAttendanceRepository(
   return {
     async findPatientByCpf(cpf: string): Promise<{ id: number } | null> {
       const database = await open();
-      const row = await database.getFirstAsync<{ id: number }>(
+      return database.getFirstAsync<{ id: number }>(
         'SELECT id FROM paciente WHERE cpf_indice = ? LIMIT 1',
         [await protector.blindIndex(cpf)],
       );
-      return row ? { id: row.id } : null;
+    },
+
+    /** Encontra a ficha pelo índice cego e aplica a regra de acesso à identificação. */
+    async findPatientByCpfForProfessional(
+      cpf: string,
+      professionalId: number,
+    ): Promise<ExistingPatientRecord | null> {
+      const database = await open();
+      return database.getFirstAsync<ExistingPatientRecord>(
+        `SELECT p.id, visivel.nome AS name, visivel.numero_ficha AS recordNumber
+         FROM paciente p
+         LEFT JOIN paciente visivel ON visivel.id = p.id
+           AND (${PATIENT_ATTENDED_BY_REQUESTER} OR ${REQUESTER_IS_SUPERUSER})
+         WHERE p.cpf_indice = ? LIMIT 1`,
+        [professionalId, professionalId, await protector.blindIndex(cpf)],
+      );
     },
 
     /** Nome e ficha do paciente do atendimento, para identificá-lo no termo (#21). Não lê o CPF. */
