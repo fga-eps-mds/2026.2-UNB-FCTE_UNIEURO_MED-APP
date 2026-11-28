@@ -55,12 +55,11 @@ type ResultRow = {
 
 const WAITING_STATES = "('processando_resultado', 'erro_inferencia')";
 
-// Mesma trava da tela de resultado: o médico que aplicou ou um superusuário ativo. O
-// exame excluído não vai para o modelo.
+// Mesma trava da tela de resultado: o médico que aplicou ou um superusuário ativo.
 const FIND_EXAM = `SELECT a.id, a.estado, p.nome AS nome_paciente, p.numero_ficha
   FROM avaliacao a
   JOIN paciente p ON p.id = a.id_paciente
-  WHERE a.id = ? AND a.excluido_em IS NULL
+  WHERE a.id = ?
     AND (a.id_profissional = ?
       OR EXISTS (SELECT 1 FROM profissional s
         WHERE s.id = ? AND s.perfil = 'superusuario' AND s.ativo = 1))`;
@@ -119,7 +118,7 @@ function blobToMap(blob: Uint8Array): Float32Array {
 
 export function createModelResultRepository(open: () => Promise<SQLiteDatabase> = getDatabase) {
   return {
-    /** Devolve `null` se o exame não existe, foi excluído ou se quem pede não pode vê-lo. */
+    /** Devolve `null` se o exame não existe, ou se quem pede não pode vê-lo. */
     async findExamForAnalysis(
       requesterId: number,
       examId: number,
@@ -154,7 +153,7 @@ export function createModelResultRepository(open: () => Promise<SQLiteDatabase> 
       await database.withTransactionAsync(async () => {
         const exam = await database.getFirstAsync<{ espera: number }>(
           `SELECT 1 AS espera FROM avaliacao
-           WHERE id = ? AND excluido_em IS NULL AND estado IN ${WAITING_STATES}
+           WHERE id = ? AND estado IN ${WAITING_STATES}
              AND NOT EXISTS (SELECT 1 FROM resultado_modelo WHERE id_avaliacao = avaliacao.id)`,
           [examId],
         );
@@ -188,7 +187,7 @@ export function createModelResultRepository(open: () => Promise<SQLiteDatabase> 
       const database = await open();
       await database.runAsync(
         `UPDATE avaliacao SET estado = 'erro_inferencia', last_update = ?
-         WHERE id = ? AND excluido_em IS NULL AND estado = 'processando_resultado'`,
+         WHERE id = ? AND estado = 'processando_resultado'`,
         [at, examId],
       );
     },

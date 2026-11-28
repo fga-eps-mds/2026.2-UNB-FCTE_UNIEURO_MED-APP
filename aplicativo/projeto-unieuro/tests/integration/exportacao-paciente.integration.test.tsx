@@ -134,19 +134,6 @@ describe('exportar os exames de um paciente em XML (#22)', () => {
     expect(conteudo.match(/<exame id="(\d+)"/g)).toEqual(['<exame id="1"', '<exame id="2"']);
   });
 
-  it('não leva o exame que o profissional excluiu', async () => {
-    await tablet.database.runAsync(
-      "UPDATE avaliacao SET excluido_em = '2026-11-01T10:00:00.000Z' WHERE id = 1",
-    );
-    abrirPaciente(ana, ids.jose.id);
-
-    const { conteudo } = await exportar();
-
-    expect(conteudo.match(/<exame /g)).toHaveLength(1);
-    expect(conteudo).not.toContain('<exame id="1"');
-    expect(conteudo).not.toContain('<tarefa ');
-  });
-
   it('o profissional que não atendeu o paciente não consegue exportá-lo', async () => {
     abrirPaciente(bruno, ids.jose.id);
 

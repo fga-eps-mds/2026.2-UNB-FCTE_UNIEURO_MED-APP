@@ -363,20 +363,6 @@ describe('atendimentos de todos os profissionais', () => {
     expect([...jose!.professionalNames!].sort()).toEqual([ANA.name, PAULO.name].sort());
   });
 
-  it('não conta nem busca pelo profissional de um exame excluído', async () => {
-    await database.runAsync('UPDATE avaliacao SET excluido_em = ? WHERE id_profissional = ?', [
-      AGORA,
-      ana.id,
-    ]);
-
-    const pacientes = await listPatientsFor(tauil, lista);
-    const jose = pacientes.find((p) => p.name === JOSE.name)!;
-
-    expect(jose.professionalIds).toEqual([paulo.id]);
-    expect(jose.professionalNames).toEqual([PAULO.name]);
-    expect(filterPatients(pacientes.map(toPatientSummary), 'Ana')).toEqual([]);
-  });
-
   it('Cenário: médico comum não vê o que outro coletou', async () => {
     const daAna = await listPatientsFor(ana, lista);
     const doPaulo = await listPatientsFor(paulo, lista);

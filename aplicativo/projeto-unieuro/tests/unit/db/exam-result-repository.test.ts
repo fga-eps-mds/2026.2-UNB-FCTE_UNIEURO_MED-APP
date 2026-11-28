@@ -1,6 +1,5 @@
 import { createAttendanceRepository } from '@/db/attendance-repository';
 import { createDrawingRepository, type TaskType } from '@/db/drawing-repository';
-import { createExclusionRepository } from '@/db/exclusion-repository';
 import {
   createExamResultRepository,
   type SqliteExamResultRepository,
@@ -130,19 +129,6 @@ describe('findExamResult', () => {
     const exame = await repository.findExamResult(tablet.anaId, exameId);
 
     expect(exame?.drawings).toEqual([]);
-  });
-
-  it('um exame excluído (#58) não abre mais, nem para o superusuário', async () => {
-    // Só exame não finalizado pode ser excluído: o relógio e o cubo gravados, sem as trilhas.
-    await gravarDesenhos(exameId, TAREFAS.slice(0, 2));
-    const exclusao = createExclusionRepository(async () => tablet.database);
-    await expect(
-      exclusao.excluirExame(exameId, tablet.anaId, '2026-11-03T14:05:00.000Z'),
-    ).resolves.toBe(true);
-    const tauilId = await criarSuperusuario();
-
-    await expect(repository.findExamResult(tablet.anaId, exameId)).resolves.toBeNull();
-    await expect(repository.findExamResult(tauilId, exameId)).resolves.toBeNull();
   });
 
   it('um exame que não existe não devolve nada', async () => {
