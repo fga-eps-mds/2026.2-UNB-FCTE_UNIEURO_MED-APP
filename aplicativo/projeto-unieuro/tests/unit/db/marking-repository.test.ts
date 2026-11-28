@@ -182,7 +182,6 @@ describe('marcação do paciente no banco (#47)', () => {
 
   it('marca todos os exames que a médica aplicou no paciente, sem tocar nos de outro médico', async () => {
     await expect(repository.buscarPaciente(joseId, tablet.anaId)).resolves.toEqual({
-      totalExames: 2,
       marcacoes: [null, null],
     });
 
@@ -274,7 +273,6 @@ describe('marcação do paciente no banco (#47)', () => {
     ]);
 
     await expect(repository.buscarPaciente(joseId, tablet.anaId)).resolves.toEqual({
-      totalExames: 1,
       marcacoes: [null],
     });
     await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA)).resolves.toBe(

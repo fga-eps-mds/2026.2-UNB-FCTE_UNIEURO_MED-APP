@@ -55,7 +55,7 @@ function repositorio(
     buscarExame: jest.fn(async () => ({ marcacao })),
     marcarExame: jest.fn(async () => true),
     desmarcarExame: jest.fn(async () => true),
-    buscarPaciente: jest.fn(async () => ({ totalExames: 2, marcacoes: [marcacao, marcacao] })),
+    buscarPaciente: jest.fn(async () => ({ marcacoes: [marcacao, marcacao] })),
     marcarPaciente: jest.fn(async () => true),
     desmarcarPaciente: jest.fn(async () => true),
     ...extra,
@@ -360,7 +360,6 @@ describe('marcarPaciente (#47)', () => {
     const repository = repositorio(null, {
       buscarPaciente: jest.fn(
         async (): Promise<PacienteParaMarcar> => ({
-          totalExames: 2,
           marcacoes: ['teste', null],
         }),
       ),

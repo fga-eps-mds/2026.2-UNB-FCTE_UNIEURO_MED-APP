@@ -46,7 +46,6 @@ export const SUPERUSUARIO_NAO_MARCA_PACIENTE =
 export type ExameParaMarcar = { marcacao: TipoMarcacao | null };
 
 export type PacienteParaMarcar = {
-  totalExames: number;
   marcacoes: (TipoMarcacao | null)[];
 };
 

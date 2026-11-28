@@ -101,7 +101,6 @@ export function createMarkingRepository(
       );
       if (rows.length === 0) return null;
       return {
-        totalExames: rows.length,
         marcacoes: rows.map((row) => lerMarcacao(row.marcacao)),
       };
     },
