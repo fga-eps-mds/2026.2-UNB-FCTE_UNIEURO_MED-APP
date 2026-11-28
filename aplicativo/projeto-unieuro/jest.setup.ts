@@ -73,9 +73,11 @@ jest.mock('react-native-worklets', () => jest.requireActual('react-native-workle
 // é verificado no aparelho. Um teste que precise de mais do Skia, como a geração
 // da imagem do desenho, declara o próprio `jest.mock` no arquivo.
 jest.mock('@shopify/react-native-skia', () => ({
+  BlurMask: 'BlurMask',
   Canvas: 'Canvas',
   Circle: 'Circle',
   Group: 'Group',
+  Oval: 'Oval',
   Path: 'Path',
   Text: 'SkiaText',
   matchFont: jest.fn(() => ({
