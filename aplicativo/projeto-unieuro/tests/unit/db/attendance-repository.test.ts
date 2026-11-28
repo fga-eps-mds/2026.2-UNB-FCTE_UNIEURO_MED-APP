@@ -427,6 +427,29 @@ describe('pacientes atendidos pelo profissional', () => {
     expect(doOutro.markings).toEqual(['ensino']);
   });
 
+  it('só traz o selo do paciente quando todos os exames visíveis estão marcados (#47)', async () => {
+    const markingRepo = createMarkingRepository(async () => database);
+    const { attendanceId: first } = await repository.createAttendance({
+      patient: newPatient(),
+      professionalId,
+      startedAt: '2026-10-09T14:32:00.000Z',
+    });
+    const { id: patientId } = (await repository.findPatientByCpf(PATIENT_CPF))!;
+    const { attendanceId: second } = await repository.createAttendance({
+      patient: { id: patientId },
+      professionalId,
+      startedAt: '2026-10-12T08:00:00.000Z',
+    });
+
+    await markingRepo.marcarExame(first, professionalId, 'teste', '2026-11-21T18:00:00.000Z');
+    const [comUmMarcado] = await repository.listAttendedPatients(professionalId);
+    expect(comUmMarcado.markings).toBeUndefined();
+
+    await markingRepo.marcarExame(second, professionalId, 'ensino', '2026-11-21T18:05:00.000Z');
+    const [comTodosMarcados] = await repository.listAttendedPatients(professionalId);
+    expect([...comTodosMarcados.markings!].sort()).toEqual(['ensino', 'teste']);
+  });
+
   it('não mostra a um profissional os pacientes atendidos só por outro', async () => {
     const otherId = await insertOtherProfessional();
     await repository.createAttendance({

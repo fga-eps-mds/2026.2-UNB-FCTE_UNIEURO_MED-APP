@@ -37,7 +37,7 @@ export type AttendedPatientRecord = {
   lastStartedAt: string;
   /** Estado do atendimento mais recente, como está na coluna `avaliacao.estado`. */
   lastState: string;
-  /** Marcações distintas de teste ou ensino presentes nos exames visíveis (#47). */
+  /** Marcações distintas dos exames visíveis, só quando todos eles estão marcados (#47). */
   markings?: string[];
 };
 
@@ -138,6 +138,9 @@ const toPatientRecord = (row: PatientRow): Omit<PatientWithExamsRecord, 'exams'>
 // (#47 e #58) também ficam de fora. O desempate
 // pelo id cobre dois atendimentos com o mesmo horário de início.
 //
+// O selo do paciente (`marcacoes`) só vem quando todos os exames visíveis estão marcados:
+// com um exame ainda da pesquisa, o paciente não saiu dela (#47).
+//
 // O MAX e o ORDER BY comparam `data_hora_inicio` como texto. Isso só ordena
 // certo porque toda data entra no formato de `toISOString()`, em UTC (a regra
 // do atendimento grava assim). Uma data com fuso, como "-03:00", quebraria a
@@ -148,7 +151,8 @@ const LIST_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     (SELECT r.estado FROM avaliacao r
       WHERE r.id_paciente = p.id AND r.id_profissional = ? AND r.excluido_em IS NULL
       ORDER BY r.data_hora_inicio DESC, r.id DESC LIMIT 1) AS ultimo_estado,
-    GROUP_CONCAT(DISTINCT a.marcacao) AS marcacoes
+    CASE WHEN COUNT(a.marcacao) = COUNT(a.id)
+      THEN GROUP_CONCAT(DISTINCT a.marcacao) END AS marcacoes
   FROM paciente p
   JOIN avaliacao a ON a.id_paciente = p.id
   WHERE a.id_profissional = ? AND a.excluido_em IS NULL
@@ -192,7 +196,8 @@ const LIST_ALL_ATTENDED_PATIENTS = `SELECT p.id, p.nome, p.numero_ficha,
     COUNT(a.id) AS total,
     MAX(a.data_hora_inicio) AS ultimo_inicio,
     (SELECT r.estado ${LATEST_ATTENDANCE}) AS ultimo_estado,
-    GROUP_CONCAT(DISTINCT a.marcacao) AS marcacoes,
+    CASE WHEN COUNT(a.marcacao) = COUNT(a.id)
+      THEN GROUP_CONCAT(DISTINCT a.marcacao) END AS marcacoes,
     (SELECT m.nome FROM profissional m
       WHERE m.id = (SELECT r.id_profissional ${LATEST_ATTENDANCE})) AS atendido_por,
     GROUP_CONCAT(DISTINCT a.id_profissional) AS profissionais,
