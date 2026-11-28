@@ -1,9 +1,5 @@
 import { verifyPassword } from '@/features/auth/password';
 import {
-  CONFIRME_COM_A_SUA_SENHA,
-  SENHA_DO_SUPERUSUARIO_ERRADA,
-} from '@/features/superusuario/confirmacao';
-import {
   SUPERUSUARIO_NAO_CRIADO,
   criarSuperusuario,
   type NovoSuperusuarioInput,
@@ -12,8 +8,6 @@ import {
 import {
   ANA,
   CPF_DA_ANA,
-  SENHA_DE_TESTE,
-  SENHA_DO_TAUIL,
   abrirTabletComSuperusuario,
   type TabletComSuperusuario,
 } from '../../../test-support/tablet';
@@ -29,7 +23,6 @@ const juliana = (dados: Partial<NovoSuperusuarioInput> = {}): NovoSuperusuarioIn
   cpf: '153.509.460-56',
   password: SENHA_DA_JULIANA,
   passwordConfirmation: SENHA_DA_JULIANA,
-  senhaDoSuperusuario: SENHA_DO_TAUIL,
   ...dados,
 });
 
@@ -65,10 +58,10 @@ describe('Cenário: criar outro superusuário', () => {
     await expect(tablet.repository.getCpf(conta.id)).resolves.toBe('15350946056');
   });
 
-  it('aponta cada campo a corrigir, e a senha do superusuário que falta', async () => {
+  it('aponta cada campo a corrigir', async () => {
     const resultado = await criarSuperusuario(
       tablet.tauilId,
-      juliana({ name: '', email: 'sem-arroba', crm: '34567', cpf: '111', senhaDoSuperusuario: '' }),
+      juliana({ name: '', email: 'sem-arroba', crm: '34567', cpf: '111' }),
       tablet.repository,
     );
 
@@ -79,7 +72,6 @@ describe('Cenário: criar outro superusuário', () => {
         email: 'Informe um e-mail válido.',
         crm: 'Informe o CRM no formato 12345/DF.',
         cpf: 'Informe um CPF válido.',
-        senhaDoSuperusuario: CONFIRME_COM_A_SUA_SENHA,
       },
     });
     await expect(contaDaJuliana()).resolves.toBeNull();
@@ -100,33 +92,6 @@ describe('Cenário: criar outro superusuário', () => {
     });
   });
 
-  it('não aceita a senha de um médico no lugar da senha do superusuário', async () => {
-    await expect(
-      criarSuperusuario(
-        tablet.tauilId,
-        juliana({ senhaDoSuperusuario: SENHA_DE_TESTE }),
-        tablet.repository,
-      ),
-    ).resolves.toEqual({
-      success: false,
-      errors: { senhaDoSuperusuario: SENHA_DO_SUPERUSUARIO_ERRADA },
-    });
-    await expect(contaDaJuliana()).resolves.toBeNull();
-  });
-
-  it('com a senha errada, não conta se o e-mail já está cadastrado', async () => {
-    await expect(
-      criarSuperusuario(
-        tablet.tauilId,
-        juliana({ email: ANA.email, senhaDoSuperusuario: 'errada-123' }),
-        tablet.repository,
-      ),
-    ).resolves.toEqual({
-      success: false,
-      errors: { senhaDoSuperusuario: SENHA_DO_SUPERUSUARIO_ERRADA },
-    });
-  });
-
   it.each([
     [
       'e-mail',
@@ -142,14 +107,11 @@ describe('Cenário: criar outro superusuário', () => {
     ).resolves.toEqual({ success: false, errors: { [campo]: mensagem } });
   });
 
-  it('um médico comum não cria superusuário, nem com a própria senha', async () => {
-    await expect(
-      criarSuperusuario(
-        tablet.anaId,
-        juliana({ senhaDoSuperusuario: SENHA_DE_TESTE }),
-        tablet.repository,
-      ),
-    ).resolves.toEqual({ success: false, errors: { geral: SUPERUSUARIO_NAO_CRIADO } });
+  it('um médico comum não cria superusuário', async () => {
+    await expect(criarSuperusuario(tablet.anaId, juliana(), tablet.repository)).resolves.toEqual({
+      success: false,
+      errors: { geral: SUPERUSUARIO_NAO_CRIADO },
+    });
     await expect(contaDaJuliana()).resolves.toBeNull();
   });
 });

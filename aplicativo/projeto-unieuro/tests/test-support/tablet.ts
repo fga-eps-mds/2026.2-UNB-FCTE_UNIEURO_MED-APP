@@ -122,8 +122,7 @@ export const TAUIL = {
   crmState: 'DF',
 };
 export const CPF_DO_TAUIL = '39053344705';
-/** Diferente da senha da Ana e do Bruno, para o teste saber de quem é a senha conferida. */
-export const SENHA_DO_TAUIL = 'senha-do-tauil';
+const SENHA_DO_TAUIL = 'senha-do-tauil';
 
 let hashDoTauil: Promise<string> | undefined;
 

@@ -70,14 +70,10 @@ export function validateProfile(input: AccountProfile): ProfileValidation {
   return { valid: true, profile: { name, email, crmNumber, crmState } };
 }
 
-/**
- * A conta `id`, se estiver ativa e `password` for a senha dela. Também serve à área
- * do superusuário, que confirma as ações com a senha de quem as pede.
- */
-export async function findActiveWithPassword(
+async function findActiveWithPassword(
   id: number,
   password: string,
-  repository: Pick<AccountRepository, 'findById'>,
+  repository: AccountRepository,
 ): Promise<StoredAccount | null> {
   const account = await repository.findById(id);
   if (!account?.active) return null;
