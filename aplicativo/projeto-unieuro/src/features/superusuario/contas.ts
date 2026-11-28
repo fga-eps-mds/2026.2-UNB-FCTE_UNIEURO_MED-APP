@@ -48,6 +48,8 @@ export type LinhaConta = {
   exames: number;
   /** "Desativar conta" só aparece para médico com a conta ativa. */
   podeDesativar: boolean;
+  /** "Redefinir senha" também: a senha do superusuário se troca nas configurações. */
+  podeRedefinirSenha: boolean;
 };
 
 // Uma conta desativada aparece como desativada mesmo que seja de superusuário.
@@ -65,6 +67,7 @@ export function toLinhaConta(conta: ContaProfissional): LinhaConta {
     situacao: situacaoDa(conta),
     exames: conta.examCount,
     podeDesativar: conta.active && !conta.superuser,
+    podeRedefinirSenha: conta.active && !conta.superuser,
   };
 }
 

@@ -29,6 +29,7 @@ describe('linha da tabela de contas', () => {
       situacao: 'ativa',
       exames: 12,
       podeDesativar: true,
+      podeRedefinirSenha: true,
     });
   });
 
@@ -47,6 +48,14 @@ describe('linha da tabela de contas', () => {
     ['superusuário', conta({ superuser: true }), false],
   ])('"Desativar conta" para %s: %s', (_caso, dados, esperado) => {
     expect(toLinhaConta(dados).podeDesativar).toBe(esperado);
+  });
+
+  it.each([
+    ['médico ativo', conta(), true],
+    ['médico desativado', conta({ active: false }), false],
+    ['superusuário', conta({ superuser: true }), false],
+  ])('"Redefinir senha" para %s: %s', (_caso, dados, esperado) => {
+    expect(toLinhaConta(dados).podeRedefinirSenha).toBe(esperado);
   });
 
   it('cada situação tem o texto e a cor do selo', () => {
