@@ -33,6 +33,11 @@ type MarcarPacienteDialogProps = {
   /** Grava a marcação ou a desfaz. Só devolve `feito` depois de conferir a senha. */
   onConfirm: (tipo: TipoMarcacao | null, senha: string) => Promise<ResultadoMarcacao>;
   onCancel: () => void;
+  /**
+   * A marcação do paciente já tinha mudado (outro pedido marcou ou desfez antes). O
+   * diálogo fecha, e quem o abriu mostra a mensagem e relê o paciente.
+   */
+  onDesatualizado: (mensagem: string) => void;
   onDone: () => void;
 };
 
@@ -83,6 +88,7 @@ export function MarcarPacienteDialog({
   paciente,
   onConfirm,
   onCancel,
+  onDesatualizado,
   onDone,
 }: Readonly<MarcarPacienteDialogProps>) {
   const theme = useTheme();
@@ -126,6 +132,11 @@ export function MarcarPacienteDialog({
     try {
       const resultado = await onConfirm(marcar ? tipo : null, senha);
       if (!resultado.feito) {
+        if (resultado.desatualizado) {
+          limpar();
+          onDesatualizado(resultado.mensagem);
+          return;
+        }
         setErro(resultado.mensagem);
         return;
       }
