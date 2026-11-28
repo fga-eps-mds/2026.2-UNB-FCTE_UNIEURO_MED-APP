@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
 import { montarResultado, type ExameComDesenhos } from '@/features/resultado/resultado';
 import { FALHA_AO_EXPORTAR } from '@/features/exportacao/exportar-xml-dialog';
+import { ONDE_PESOU } from '@/features/resultado/mapa-sobre-o-desenho';
 import ResultadoScreen, {
   CARREGANDO,
   FALHA_AO_CARREGAR,
@@ -14,6 +15,14 @@ import ResultadoScreen, {
   TITULO_MODELO,
   TITULO_RESULTADO,
 } from '@/features/resultado/resultado-screen';
+import {
+  AGUARDANDO_CALCULO,
+  CALCULAR_RESULTADO,
+  ERRO_ANTERIOR,
+  NAO_E_DIAGNOSTICO,
+  PESO_NO_ESCORE,
+  TEXTO_DO_RASTREIO,
+} from '@/features/resultado/resultado-do-modelo';
 
 const ana: SessionProfessional = {
   id: 7,
@@ -227,5 +236,102 @@ describe('exportar XML do exame (#22)', () => {
     };
     renderizar({ exportExam: jest.fn() }, superusuario);
     expect(screen.queryByRole('button', { name: 'Exportar exame (XML)' })).toBeNull();
+  });
+});
+
+describe('Cenário: resultado do modelo no tablet (#12)', () => {
+  const mapa = new Float32Array(64);
+  const COM_MODELO: ExameComDesenhos = {
+    ...TODOS,
+    model: {
+      probability: 0.912,
+      contributions: { relogio: 1, cubo: -1, trilhas: 2 },
+      maps: { relogio: mapa, cubo: mapa, trilhas: mapa },
+      modelVersion: 'vgg16-semente1-v1.6',
+      durationMs: 2140,
+      calculatedAt: '2026-11-03T14:05:00.000Z',
+    },
+  };
+
+  it('mostra a probabilidade com duas casas, a classe prevista e o aviso de que não é diagnóstico', () => {
+    renderizar({ resultado: montarResultado(COM_MODELO) });
+
+    expect(screen.getByText(NAO_E_DIAGNOSTICO)).toBeOnTheScreen();
+    expect(screen.getByText('0,91')).toBeOnTheScreen();
+    expect(screen.getByText('Classe prevista · CCL')).toBeOnTheScreen();
+    expect(screen.getByText(TEXTO_DO_RASTREIO)).toBeOnTheScreen();
+    expect(screen.queryByText(/vgg16|Calculado no tablet/)).toBeNull();
+    expect(screen.queryByText(MODELO_INDISPONIVEL)).toBeNull();
+  });
+
+  it('cada desenho mostra quanto pesou no escore e para que lado', () => {
+    renderizar({ resultado: montarResultado(COM_MODELO) });
+
+    expect(screen.getAllByText(PESO_NO_ESCORE)).toHaveLength(3);
+    expect(screen.getByText('25 % do peso · puxou o escore para CCL')).toBeOnTheScreen();
+    expect(screen.getByText('25 % do peso · puxou o escore para sem CCL')).toBeOnTheScreen();
+    expect(screen.getByText('50 % do peso · puxou o escore para CCL')).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Peso do relógio no escore: 25 %, puxou o escore para CCL'),
+    ).toBeOnTheScreen();
+  });
+
+  it('o exame que ainda espera o modelo oferece o cálculo', async () => {
+    const user = userEvent.setup();
+    renderizar({ resultado: montarResultado({ ...TODOS, state: 'processando_resultado' }) });
+
+    expect(screen.getByText(AGUARDANDO_CALCULO)).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: CALCULAR_RESULTADO }));
+
+    expect(useRouter().replace).toHaveBeenCalledWith('/analise/12');
+  });
+
+  it('depois de um erro no cálculo, avisa e oferece calcular de novo', () => {
+    renderizar({ resultado: montarResultado({ ...TODOS, state: 'erro_inferencia' }) });
+
+    expect(screen.getByText(ERRO_ANTERIOR)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: CALCULAR_RESULTADO })).toBeOnTheScreen();
+  });
+});
+
+describe('Cenário: resultado completo, com onde cada desenho pesou (#14)', () => {
+  const QUADRADO = [
+    { tipo: 'inicio', ordem: 1, instante: 0, x: 100, y: 100, ponteiro: 'caneta' },
+    { tipo: 'ponto', ordem: 2, instante: 16, x: 323, y: 323, ponteiro: 'caneta' },
+  ] as const;
+  const mapa = new Float32Array(64);
+  mapa[9] = 2;
+  const traco = { largura: 960, altura: 600, eventos: QUADRADO };
+  const COM_MAPA: ExameComDesenhos = {
+    ...TODOS,
+    model: {
+      probability: 0.912,
+      contributions: { relogio: 1, cubo: -1, trilhas: 2 },
+      maps: { relogio: mapa, cubo: new Float32Array(64), trilhas: mapa },
+      modelVersion: 'vgg16-semente1-v1.7',
+      durationMs: 2140,
+      calculatedAt: '2026-11-03T14:05:00.000Z',
+    },
+    traces: { relogio: traco, cubo: traco, trilhas: traco },
+  };
+  const DESTAQUE =
+    'O trecho que mais puxou o escore para CCL fica na parte de cima, à esquerda do desenho.';
+
+  it('mostra sobre o desenho onde ele pesou, com a posição em texto', () => {
+    renderizar({ resultado: montarResultado(COM_MAPA) });
+
+    expect(screen.getAllByText(ONDE_PESOU)).toHaveLength(2);
+    expect(screen.getAllByText(DESTAQUE)).toHaveLength(2);
+    expect(screen.getByLabelText(`Desenho: Relógio. ${DESTAQUE}`)).toBeOnTheScreen();
+    // O cubo tem o mapa todo zero: fica só a imagem e o peso no escore.
+    expect(screen.getByLabelText('Desenho: Cubo')).toBeOnTheScreen();
+    expect(screen.getAllByText(PESO_NO_ESCORE)).toHaveLength(3);
+  });
+
+  it('sem o traçado, o desenho aparece sem o mapa', () => {
+    renderizar({ resultado: montarResultado({ ...COM_MAPA, traces: undefined }) });
+
+    expect(screen.queryByText(ONDE_PESOU)).toBeNull();
+    expect(screen.getByLabelText('Desenho: Relógio')).toBeOnTheScreen();
   });
 });
