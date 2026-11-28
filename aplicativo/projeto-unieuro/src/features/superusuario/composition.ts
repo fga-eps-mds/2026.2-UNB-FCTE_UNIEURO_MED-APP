@@ -1,5 +1,7 @@
 import { professionalRepository } from '@/db/professional-repository';
-import type { ContasRepository } from '@/features/superusuario/contas';
+import type { ContasDosMedicosRepository } from '@/features/superusuario/contas-dos-medicos';
+import type { CriacaoRepository } from '@/features/superusuario/criar-superusuario';
 
 /** Liga a área do superusuário ao banco. As rotas importam daqui, e não de `@/db`. */
-export const contasRepository: ContasRepository = professionalRepository;
+export const contasRepository: ContasDosMedicosRepository & CriacaoRepository =
+  professionalRepository;

@@ -1,17 +1,25 @@
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, userEvent } from '@testing-library/react-native';
+import { useRouter } from 'expo-router';
 
 import SuperusuarioRoute from '@/app/superusuario';
 import { createAttendanceRepository } from '@/db/attendance-repository';
+import { verifyPassword } from '@/features/auth/password';
 import { SessionProvider, type SessionProfessional } from '@/features/auth/session';
-import type { ContasRepository } from '@/features/superusuario/contas';
+import {
+  BOTAO_NOVO_SUPERUSUARIO,
+  contaDesativada,
+  senhaRedefinida,
+  type ContasDosMedicosRepository,
+} from '@/features/superusuario/contas-dos-medicos';
 import { CARREGANDO_CONTAS } from '@/features/superusuario/tabela-contas';
 
 import {
   ANA,
   BRUNO,
-  abrirTabletComAnaEBruno,
+  SENHA_DE_TESTE,
+  TAUIL,
+  abrirTabletComSuperusuario,
   cpfProtector,
-  hashDaSenhaDeTeste,
   type TabletDeTeste,
 } from '../test-support/tablet';
 
@@ -20,19 +28,12 @@ import {
 
 jest.mock('@/db/cpf-runtime', () => ({ cpfProtector: {} }));
 
-let mockRepository: ContasRepository;
+let mockRepository: ContasDosMedicosRepository;
 jest.mock('@/features/superusuario/composition', () => ({
   get contasRepository() {
     return mockRepository;
   },
 }));
-
-const TAUIL = {
-  name: 'Carlos Bernardo Tauil',
-  email: 'carlos.tauil@unieuro.com.br',
-  crmNumber: '12771',
-  crmState: 'DF',
-};
 
 let tablet: TabletDeTeste;
 
@@ -49,18 +50,8 @@ const sessao = async (email: string): Promise<SessionProfessional> => {
 };
 
 beforeEach(async () => {
-  tablet = await abrirTabletComAnaEBruno();
+  tablet = await abrirTabletComSuperusuario();
   mockRepository = tablet.repository;
-
-  await tablet.repository.insertSuperuser(
-    {
-      ...TAUIL,
-      cpf: '39053344705',
-      passwordHash: await hashDaSenhaDeTeste(),
-      createdAt: '2026-09-26T13:00:00.000Z',
-    },
-    null,
-  );
 
   const attendances = createAttendanceRepository(async () => tablet.database, cpfProtector);
   const ana = await sessao(ANA.email);
@@ -125,6 +116,86 @@ describe('Cenário: visualizar médicos', () => {
   });
 });
 
+describe('Cenário: desativar a conta de um médico', () => {
+  const linhaDoBruno = (situacao: string) => `Bruno Lima, CRM 54321/GO, ${situacao}, 0 exames`;
+
+  it('o superusuário desativa a conta e a tabela mostra o que o banco gravou', async () => {
+    const user = userEvent.setup();
+    abrirArea(await sessao(TAUIL.email));
+
+    await user.press(
+      await screen.findByRole('button', { name: 'Desativar a conta de Bruno Lima' }),
+    );
+    await user.press(screen.getByRole('button', { name: 'Desativar conta' }));
+
+    expect(await screen.findByText(contaDesativada('Bruno Lima'))).toBeOnTheScreen();
+    expect(await screen.findByLabelText(linhaDoBruno('Desativada'))).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Desativar a conta de Bruno Lima' })).toBeNull();
+    expect((await tablet.repository.findByEmail(BRUNO.email))!.active).toBe(false);
+  });
+
+  it('cancelar fecha o diálogo e a conta continua ativa', async () => {
+    const user = userEvent.setup();
+    abrirArea(await sessao(TAUIL.email));
+
+    await user.press(
+      await screen.findByRole('button', { name: 'Desativar a conta de Bruno Lima' }),
+    );
+    await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.queryByRole('header', { name: /^Desativar a conta de/ })).toBeNull();
+    expect(screen.getByLabelText(linhaDoBruno('Ativa'))).toBeOnTheScreen();
+  });
+
+  it('o superusuário não tem como desativar a própria conta nem a de outro superusuário', async () => {
+    abrirArea(await sessao(TAUIL.email));
+
+    await screen.findByText('Ana Carolina Souza');
+    expect(screen.queryByRole('button', { name: `Desativar a conta de ${TAUIL.name}` })).toBeNull();
+  });
+});
+
+describe('Cenário: redefinir a senha de um médico', () => {
+  const NOVA_SENHA = 'nova-senha-do-bruno';
+  const senhaDoBrunoE = async (senha: string) =>
+    verifyPassword(senha, (await tablet.repository.findByEmail(BRUNO.email))!.passwordHash);
+
+  it('o superusuário troca a senha, e só a nova senha passa a valer', async () => {
+    const user = userEvent.setup();
+    abrirArea(await sessao(TAUIL.email));
+
+    await user.press(
+      await screen.findByRole('button', { name: 'Redefinir a senha de Bruno Lima' }),
+    );
+    await user.type(screen.getByLabelText('NOVA SENHA'), NOVA_SENHA);
+    await user.type(screen.getByLabelText('CONFIRMAR NOVA SENHA'), NOVA_SENHA);
+    await user.press(screen.getByRole('button', { name: 'Salvar nova senha' }));
+
+    expect(await screen.findByText(senhaRedefinida('Bruno Lima'))).toBeOnTheScreen();
+    await expect(senhaDoBrunoE(NOVA_SENHA)).resolves.toBe(true);
+    await expect(senhaDoBrunoE(SENHA_DE_TESTE)).resolves.toBe(false);
+  });
+
+  it('o superusuário não tem como trocar por aqui a própria senha', async () => {
+    abrirArea(await sessao(TAUIL.email));
+
+    await screen.findByText('Ana Carolina Souza');
+    expect(screen.queryByRole('button', { name: `Redefinir a senha de ${TAUIL.name}` })).toBeNull();
+  });
+});
+
+describe('Cenário: criar outro superusuário', () => {
+  it('o superusuário abre o cadastro de um novo superusuário pela área', async () => {
+    abrirArea(await sessao(TAUIL.email));
+
+    await userEvent
+      .setup()
+      .press(await screen.findByRole('button', { name: BOTAO_NOVO_SUPERUSUARIO }));
+
+    expect(useRouter().push).toHaveBeenCalledWith('/novo-superusuario');
+  });
+});
+
 describe('Cenário: acesso de um profissional comum', () => {
   it('um médico comum que chega pela rota não vê a área, e o banco não devolve conta nenhuma', async () => {
     const consultar = jest.spyOn(tablet.repository, 'listAccounts');
@@ -132,9 +203,10 @@ describe('Cenário: acesso de um profissional comum', () => {
 
     abrirArea(ana);
 
-    await waitFor(() => expect(consultar).toHaveBeenCalledWith(ana.id));
-    await expect(consultar.mock.results[0].value).resolves.toEqual([]);
+    // A tabela nem chega a montar, e o banco recusaria mesmo que alguém pedisse.
     expect(screen.queryByTestId('area-superusuario')).toBeNull();
     expect(screen.queryByText('Bruno Lima')).toBeNull();
+    expect(consultar).not.toHaveBeenCalled();
+    await expect(tablet.repository.listAccounts(ana.id)).resolves.toEqual([]);
   });
 });

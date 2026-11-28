@@ -1,13 +1,11 @@
 import AreaSuperusuarioScreen from '@/features/superusuario/area-superusuario-screen';
 import { contasRepository } from '@/features/superusuario/composition';
-import { useContas } from '@/features/superusuario/use-contas';
-import { TabelaContas } from '@/features/superusuario/tabela-contas';
+import { ContasDosMedicos } from '@/features/superusuario/contas-dos-medicos';
 
 export default function SuperusuarioRoute() {
-  const { contas, loading, loadFailed } = useContas(contasRepository);
   return (
     <AreaSuperusuarioScreen>
-      <TabelaContas contas={contas} loading={loading} loadFailed={loadFailed} />
+      <ContasDosMedicos repository={contasRepository} />
     </AreaSuperusuarioScreen>
   );
 }
