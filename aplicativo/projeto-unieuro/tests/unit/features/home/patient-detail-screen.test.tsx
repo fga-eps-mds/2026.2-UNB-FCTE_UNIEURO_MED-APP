@@ -553,6 +553,72 @@ describe('PatientDetailScreen', () => {
 
       expect(await screen.findByText(PACIENTE_JA_MARCADO)).toBeOnTheScreen();
       expect(pm.onChanged).toHaveBeenCalledTimes(1);
+      // O pedido antigo não fica preso: o diálogo fecha e o aviso vai para a tela.
+      expect(screen.queryByRole('header', { name: 'Marcar este paciente?' })).toBeNull();
+      expect(pm.mark).toHaveBeenCalledTimes(1);
+    });
+
+    it('o aviso de marcação some quando o médico abre a marcação de um exame ou exporta', async () => {
+      const user = userEvent.setup();
+      const pm = marcacaoPaciente();
+      const marking: ExamMarking = {
+        mark: jest.fn(async () => ({ feito: true as const })),
+        unmark: jest.fn(async () => ({ feito: true as const })),
+        onChanged: jest.fn(),
+      };
+      renderTela({ patient: jose }, profissional, marking, jest.fn(), pm);
+
+      const marcarPaciente = async () => {
+        await user.press(
+          screen.getByRole('button', { name: 'Marcar paciente como teste ou material de ensino' }),
+        );
+        await user.press(screen.getByRole('radio', { name: 'Teste' }));
+        await user.type(screen.getByLabelText('CONFIRME COM A SUA SENHA'), 'senhaForte123');
+        await user.press(screen.getByRole('button', { name: 'Confirmar marcação' }));
+      };
+      const AVISO = 'Marcação aplicada aos seus exames deste paciente.';
+
+      await marcarPaciente();
+      expect(await screen.findByText(AVISO)).toBeOnTheScreen();
+      await user.press(screen.getAllByRole('button', { name: /^Marcar o exame/ })[0]);
+      expect(screen.queryByText(AVISO)).toBeNull();
+      await user.press(screen.getByRole('button', { name: 'Cancelar' }));
+
+      await marcarPaciente();
+      expect(await screen.findByText(AVISO)).toBeOnTheScreen();
+      await user.press(
+        screen.getByRole('button', { name: 'Exportar exames deste paciente (XML)' }),
+      );
+      expect(screen.queryByText(AVISO)).toBeNull();
+    });
+
+    it('com só um exame marcado, o paciente não ganha o selo e continua podendo ser marcado', () => {
+      const [primeiro, ...resto] = jose.exams;
+      renderTela(
+        { patient: { ...jose, exams: [{ ...primeiro, marking: 'teste' }, ...resto] } },
+        profissional,
+        undefined,
+        undefined,
+        marcacaoPaciente(),
+      );
+
+      expect(screen.queryByTestId('marcacao-paciente')).toBeNull();
+      expect(screen.getByTestId('marcacao')).toHaveTextContent('Teste');
+      expect(
+        screen.getByRole('button', { name: 'Marcar paciente como teste ou material de ensino' }),
+      ).toBeOnTheScreen();
+    });
+
+    it('com todos os exames marcados, o paciente mostra o selo', () => {
+      renderTela(
+        { patient: pacienteComMarcacao('teste') },
+        profissional,
+        undefined,
+        undefined,
+        marcacaoPaciente(),
+      );
+
+      expect(screen.getByTestId('marcacao-paciente')).toHaveTextContent('Teste');
     });
 
     it('Cenário: marcação cancelada: fecha o diálogo sem gravar nem reler', async () => {

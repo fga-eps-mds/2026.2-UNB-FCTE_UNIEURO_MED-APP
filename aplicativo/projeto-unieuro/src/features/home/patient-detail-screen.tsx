@@ -107,6 +107,9 @@ export type ExamMarking = {
 
 type MarkingRequest = { exam: PatientExam; request: MarcacaoPedida };
 
+/** Aviso sobre a marcação do paciente: vale só até o próximo gesto na tela. */
+type MarkingNotice = { kind: 'success' | 'info'; message: string };
+
 export const savedFileMessage = (arquivo: string) => `Arquivo salvo: ${arquivo}`;
 
 export const NO_OWN_EXAMS_MESSAGE = 'Você não aplicou exames neste paciente.';
@@ -143,7 +146,7 @@ export default function PatientDetailScreen({
   const [patientMarkingRequest, setPatientMarkingRequest] = useState<MarcacaoPacientePedida | null>(
     null,
   );
-  const [markingNotice, setMarkingNotice] = useState<string | null>(null);
+  const [markingNotice, setMarkingNotice] = useState<MarkingNotice | null>(null);
   const [confirmingExport, setConfirmingExport] = useState(false);
   const [savedFile, setSavedFile] = useState<string | null>(null);
 
@@ -162,11 +165,15 @@ export default function PatientDetailScreen({
   const ownMarkings = Array.from(
     new Set(ownExams.map((e) => e.marking).filter((m): m is TipoMarcacao => m !== null)),
   );
-  const visibleMarkings = Array.from(
-    new Set(
-      (patient?.exams ?? []).map((e) => e.marking).filter((m): m is TipoMarcacao => m !== null),
-    ),
-  );
+  // O selo do paciente só aparece com todos os exames da tela marcados, como na lista
+  // inicial: com um exame ainda da pesquisa, o paciente não saiu dela (#47).
+  const allVisibleMarked =
+    patient !== null && patient.exams.length > 0 && patient.exams.every((e) => e.marking !== null);
+  const visibleMarkings = allVisibleMarked
+    ? Array.from(
+        new Set(patient.exams.map((e) => e.marking).filter((m): m is TipoMarcacao => m !== null)),
+      )
+    : [];
   const canMarkPatient =
     patientMarking !== undefined && hasOwnExams && professional.superuser !== true;
   const exportDisabled = !exportPatient || !hasOwnExams;
@@ -232,6 +239,7 @@ export default function PatientDetailScreen({
                 disabled={exportDisabled}
                 onPress={() => {
                   setSavedFile(null);
+                  setMarkingNotice(null);
                   setConfirmingExport(true);
                 }}
                 style={({ pressed }) => [
@@ -244,13 +252,22 @@ export default function PatientDetailScreen({
                 </Text>
               </Pressable>
             </View>
-            {markingNotice && <FeedbackMessage kind="success" message={markingNotice} />}
+            {markingNotice && (
+              <FeedbackMessage kind={markingNotice.kind} message={markingNotice.message} />
+            )}
             {savedFile && <FeedbackMessage kind="success" message={savedFileMessage(savedFile)} />}
             <ExamsCard
               exams={patient.exams}
               professional={professional}
               styles={styles}
-              onRequestMarking={marking ? setMarkingRequest : undefined}
+              onRequestMarking={
+                marking
+                  ? (request) => {
+                      setMarkingNotice(null);
+                      setMarkingRequest(request);
+                    }
+                  : undefined
+              }
             />
           </>
         ) : loading ? (
@@ -290,17 +307,23 @@ export default function PatientDetailScreen({
               patientMarkingRequest.acao === 'marcar'
                 ? await patientMarking.mark(patient.id, professional, type, password)
                 : await patientMarking.unmark(patient.id, professional, password);
-            if (!result.feito && result.desatualizado) patientMarking.onChanged();
             return result;
           }}
           onCancel={() => setPatientMarkingRequest(null)}
+          onDesatualizado={(mensagem) => {
+            // A tela mostrava o paciente de um jeito que já mudou: o pedido aberto (marcar
+            // ou desfazer) não vale mais. Fecha o diálogo, avisa na tela e relê o paciente.
+            setPatientMarkingRequest(null);
+            setMarkingNotice({ kind: 'info', message: mensagem });
+            patientMarking.onChanged();
+          }}
           onDone={() => {
             const mensagem =
               patientMarkingRequest.acao === 'marcar'
                 ? 'Marcação aplicada aos seus exames deste paciente.'
                 : 'Marcação removida dos seus exames deste paciente.';
             setPatientMarkingRequest(null);
-            setMarkingNotice(mensagem);
+            setMarkingNotice({ kind: 'success', message: mensagem });
             patientMarking.onChanged();
           }}
         />
