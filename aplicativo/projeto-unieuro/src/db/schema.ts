@@ -266,16 +266,15 @@ ALTER TABLE avaliacao ADD COLUMN data_hora_interrupcao TEXT;
 
 /**
  * Estados depois dos três desenhos. Ata 12 (09/11): exame finalizado faz parte da
- * pesquisa e não pode ser excluído. Os gatilhos da versão 11 e o repositório da
- * exclusão usam esta lista. A regra da aplicação tem a mesma (`ESTADOS_FINALIZADOS`,
- * em `features/avaliacao/exclusao.ts`), e um teste confere que as duas batem.
+ * pesquisa e não pode ser excluído. Só os gatilhos da versão 11 usam esta lista: o
+ * código da exclusão saiu do aplicativo, mas os gatilhos continuam no banco.
  *
  * Os gatilhos ficam gravados no banco do tablet quando a versão 11 roda. Mudar esta
  * lista depois disso não muda os gatilhos já criados: é preciso uma migration nova.
  */
 export const FINALIZED_STATES = ['processando_resultado', 'erro_inferencia', 'concluida'] as const;
 
-export const FINALIZED_STATES_SQL = `(${FINALIZED_STATES.map((estado) => `'${estado}'`).join(', ')})`;
+const FINALIZED_STATES_SQL = `(${FINALIZED_STATES.map((estado) => `'${estado}'`).join(', ')})`;
 
 const FINALIZADOS = FINALIZED_STATES_SQL;
 
@@ -289,6 +288,11 @@ const FINALIZADOS = FINALIZED_STATES_SQL;
  * aceita alteração nem remoção. Os gatilhos garantem a regra no banco, por
  * qualquer caminho do código: exame finalizado não é excluído nem apagado, a
  * exclusão não é desfeita e o exame excluído não muda mais de estado.
+ *
+ * Sem uso desde a Ata 13 (16/11): a exclusão foi trocada pela marcação (versão 12) e o
+ * código dela saiu do aplicativo. As colunas `excluido_em` e `excluido_por`, a
+ * tabela `exclusao` e os gatilhos continuam no banco, porque migration publicada não
+ * se edita, mas nada no aplicativo lê nem grava neles.
  */
 const SCHEMA_V11 = `
 ALTER TABLE avaliacao ADD COLUMN excluido_em TEXT;
