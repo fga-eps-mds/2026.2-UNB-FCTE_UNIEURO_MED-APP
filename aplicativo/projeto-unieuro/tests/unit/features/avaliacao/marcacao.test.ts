@@ -372,6 +372,19 @@ describe('marcarPaciente (#47)', () => {
     expect(repository.marcarPaciente).toHaveBeenCalledTimes(1);
   });
 
+  it('avisa quando todos os exames do médico já estavam marcados, mesmo com outro tipo', async () => {
+    const repository = repositorio('ensino');
+
+    await expect(
+      marcarPaciente(marcarDadosPaciente('senhaForte123', 'teste'), repository, credenciais),
+    ).resolves.toEqual({
+      feito: false,
+      mensagem: PACIENTE_JA_MARCADO,
+      desatualizado: true,
+    });
+    expect(repository.marcarPaciente).not.toHaveBeenCalled();
+  });
+
   it('avisa quando todos os exames do médico já estavam marcados com o mesmo tipo', async () => {
     const repository = repositorio('teste');
 

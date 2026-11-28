@@ -226,6 +226,38 @@ describe('marcação do paciente no banco (#47)', () => {
     ]);
   });
 
+  it('marca só os exames sem marcação e não sobrescreve os que já tinham outra', async () => {
+    await repository.marcarExame(exameDaAna, tablet.anaId, 'ensino', AGORA);
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', DEPOIS)).resolves.toBe(
+      true,
+    );
+
+    // O exame já marcado como ensino continua assim, com a data e o histórico de antes.
+    await expect(exame(exameDaAna)).resolves.toMatchObject({
+      marcacao: 'ensino',
+      marcado_em: AGORA,
+    });
+    await expect(exame(segundoExameDaAna)).resolves.toMatchObject({
+      marcacao: 'teste',
+      marcado_em: DEPOIS,
+    });
+    await expect(historico()).resolves.toEqual([
+      expect.objectContaining({ id_avaliacao: exameDaAna, acao: 'marcar', tipo: 'ensino' }),
+      expect.objectContaining({ id_avaliacao: segundoExameDaAna, acao: 'marcar', tipo: 'teste' }),
+    ]);
+  });
+
+  it('não marca nada quando todos os exames do médico já têm marcação, mesmo de outro tipo', async () => {
+    await repository.marcarPaciente(joseId, tablet.anaId, 'ensino', AGORA);
+
+    await expect(repository.marcarPaciente(joseId, tablet.anaId, 'teste', DEPOIS)).resolves.toBe(
+      false,
+    );
+    await expect(exame(exameDaAna)).resolves.toMatchObject({ marcacao: 'ensino' });
+    await expect(historico()).resolves.toHaveLength(2);
+  });
+
   it('não marca de novo quando todos os exames do médico já têm a mesma marcação', async () => {
     await repository.marcarPaciente(joseId, tablet.anaId, 'teste', AGORA);
 

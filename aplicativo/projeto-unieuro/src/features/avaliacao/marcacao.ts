@@ -166,7 +166,10 @@ type PedidoPaciente = {
   agora?: Date;
 };
 
-/** Marca todos os exames que o próprio profissional aplicou no paciente (#47). */
+/**
+ * Marca os exames que o próprio profissional aplicou no paciente e ainda estão sem
+ * marcação (#47). Os que já tinham marcação, de teste ou de ensino, ficam como estão.
+ */
 export async function marcarPaciente(
   {
     pacienteId,
@@ -181,8 +184,9 @@ export async function marcarPaciente(
   if (profissional.superuser === true) return recusa(SUPERUSUARIO_NAO_MARCA_PACIENTE);
   if (tipo === null) return recusa(ESCOLHA_O_TIPO);
   const paciente = await repository.buscarPaciente(pacienteId, profissional.id);
-  if (!paciente || paciente.totalExames === 0) return recusa(PACIENTE_NAO_ENCONTRADO);
-  if (paciente.marcacoes.every((m) => m === tipo)) return desatualizado(PACIENTE_JA_MARCADO);
+  if (!paciente) return recusa(PACIENTE_NAO_ENCONTRADO);
+  // Exame que já tem marcação não muda: só os sem marcação recebem o tipo escolhido.
+  if (paciente.marcacoes.every((m) => m !== null)) return desatualizado(PACIENTE_JA_MARCADO);
   if (senha.length === 0) return recusa(SENHA_VAZIA);
   if (!(await senhaConfere(senha, profissional, credenciais))) {
     return recusa(SENHA_NAO_CONFERE_PACIENTE_MARCAR);
@@ -205,7 +209,7 @@ export async function desmarcarPaciente(
 ): Promise<ResultadoMarcacao> {
   if (profissional.superuser === true) return recusa(SUPERUSUARIO_NAO_MARCA_PACIENTE);
   const paciente = await repository.buscarPaciente(pacienteId, profissional.id);
-  if (!paciente || paciente.totalExames === 0) return recusa(PACIENTE_NAO_ENCONTRADO);
+  if (!paciente) return recusa(PACIENTE_NAO_ENCONTRADO);
   if (paciente.marcacoes.every((m) => m === null)) return desatualizado(PACIENTE_SEM_MARCACAO);
   if (senha.length === 0) return recusa(SENHA_VAZIA);
   if (!(await senhaConfere(senha, profissional, credenciais))) {

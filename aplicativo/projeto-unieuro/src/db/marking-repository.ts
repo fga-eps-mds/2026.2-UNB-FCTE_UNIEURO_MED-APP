@@ -110,9 +110,11 @@ export function createMarkingRepository(
       const database = await open();
       let feito = false;
       await database.withTransactionAsync(async () => {
+        // Só os exames sem marcação: quem já foi marcado (por exame ou antes) fica como
+        // está, como no `marcarExame`, e o histórico nunca tem dois "marcar" seguidos.
         const exames = await database.getAllAsync<{ id: number }>(
-          `SELECT id ${EXAMES_DO_PACIENTE_DO_PROFISSIONAL} AND (marcacao IS NULL OR marcacao != ?)`,
-          [pacienteId, profissionalId, tipo],
+          `SELECT id ${EXAMES_DO_PACIENTE_DO_PROFISSIONAL} AND marcacao IS NULL`,
+          [pacienteId, profissionalId],
         );
         if (exames.length === 0) return;
         for (const exame of exames) {
@@ -121,8 +123,8 @@ export function createMarkingRepository(
         await database.runAsync(
           `UPDATE avaliacao SET marcacao = ?, marcado_em = ?, marcado_por = ?, last_update = ?
            WHERE id_paciente = ? AND id_profissional = ? AND excluido_em IS NULL
-             AND (marcacao IS NULL OR marcacao != ?)`,
-          [tipo, dataHora, profissionalId, dataHora, pacienteId, profissionalId, tipo],
+             AND marcacao IS NULL`,
+          [tipo, dataHora, profissionalId, dataHora, pacienteId, profissionalId],
         );
         feito = true;
       });
